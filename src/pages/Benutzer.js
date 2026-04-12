@@ -103,7 +103,7 @@ export default function Benutzer() {
   useEffect(() => { load() }, [])
 
   async function load() {
-    const { data } = await supabase.from('profile').select('*').order('erstellt_am')
+    const { data } = await supabase.from('profile').select('*').order('erstellt_am', { ascending: true })
     setUsers(data || [])
     setLoading(false)
   }
@@ -195,7 +195,7 @@ export default function Benutzer() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--navy)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: 16, flexShrink: 0 }}>
-                    {(u.name || u.email)?.[0]?.toUpperCase()}
+                    {(u.name || u.email || '?')?.[0]?.toUpperCase()}
                   </div>
                   <div>
                     <div style={{ fontWeight: 600, fontSize: 15, display: 'flex', alignItems: 'center', gap: 8 }}>
