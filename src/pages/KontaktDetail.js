@@ -33,15 +33,25 @@ export default function KontaktDetail() {
   const [lForm, setLForm] = useState({leistung_id:'',saison_id:'',anzahl:1,preis_vereinbart:'',abrechnung:'saison',notiz:''})
   const [selectedEvents, setSelectedEvents] = useState([])
   const [saving, setSaving] = useState(false)
+  const [kontaktEditModal, setKontaktEditModal] = useState(false)
+  const [kForm, setKForm] = useState({})
   const [notizenText, setNotizenText] = useState('')
   const [notizenSaving, setNotizenSaving] = useState(false)
   const [notizenSaved, setNotizenSaved] = useState(false)
   const [neuePersonInput, setNeuePersonInput] = useState('')
   const notizenTimer = useRef(null)
 
-  useEffect(() => { load() }, [id])
+  useEffect(() => { if (id && id !== 'undefined') load() }, [id])
+
+  async function saveKontakt() {
+    setSaving(true)
+    const payload = { firma:kForm.firma, email:kForm.email||null, telefon:kForm.telefon||null, website:kForm.website||null, branche:kForm.branche||null, status:kForm.status, kategorie:kForm.kategorie, zustaendig:kForm.zustaendig||null, notiz:kForm.notiz||null, adresse_strasse:kForm.adresse_strasse||null, adresse_plz:kForm.adresse_plz||null, adresse_stadt:kForm.adresse_stadt||null }
+    await supabase.from('kontakte').update(payload).eq('id', id)
+    setKontaktEditModal(false); setSaving(false); load()
+  }
 
   async function load() {
+    if (!id || id === 'undefined') return
     const [{ data: k },{ data: ap },{ data: h },{ data: s },{ data: t },{ data: ev },{ data: p },{ data: kat },{ data: kateg },{ data: gl },{ data: sai }] = await Promise.all([
       supabase.from('kontakte').select('*').eq('id', id).single(),
       supabase.from('ansprechpartner').select('*').eq('kontakt_id', id).order('hauptansprechpartner', { ascending: false }),
@@ -56,6 +66,7 @@ export default function KontaktDetail() {
       supabase.from('saisons').select('*').order('beginn', { ascending: false })
     ])
     setKontakt(k); setNotizenText(k?.notizen_text||'')
+    if (k) setKForm(k)
     setAnsprechpartner(ap||[]); setHistorie(h||[])
     setSponsoring(s); setEvents(t||[]); setAlleEvents(ev||[])
     setPersonen(p||[]); setKatalog(kat||[]); setKategorien(kateg||[])
@@ -154,19 +165,23 @@ export default function KontaktDetail() {
 
   return (
     <main className="main">
-      <button className="back-btn" onClick={()=>navigate('/kontakte')}>&#8592; Zurueck</button>
-      <div className="card">
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:20}}>
-          <div style={{display:'flex',alignItems:'center',gap:20}}>
-            {kontakt.logo_url?<img src={kontakt.logo_url} alt="Logo" style={{width:72,height:72,objectFit:'contain',borderRadius:8,border:'1px solid var(--gray-200)'}}/>
-              :<div style={{width:72,height:72,background:'var(--gray-100)',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',fontSize:28,fontWeight:700,color:'var(--gray-400)'}}>{kontakt.firma?.[0]}</div>}
-            <div>
-              <div className="page-title" style={{marginBottom:6}}>{kontakt.firma}</div>
-              <span className={'badge '+(BADGE_MAP[kontakt.status]||'')}>{kontakt.status}</span>
-              <span style={{marginLeft:8,fontSize:13,color:'var(--gray-600)'}}>{kontakt.kategorie}</span>
-            </div>
-          </div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+        <button className="back-btn" style={{margin:0}} onClick={()=>navigate('/kontakte')}>&#8592; Zurueck</button>
+        <div style={{display:'flex',gap:8}}>
+          <button className="btn btn-sm btn-outline" onClick={()=>setKontaktEditModal(true)}>✎ Kontakt bearbeiten</button>
           <button className="btn btn-sm btn-gold" onClick={()=>{setHForm({...EMPTY_H,zustaendig_personen:profile?.name?[profile.name]:[],zustaendig:profile?.name||''});setHistorieModal(true)}}>+ Aktion</button>
+        </div>
+      </div>
+      <div className="card">
+        <div style={{display:'flex',alignItems:'center',gap:20,marginBottom:20}}>
+          {kontakt.logo_url?<img src={kontakt.logo_url} alt="Logo" style={{width:72,height:72,objectFit:'contain',borderRadius:8,border:'1px solid var(--gray-200)'}}/>
+            :<div style={{width:72,height:72,background:'var(--gray-100)',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',fontSize:28,fontWeight:700,color:'var(--gray-400)'}}>{kontakt.firma?.[0]}</div>}
+          <div>
+            <div className="page-title" style={{marginBottom:6}}>{kontakt.firma}</div>
+            <span className={'badge '+(BADGE_MAP[kontakt.status]||'')}>{kontakt.status}</span>
+            <span style={{marginLeft:8,fontSize:13,color:'var(--gray-600)'}}>{kontakt.kategorie}</span>
+            {kontakt.branche&&<span style={{marginLeft:8,fontSize:13,color:'var(--gray-400)'}}>· {kontakt.branche}</span>}
+          </div>
         </div>
 
         <div className="tabs">
@@ -461,6 +476,57 @@ export default function KontaktDetail() {
               <div className="form-group"><label>Notiz</label><textarea value={lForm.notiz||''} onChange={e=>setLForm(f=>({...f,notiz:e.target.value}))}/></div>
             </div>
             <div className="modal-footer"><button className="btn btn-outline" onClick={()=>setLeistungModal(false)}>Abbrechen</button><button className="btn btn-primary" onClick={saveLeistung} disabled={saving}>{saving?'Speichern...':'Speichern'}</button></div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: KONTAKT BEARBEITEN */}
+      {kontaktEditModal && (
+        <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setKontaktEditModal(false)}>
+          <div className="modal" style={{maxWidth:600}}>
+            <div className="modal-header">
+              <span className="modal-title">Kontakt bearbeiten</span>
+              <button className="close-btn" onClick={()=>setKontaktEditModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-row">
+                <div className="form-group"><label>Firma *</label><input value={kForm.firma||''} onChange={e=>setKForm(f=>({...f,firma:e.target.value}))}/></div>
+                <div className="form-group"><label>Status</label>
+                  <select value={kForm.status||'Offen'} onChange={e=>setKForm(f=>({...f,status:e.target.value}))}>
+                    {['Offen','Eingeladen','Zugesagt','Absage','Aktiver Sponsor','Ehemaliger Sponsor'].map(s=><option key={s}>{s}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="form-group"><label>Kategorie</label>
+                  <select value={kForm.kategorie||'Sponsor'} onChange={e=>setKForm(f=>({...f,kategorie:e.target.value}))}>
+                    {['Sponsor','Foerderverein','Freunde des Vereins','Ehemalige','Partner','Medien','Werbeagentur','Kontakt','Sonstige'].map(k=><option key={k}>{k}</option>)}
+                  </select>
+                </div>
+                <div className="form-group"><label>Branche</label><input value={kForm.branche||''} onChange={e=>setKForm(f=>({...f,branche:e.target.value}))}/></div>
+              </div>
+              <div className="form-row">
+                <div className="form-group"><label>E-Mail</label><input type="email" value={kForm.email||''} onChange={e=>setKForm(f=>({...f,email:e.target.value}))}/></div>
+                <div className="form-group"><label>Telefon</label><input value={kForm.telefon||''} onChange={e=>setKForm(f=>({...f,telefon:e.target.value}))}/></div>
+              </div>
+              <div className="form-row">
+                <div className="form-group"><label>Website</label><input type="url" value={kForm.website||''} onChange={e=>setKForm(f=>({...f,website:e.target.value}))}/></div>
+                <div className="form-group"><label>Zustaendig</label><input value={kForm.zustaendig||''} onChange={e=>setKForm(f=>({...f,zustaendig:e.target.value}))}/></div>
+              </div>
+              <div style={{background:'var(--gray-100)',borderRadius:'var(--radius)',padding:14,marginBottom:16}}>
+                <div style={{fontSize:12,fontWeight:600,color:'var(--gray-600)',textTransform:'uppercase',letterSpacing:'0.3px',marginBottom:10}}>Adresse</div>
+                <div className="form-group"><label>Strasse</label><input value={kForm.adresse_strasse||''} onChange={e=>setKForm(f=>({...f,adresse_strasse:e.target.value}))}/></div>
+                <div className="form-row">
+                  <div className="form-group"><label>PLZ</label><input value={kForm.adresse_plz||''} onChange={e=>setKForm(f=>({...f,adresse_plz:e.target.value}))}/></div>
+                  <div className="form-group"><label>Stadt</label><input value={kForm.adresse_stadt||''} onChange={e=>setKForm(f=>({...f,adresse_stadt:e.target.value}))}/></div>
+                </div>
+              </div>
+              <div className="form-group"><label>Notiz</label><textarea value={kForm.notiz||''} onChange={e=>setKForm(f=>({...f,notiz:e.target.value}))}/></div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={()=>setKontaktEditModal(false)}>Abbrechen</button>
+              <button className="btn btn-primary" onClick={saveKontakt} disabled={saving}>{saving?'Speichern...':'Speichern'}</button>
+            </div>
           </div>
         </div>
       )}
