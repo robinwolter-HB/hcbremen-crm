@@ -12,6 +12,8 @@ import Sponsoring from './pages/Sponsoring'
 import Benutzer from './pages/Benutzer'
 import MeineAufgaben from './pages/MeineAufgaben'
 import Kalender from './pages/Kalender'
+import EmailModal from './components/EmailModal'
+import Einstellungen from './pages/Einstellungen'
 
 function PrivateRoute({ children, bereich }) {
   const { user, loading, canAccess } = useAuth()
@@ -27,12 +29,14 @@ function PrivateRoute({ children, bereich }) {
 
 function Header() {
   const { user, profile, isAdmin } = useAuth()
+  const [emailModal, setEmailModal] = useState(false)
   const handleLogout = async () => {
     const { supabase } = await import('./lib/supabase')
     await supabase.auth.signOut()
   }
   if (!user) return null
   return (
+    <>
     <header className="header">
       <NavLink to="/" className="logo">HC <span>Bremen</span> CRM</NavLink>
       <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
@@ -46,10 +50,14 @@ function Header() {
           {isAdmin() && <NavLink to="/benutzer" className={({isActive})=>'nav-link'+(isActive?' active':'')}>🔒 Nutzer</NavLink>}
           <NavLink to="/aufgaben" className={({isActive})=>'nav-link'+(isActive?' active':'')}>✓ Aufgaben</NavLink>
           <NavLink to="/kalender" className={({isActive})=>'nav-link'+(isActive?' active':'')}>📅 Kalender</NavLink>
+          <button className="nav-link" onClick={() => setEmailModal(true)}>✉️ E-Mail</button>
+          {isAdmin() && <NavLink to="/einstellungen" className={({isActive})=>'nav-link'+(isActive?' active':'')}>⚙️ Einstellungen</NavLink>}
           <button className="nav-link" onClick={handleLogout}>Abmelden</button>
         </nav>
       </div>
     </header>
+    {emailModal && <EmailModal onClose={() => setEmailModal(false)} />}
+    </>
   )
 }
 
@@ -70,6 +78,7 @@ function App() {
             <Route path="/benutzer" element={<PrivateRoute><Benutzer /></PrivateRoute>} />
             <Route path="/aufgaben" element={<PrivateRoute><MeineAufgaben /></PrivateRoute>} />
             <Route path="/kalender" element={<PrivateRoute><Kalender /></PrivateRoute>} />
+            <Route path="/einstellungen" element={<PrivateRoute><Einstellungen /></PrivateRoute>} />
           </Routes>
         </div>
       </BrowserRouter>
