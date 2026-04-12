@@ -29,6 +29,8 @@ export default function Sponsoring() {
   const [uebersichtKat, setUebersichtKat] = useState('')
   const [uebersichtSaison, setUebersichtSaison] = useState('')
   const [neueLeistungPaket, setNeueLeistungPaket] = useState('')
+  const [saisonModal, setSaisonModal] = useState(false)
+  const [saisonForm, setSaisonForm] = useState({name:'',beginn:'',ende:'',aktiv:false})
 
   useEffect(() => { loadAll() }, [])
 
@@ -116,6 +118,25 @@ export default function Sponsoring() {
     await supabase.from('sponsoring_pakete').delete().eq('id', id); loadAll()
   }
 
+  // ---- SAISONS ----
+  async function saveSaison() {
+    setSaving(true)
+    const payload = { name:saisonForm.name, beginn:saisonForm.beginn||null, ende:saisonForm.ende||null, aktiv:saisonForm.aktiv }
+    if (saisonForm.id) {
+      if (saisonForm.aktiv) await supabase.from('saisons').update({ aktiv: false }).neq('id', saisonForm.id)
+      await supabase.from('saisons').update(payload).eq('id', saisonForm.id)
+    } else {
+      if (saisonForm.aktiv) await supabase.from('saisons').update({ aktiv: false }).gt('id', '0')
+      await supabase.from('saisons').insert(payload)
+    }
+    setSaisonModal(false); setSaving(false); loadAll()
+  }
+
+  async function deleteSaison(id) {
+    if (!window.confirm('Saison loeschen? Alle Verknuepfungen bleiben erhalten.')) return
+    await supabase.from('saisons').delete().eq('id', id); loadAll()
+  }
+
   // ---- KATEGORIEN ----
   async function saveKat() {
     setSaving(true)
@@ -183,7 +204,7 @@ export default function Sponsoring() {
       {auslaufend.length>0&&<div className="alert alert-error" style={{marginBottom:20}}>⚠️ {auslaufend.length} Vertrag{auslaufend.length>1?'e laufen':' laeuft'} in weniger als 60 Tagen aus: {auslaufend.map(v=>v.kontakte?.firma).join(', ')}</div>}
 
       <div className="tabs">
-        {[['vertraege','Vertraege'],['uebersicht','Saisonuebersicht'],['leistungen','Leistungsuebersicht'],['katalog','Leistungskatalog'],['pakete','Pakete'],['auswertung','Auswertung']].map(([key,label])=>(
+        {[['vertraege','Vertraege'],['uebersicht','Saisonuebersicht'],['leistungen','Leistungsuebersicht'],['katalog','Leistungskatalog'],['pakete','Pakete'],['saisonverwaltung','Saisons'],['auswertung','Auswertung']].map(([key,label])=>(
           <button key={key} className={'tab-btn'+(tab===key?' active':'')} onClick={()=>setTab(key)}>{label}</button>
         ))}
       </div>
@@ -417,7 +438,33 @@ export default function Sponsoring() {
         </div>
       )}
 
-      {/* ====== AUSWERTUNG ====== */}
+      {/* ====== SAISONS ====== */}
+      {tab==='saisonverwaltung'&&(
+        <div>
+          <div className="toolbar">
+            <button className="btn btn-primary" onClick={()=>{setSaisonForm({name:'',beginn:'',ende:'',aktiv:false});setSaisonModal(true)}}>+ Neue Saison</button>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:16}}>
+            {saisons.map(s=>(
+              <div key={s.id} style={{border:'2px solid '+(s.aktiv?'var(--gold)':'var(--gray-200)'),borderRadius:'var(--radius)',padding:20,position:'relative'}}>
+                {s.aktiv&&<span style={{position:'absolute',top:12,right:12,fontSize:11,background:'var(--gold)',color:'var(--navy)',padding:'2px 8px',borderRadius:20,fontWeight:700}}>AKTUELL</span>}
+                <div style={{fontFamily:'"DM Serif Display",serif',fontSize:24,color:'var(--navy)',marginBottom:12}}>{s.name}</div>
+                <div style={{display:'grid',gap:6,fontSize:13,color:'var(--gray-600)',marginBottom:16}}>
+                  {s.beginn&&<div><span style={{color:'var(--gray-400)',fontSize:11,textTransform:'uppercase',letterSpacing:'0.3px',display:'block'}}>Beginn</span>{new Date(s.beginn).toLocaleDateString('de-DE')}</div>}
+                  {s.ende&&<div><span style={{color:'var(--gray-400)',fontSize:11,textTransform:'uppercase',letterSpacing:'0.3px',display:'block'}}>Ende</span>{new Date(s.ende).toLocaleDateString('de-DE')}</div>}
+                  <div><span style={{color:'var(--gray-400)',fontSize:11,textTransform:'uppercase',letterSpacing:'0.3px',display:'block'}}>Vertraege</span>{vertraege.filter(v=>v.saison_id===s.id||(v.sponsoring_saisons||[]).some(ss=>ss.saison_id===s.id)).length}</div>
+                </div>
+                <div style={{display:'flex',gap:8}}>
+                  <button className="btn btn-sm btn-outline" onClick={()=>{setSaisonForm(s);setSaisonModal(true)}}>Bearbeiten</button>
+                  {!s.aktiv&&<button className="btn btn-sm btn-danger" onClick={()=>deleteSaison(s.id)}>Loeschen</button>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ====== AUSWERTUNG ====== */}}
       {tab==='auswertung'&&(
         <div>
           <div className="card">
@@ -639,6 +686,35 @@ export default function Sponsoring() {
           </div>
         </div>
       )}
+      {/* MODAL: SAISON */}
+      {saisonModal&&(
+        <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setSaisonModal(false)}>
+          <div className="modal">
+            <div className="modal-header">
+              <span className="modal-title">{saisonForm.id?'Saison bearbeiten':'Neue Saison'}</span>
+              <button className="close-btn" onClick={()=>setSaisonModal(false)}>x</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-group"><label>Name * (z.B. 2026/27)</label><input value={saisonForm.name} onChange={e=>setSaisonForm(f=>({...f,name:e.target.value}))} placeholder="2026/27"/></div>
+              <div className="form-row">
+                <div className="form-group"><label>Beginn</label><input type="date" value={saisonForm.beginn||''} onChange={e=>setSaisonForm(f=>({...f,beginn:e.target.value}))}/></div>
+                <div className="form-group"><label>Ende</label><input type="date" value={saisonForm.ende||''} onChange={e=>setSaisonForm(f=>({...f,ende:e.target.value}))}/></div>
+              </div>
+              <div className="form-group">
+                <label style={{display:'flex',alignItems:'center',gap:8,fontSize:14,cursor:'pointer',textTransform:'none'}}>
+                  <input type="checkbox" checked={saisonForm.aktiv||false} onChange={e=>setSaisonForm(f=>({...f,aktiv:e.target.checked}))}/>
+                  Als aktuelle Saison markieren (ersetzt die bisherige)
+                </label>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={()=>setSaisonModal(false)}>Abbrechen</button>
+              <button className="btn btn-primary" onClick={saveSaison} disabled={saving}>{saving?'Speichern...':'Speichern'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </main>
   )
 }
