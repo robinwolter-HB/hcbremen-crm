@@ -1,314 +1,530 @@
 import { useEffect, useState, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../lib/AuthContext'
 
-const STATUS_LIST = ['Offen','Eingeladen','Zugesagt','Absage','Aktiver Sponsor','Ehemaliger Sponsor']
-const KAT_LIST = ['Sponsor','Foerderverein','Freunde des Vereins','Ehemalige','Partner','Medien','Werbeagentur','Kontakt','Sonstige']
 const BADGE_MAP = { 'Zugesagt':'badge-zugesagt','Eingeladen':'badge-eingeladen','Offen':'badge-offen','Absage':'badge-absage','Aktiver Sponsor':'badge-aktiv','Ehemaliger Sponsor':'badge-ehemaliger' }
-const EMPTY = { firma:'', email:'', telefon:'', website:'', branche:'', status:'Offen', kategorie:'Sponsor', zustaendig:'', notiz:'', adresse_strasse:'', adresse_plz:'', adresse_stadt:'', adresse_land:'Deutschland', logo_url:null }
+const ART_LIST = ['Anruf','E-Mail','Meeting','Veranstaltung','WhatsApp','Brief','Sonstiges']
+const EMPTY_H = { ansprechpartner:'', art:'Anruf', betreff:'', notiz:'', naechste_aktion:'', faellig_am:'', zustaendig:'', zustaendig_personen:[], erledigt:false }
+const EMPTY_AP = { name:'', position:'', email:'', telefon:'', mobil:'', hauptansprechpartner:false, notiz:'' }
 
-export default function Kontakte() {
-  const [kontakte, setKontakte] = useState([])
-  const [filtered, setFiltered] = useState([])
-  const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
-  const [katFilter, setKatFilter] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [modal, setModal] = useState(false)
-  const [mapModal, setMapModal] = useState(false)
-  const [form, setForm] = useState(EMPTY)
-  const [saving, setSaving] = useState(false)
-  const [logoFile, setLogoFile] = useState(null)
-  const [logoPreview, setLogoPreview] = useState(null)
-  const [personen, setPersonen] = useState([])
-  const [branchen, setBranchen] = useState([])
-  const [brancheInput, setBrancheInput] = useState('')
-  const [brancheSuggestions, setBrancheSuggestions] = useState([])
-  const fileRef = useRef()
+export default function KontaktDetail() {
+  const { id } = useParams()
   const navigate = useNavigate()
+  const { profile } = useAuth()
+  const [kontakt, setKontakt] = useState(null)
+  const [ansprechpartner, setAnsprechpartner] = useState([])
+  const [historie, setHistorie] = useState([])
+  const [sponsoring, setSponsoring] = useState(null)
+  const [events, setEvents] = useState([])
+  const [alleEvents, setAlleEvents] = useState([])
+  const [personen, setPersonen] = useState([])
+  const [katalog, setKatalog] = useState([])
+  const [kategorien, setKategorien] = useState([])
+  const [gebuchteLeistungen, setGebuchteLeistungen] = useState([])
+  const [saisons, setSaisons] = useState([])
+  const [tab, setTab] = useState('info')
+  const [historieModal, setHistorieModal] = useState(false)
+  const [apModal, setApModal] = useState(false)
+  const [eventModal, setEventModal] = useState(false)
+  const [leistungModal, setLeistungModal] = useState(false)
+  const [hForm, setHForm] = useState(EMPTY_H)
+  const [apForm, setApForm] = useState(EMPTY_AP)
+  const [lForm, setLForm] = useState({leistung_id:'',saison_id:'',anzahl:1,preis_vereinbart:'',abrechnung:'saison',notiz:''})
+  const [selectedEvents, setSelectedEvents] = useState([])
+  const [saving, setSaving] = useState(false)
+  const [kontaktEditModal, setKontaktEditModal] = useState(false)
+  const [kForm, setKForm] = useState({})
+  const [notizenText, setNotizenText] = useState('')
+  const [notizenSaving, setNotizenSaving] = useState(false)
+  const [notizenSaved, setNotizenSaved] = useState(false)
+  const [neuePersonInput, setNeuePersonInput] = useState('')
+  const notizenTimer = useRef(null)
 
-  useEffect(() => { load() }, [])
-  useEffect(() => { applyFilter() }, [kontakte, search, statusFilter, katFilter])
+  useEffect(() => { load() }, [id])
+
+  async function saveKontakt() {
+    setSaving(true)
+    const payload = { firma:kForm.firma, email:kForm.email||null, telefon:kForm.telefon||null, website:kForm.website||null, branche:kForm.branche||null, status:kForm.status, kategorie:kForm.kategorie, zustaendig:kForm.zustaendig||null, notiz:kForm.notiz||null, adresse_strasse:kForm.adresse_strasse||null, adresse_plz:kForm.adresse_plz||null, adresse_stadt:kForm.adresse_stadt||null }
+    await supabase.from('kontakte').update(payload).eq('id', id)
+    setKontaktEditModal(false); setSaving(false); load()
+  }
 
   async function load() {
-    const [{ data: k },{ data: p },{ data: b }] = await Promise.all([
-      supabase.from('kontakte').select('*').order('firma'),
+    const [{ data: k },{ data: ap },{ data: h },{ data: s },{ data: t },{ data: ev },{ data: p },{ data: kat },{ data: kateg },{ data: gl },{ data: sai }] = await Promise.all([
+      supabase.from('kontakte').select('*').eq('id', id).single(),
+      supabase.from('ansprechpartner').select('*').eq('kontakt_id', id).order('hauptansprechpartner', { ascending: false }),
+      supabase.from('kontakthistorie').select('*').eq('kontakt_id', id).order('erstellt_am', { ascending: false }),
+      supabase.from('sponsoring').select('*,saisons(name),sponsoring_pakete(name),sponsoring_saisons(saison_id,saisons(name))').eq('kontakt_id', id).single(),
+      supabase.from('veranstaltung_teilnahme').select('*,veranstaltungen(id,name,datum,ort)').eq('kontakt_id', id),
+      supabase.from('veranstaltungen').select('*').order('datum', { ascending: false }),
       supabase.from('personen').select('*').eq('aktiv', true).order('name'),
-      supabase.from('branchen').select('*').order('name')
+      supabase.from('leistungen_katalog').select('*,leistungen_kategorien(name,farbe)').eq('aktiv', true),
+      supabase.from('leistungen_kategorien').select('*').order('reihenfolge'),
+      supabase.from('sponsoring_leistungen').select('*,leistungen_katalog(name,leistungen_kategorien(name,farbe)),saisons(name)').eq('kontakt_id', id),
+      supabase.from('saisons').select('*').order('beginn', { ascending: false })
     ])
-    setKontakte(k || [])
-    setPersonen(p || [])
-    setBranchen(b || [])
-    setLoading(false)
+    setKontakt(k); setNotizenText(k?.notizen_text||'')
+    if (k) setKForm(k)
+    setAnsprechpartner(ap||[]); setHistorie(h||[])
+    setSponsoring(s); setEvents(t||[]); setAlleEvents(ev||[])
+    setPersonen(p||[]); setKatalog(kat||[]); setKategorien(kateg||[])
+    setGebuchteLeistungen(gl||[]); setSaisons(sai||[])
+    setSelectedEvents((t||[]).map(x=>x.veranstaltung_id))
   }
 
-  function applyFilter() {
-    let r = kontakte
-    if (search) { const q = search.toLowerCase(); r = r.filter(k => k.firma?.toLowerCase().includes(q) || k.branche?.toLowerCase().includes(q) || k.adresse_stadt?.toLowerCase().includes(q)) }
-    if (statusFilter) r = r.filter(k => k.status === statusFilter)
-    if (katFilter) r = r.filter(k => k.kategorie === katFilter)
-    setFiltered(r)
+  function handleNotizenChange(val) {
+    setNotizenText(val); setNotizenSaved(false)
+    if (notizenTimer.current) clearTimeout(notizenTimer.current)
+    notizenTimer.current = setTimeout(async () => {
+      setNotizenSaving(true)
+      await supabase.from('kontakte').update({ notizen_text: val }).eq('id', id)
+      setNotizenSaving(false); setNotizenSaved(true)
+      setTimeout(() => setNotizenSaved(false), 2000)
+    }, 800)
   }
 
-  function handleBrancheInput(val) {
-    setBrancheInput(val)
-    setForm(f => ({ ...f, branche: val }))
-    if (val.length > 0) {
-      setBrancheSuggestions(branchen.filter(b => b.name.toLowerCase().includes(val.toLowerCase())).slice(0, 5))
-    } else {
-      setBrancheSuggestions([])
-    }
-  }
-
-  function selectBranche(name) {
-    setBrancheInput(name)
-    setForm(f => ({ ...f, branche: name }))
-    setBrancheSuggestions([])
-  }
-
-  function openNew() {
-    setForm(EMPTY); setLogoFile(null); setLogoPreview(null)
-    setBrancheInput(''); setBrancheSuggestions([])
-    setModal(true)
-  }
-
-  function openEdit(k, e) {
-    e.stopPropagation()
-    setForm({ id:k.id, firma:k.firma||'', email:k.email||'', telefon:k.telefon||'', website:k.website||'', branche:k.branche||'', status:k.status||'Offen', kategorie:k.kategorie||'Sponsor', zustaendig:k.zustaendig||'', notiz:k.notiz||'', adresse_strasse:k.adresse_strasse||'', adresse_plz:k.adresse_plz||'', adresse_stadt:k.adresse_stadt||'', adresse_land:k.adresse_land||'Deutschland', logo_url:k.logo_url||null })
-    setBrancheInput(k.branche || '')
-    setLogoPreview(k.logo_url || null); setLogoFile(null)
-    setModal(true)
-  }
-
-  function handleLogoChange(e) {
-    const f = e.target.files[0]; if (!f) return
-    setLogoFile(f); setLogoPreview(URL.createObjectURL(f))
-  }
-
-  async function save() {
-    if (!form.firma.trim()) return
+  async function saveHistorie() {
     setSaving(true)
-    let logo_url = form.logo_url || null
-    if (logoFile) {
-      const ext = logoFile.name.split('.').pop()
-      const path = `${Date.now()}.${ext}`
-      const { data: up } = await supabase.storage.from('logos').upload(path, logoFile, { upsert: true })
-      if (up) { const { data: pub } = supabase.storage.from('logos').getPublicUrl(up.path); logo_url = pub.publicUrl }
-    }
-    // Branche in Branchen-Tabelle speichern falls neu
-    if (form.branche && !branchen.find(b => b.name.toLowerCase() === form.branche.toLowerCase())) {
-      await supabase.from('branchen').insert({ name: form.branche }).on('conflict', 'name').ignore()
-    }
-    const payload = { firma:form.firma, email:form.email||null, telefon:form.telefon||null, website:form.website||null, branche:form.branche||null, status:form.status, kategorie:form.kategorie, zustaendig:form.zustaendig||null, notiz:form.notiz||null, adresse_strasse:form.adresse_strasse||null, adresse_plz:form.adresse_plz||null, adresse_stadt:form.adresse_stadt||null, adresse_land:form.adresse_land||'Deutschland', logo_url, geaendert_am:new Date().toISOString() }
-    if (form.id) await supabase.from('kontakte').update(payload).eq('id', form.id)
-    else await supabase.from('kontakte').insert(payload)
-    setModal(false); setSaving(false); load()
+    const payload = { ...hForm, kontakt_id: id, erstellt_von: profile?.id }
+    if (hForm.id) await supabase.from('kontakthistorie').update(payload).eq('id', hForm.id)
+    else await supabase.from('kontakthistorie').insert(payload)
+    setHistorieModal(false); setSaving(false); load()
   }
 
-  async function remove(id, e) {
-    e.stopPropagation()
-    if (!window.confirm('Kontakt wirklich loeschen?')) return
-    await supabase.from('kontakte').delete().eq('id', id); load()
+  async function toggleErledigt(h) {
+    await supabase.from('kontakthistorie').update({ erledigt: !h.erledigt }).eq('id', h.id); load()
   }
 
-  // Karte URL generieren
-  function getMapsUrl(k) {
-    const addr = [k.adresse_strasse, k.adresse_plz, k.adresse_stadt, k.adresse_land].filter(Boolean).join(', ')
-    if (!addr) return null
-    return `https://maps.google.com/maps?q=${encodeURIComponent(addr)}&output=embed`
+  async function deleteHistorie(hid) {
+    if (!window.confirm('Eintrag loeschen?')) return
+    await supabase.from('kontakthistorie').delete().eq('id', hid); load()
   }
 
-  function getGoogleMapsLink(k) {
-    const addr = [k.adresse_strasse, k.adresse_plz, k.adresse_stadt, k.adresse_land].filter(Boolean).join(', ')
-    if (!addr) return null
-    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`
+  async function saveAP() {
+    setSaving(true)
+    const payload = { ...apForm, kontakt_id: id }
+    if (apForm.id) await supabase.from('ansprechpartner').update(payload).eq('id', apForm.id)
+    else await supabase.from('ansprechpartner').insert(payload)
+    setApModal(false); setSaving(false); load()
   }
 
-  // Sponsoren mit Adresse für Übersichtskarte
-  const mitAdresse = kontakte.filter(k => k.adresse_stadt || k.adresse_strasse)
+  async function deleteAP(apid) {
+    if (!window.confirm('Ansprechpartner loeschen?')) return
+    await supabase.from('ansprechpartner').delete().eq('id', apid); load()
+  }
 
-  if (loading) return <div className="loading-center"><div className="spinner"/></div>
+  async function setHauptAP(apid) {
+    await supabase.from('ansprechpartner').update({ hauptansprechpartner: false }).eq('kontakt_id', id)
+    await supabase.from('ansprechpartner').update({ hauptansprechpartner: true }).eq('id', apid); load()
+  }
+
+  async function saveEvents() {
+    setSaving(true)
+    const existing = events.map(e=>e.veranstaltung_id)
+    const toAdd = selectedEvents.filter(e=>!existing.includes(e))
+    const toRemove = existing.filter(e=>!selectedEvents.includes(e))
+    if (toAdd.length>0) await supabase.from('veranstaltung_teilnahme').insert(toAdd.map(vid=>({veranstaltung_id:vid,kontakt_id:id,teilgenommen:true})))
+    if (toRemove.length>0) await supabase.from('veranstaltung_teilnahme').delete().eq('kontakt_id',id).in('veranstaltung_id',toRemove)
+    setEventModal(false); setSaving(false); load()
+  }
+
+  async function saveLeistung() {
+    setSaving(true)
+    const sponsoringId = sponsoring?.id
+    if (!sponsoringId) { alert('Bitte zuerst einen Vertrag im Sponsoring-Tab anlegen.'); setSaving(false); return }
+    const payload = { ...lForm, kontakt_id: id, sponsoring_id: sponsoringId }
+    await supabase.from('sponsoring_leistungen').insert(payload)
+    setLeistungModal(false); setSaving(false); load()
+  }
+
+  async function deleteLeistungBuchung(lid) {
+    if (!window.confirm('Buchung entfernen?')) return
+    await supabase.from('sponsoring_leistungen').delete().eq('id', lid); load()
+  }
+
+  function toggleZustaendig(name) {
+    setHForm(f => {
+      const current = f.zustaendig_personen||[]
+      const updated = current.includes(name)?current.filter(n=>n!==name):[...current,name]
+      return {...f,zustaendig_personen:updated,zustaendig:updated.join(', ')}
+    })
+  }
+
+  async function addNeuePerson() {
+    const name = neuePersonInput.trim()
+    if (!name) return
+    await supabase.from('personen').upsert({name},{onConflict:'name'})
+    setNeuePersonInput('')
+    const {data} = await supabase.from('personen').select('*').eq('aktiv',true).order('name')
+    setPersonen(data||[]); toggleZustaendig(name)
+  }
+
+  if (!kontakt) return <div className="loading-center"><div className="spinner"/></div>
 
   return (
     <main className="main">
-      <div className="page-title">Kontakte</div>
-      <p className="page-subtitle">{filtered.length} von {kontakte.length} Kontakten</p>
-
-      <div className="toolbar">
-        <div className="search-wrap">
-          <span className="search-icon">🔍</span>
-          <input placeholder="Firma, Branche oder Stadt..." value={search} onChange={e => setSearch(e.target.value)} />
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+        <button className="back-btn" style={{margin:0}} onClick={()=>navigate('/kontakte')}>&#8592; Zurueck</button>
+        <div style={{display:'flex',gap:8}}>
+          <button className="btn btn-sm btn-outline" onClick={()=>setKontaktEditModal(true)}>✎ Kontakt bearbeiten</button>
+          <button className="btn btn-sm btn-gold" onClick={()=>{setHForm({...EMPTY_H,zustaendig_personen:profile?.name?[profile.name]:[],zustaendig:profile?.name||''});setHistorieModal(true)}}>+ Aktion</button>
         </div>
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
-          <option value="">Alle Status</option>
-          {STATUS_LIST.map(s => <option key={s}>{s}</option>)}
-        </select>
-        <select value={katFilter} onChange={e => setKatFilter(e.target.value)}>
-          <option value="">Alle Kategorien</option>
-          {KAT_LIST.map(k => <option key={k}>{k}</option>)}
-        </select>
-        <button className="btn btn-outline" onClick={() => setMapModal(true)} title="Übersichtskarte">🗺️</button>
-        <button className="btn btn-primary" onClick={openNew}>+ Neuer Kontakt</button>
       </div>
+      <div className="card">
+        <div style={{display:'flex',alignItems:'center',gap:20,marginBottom:20}}>
+          {kontakt.logo_url?<img src={kontakt.logo_url} alt="Logo" style={{width:72,height:72,objectFit:'contain',borderRadius:8,border:'1px solid var(--gray-200)'}}/>
+            :<div style={{width:72,height:72,background:'var(--gray-100)',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',fontSize:28,fontWeight:700,color:'var(--gray-400)'}}>{kontakt.firma?.[0]}</div>}
+          <div>
+            <div className="page-title" style={{marginBottom:6}}>{kontakt.firma}</div>
+            <span className={'badge '+(BADGE_MAP[kontakt.status]||'')}>{kontakt.status}</span>
+            <span style={{marginLeft:8,fontSize:13,color:'var(--gray-600)'}}>{kontakt.kategorie}</span>
+            {kontakt.branche&&<span style={{marginLeft:8,fontSize:13,color:'var(--gray-400)'}}>· {kontakt.branche}</span>}
+          </div>
+        </div>
 
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr><th>Firma</th><th>Branche</th><th>Stadt</th><th>Status</th><th>Kategorie</th><th>Zustaendig</th><th></th></tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0
-              ? <tr><td colSpan="7"><div className="empty-state"><p>Keine Ergebnisse.</p></div></td></tr>
-              : filtered.map(k => (
-                <tr key={k.id} onClick={() => navigate('/kontakte/'+k.id)}>
-                  <td>
-                    <div className="firma-cell">
-                      {k.logo_url ? <img src={k.logo_url} alt="" className="firma-logo-sm"/> : <div className="firma-logo-placeholder">{k.firma?.[0]||'?'}</div>}
-                      <div>
-                        <strong>{k.firma}</strong>
-                        {k.adresse_stadt && <div style={{fontSize:11,color:'var(--gray-400)'}}>📍 {k.adresse_stadt}</div>}
-                      </div>
-                    </div>
-                  </td>
-                  <td style={{fontSize:13,color:'var(--gray-600)'}}>{k.branche||'--'}</td>
-                  <td style={{fontSize:13,color:'var(--gray-600)'}}>{k.adresse_stadt||'--'}</td>
-                  <td><span className={'badge '+(BADGE_MAP[k.status]||'')}>{k.status}</span></td>
-                  <td style={{fontSize:13,color:'var(--gray-600)'}}>{k.kategorie}</td>
-                  <td style={{fontSize:13,color:'var(--gray-600)'}}>{k.zustaendig||'--'}</td>
-                  <td style={{whiteSpace:'nowrap'}}>
-                    <button className="btn btn-sm btn-outline" onClick={e => openEdit(k, e)}>Bearb.</button>
-                    {' '}<button className="btn btn-sm btn-danger" onClick={e => remove(k.id, e)}>X</button>
-                  </td>
-                </tr>
-              ))
-            }
-          </tbody>
-        </table>
-      </div>
+        <div className="tabs">
+          {[['info','Kontaktdaten'],['ansprechpartner','Ansprechpartner ('+ansprechpartner.length+')'],['notizen','Notizen'],['historie','Historie ('+historie.length+')'],['events','Events ('+events.length+')'],['sponsoring','Sponsoring & Leistungen']].map(([key,label])=>(
+            <button key={key} className={'tab-btn'+(tab===key?' active':'')} onClick={()=>setTab(key)}>{label}</button>
+          ))}
+        </div>
 
-      {/* MODAL: KONTAKT BEARBEITEN */}
-      {modal && (
-        <div className="modal-overlay" onClick={e => e.target===e.currentTarget&&setModal(false)}>
-          <div className="modal" style={{maxWidth:720}}>
-            <div className="modal-header">
-              <span className="modal-title">{form.id?'Kontakt bearbeiten':'Neuer Kontakt'}</span>
-              <button className="close-btn" onClick={()=>setModal(false)}>×</button>
+        {tab==='info'&&(
+          <div className="detail-grid">
+            {[['Status',kontakt.status],['Kategorie',kontakt.kategorie],['E-Mail',kontakt.email],['Telefon',kontakt.telefon],['Zustaendig',kontakt.zustaendig]].map(([l,v])=>v?<div key={l} className="detail-field"><label>{l}</label><span>{v}</span></div>:null)}
+            {kontakt.notiz&&<div className="detail-field" style={{gridColumn:'1/-1'}}><label>Notiz</label><span>{kontakt.notiz}</span></div>}
+          </div>
+        )}
+
+        {tab==='notizen'&&(
+          <div>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+              <div className="section-title" style={{margin:0}}>Notizen</div>
+              <span style={{fontSize:12,color:notizenSaved?'var(--green)':notizenSaving?'var(--gray-400)':'transparent'}}>{notizenSaving?'Speichern...':notizenSaved?'Gespeichert ✓':''}</span>
             </div>
-            <div className="modal-body">
-              {/* Logo */}
-              <div className="form-group">
-                <label>Firmenlogo</label>
-                <div style={{display:'flex',alignItems:'center',gap:16}}>
-                  {logoPreview ? <img src={logoPreview} alt="Logo" className="logo-preview"/> : <div className="firma-logo-placeholder" style={{width:64,height:64,fontSize:24}}>{form.firma?.[0]||'?'}</div>}
-                  <div>
-                    <button className="btn btn-outline btn-sm" onClick={()=>fileRef.current.click()}>{logoPreview?'Logo aendern':'Logo hochladen'}</button>
-                    {logoPreview && <button style={{marginLeft:8,color:'var(--red)',background:'none',border:'none',cursor:'pointer',fontSize:14}} onClick={()=>{setLogoPreview(null);setLogoFile(null);setForm(f=>({...f,logo_url:null}))}}>Entfernen</button>}
-                    <p style={{fontSize:12,color:'var(--gray-400)',marginTop:6}}>PNG, JPG, SVG – max. 2 MB</p>
+            <div style={{display:'flex',gap:6,marginBottom:8,flexWrap:'wrap'}}>
+              {[['bold','B'],['italic','I'],['underline','U']].map(([cmd,label])=>(
+                <button key={cmd} onMouseDown={e=>{e.preventDefault();document.execCommand(cmd)}} style={{padding:'4px 10px',border:'1.5px solid var(--gray-200)',borderRadius:4,background:'var(--white)',cursor:'pointer',fontWeight:cmd==='bold'?700:400,fontStyle:cmd==='italic'?'italic':'normal',textDecoration:cmd==='underline'?'underline':'none',fontSize:13}}>{label}</button>
+              ))}
+              <button onMouseDown={e=>{e.preventDefault();document.execCommand('insertUnorderedList')}} style={{padding:'4px 10px',border:'1.5px solid var(--gray-200)',borderRadius:4,background:'var(--white)',cursor:'pointer',fontSize:13}}>Liste</button>
+              <button onMouseDown={e=>{e.preventDefault();document.execCommand('insertOrderedList')}} style={{padding:'4px 10px',border:'1.5px solid var(--gray-200)',borderRadius:4,background:'var(--white)',cursor:'pointer',fontSize:13}}>1. Liste</button>
+              <button onMouseDown={e=>{e.preventDefault();document.execCommand('formatBlock',false,'h3')}} style={{padding:'4px 10px',border:'1.5px solid var(--gray-200)',borderRadius:4,background:'var(--white)',cursor:'pointer',fontSize:13}}>Ueberschrift</button>
+            </div>
+            <div contentEditable suppressContentEditableWarning onInput={e=>handleNotizenChange(e.currentTarget.innerHTML)} dangerouslySetInnerHTML={{__html:notizenText}} style={{minHeight:300,border:'1.5px solid var(--gray-200)',borderRadius:'var(--radius)',padding:16,fontSize:14,lineHeight:1.7,outline:'none',background:'var(--white)'}}/>
+            <p style={{fontSize:12,color:'var(--gray-400)',marginTop:8}}>Wird automatisch gespeichert.</p>
+          </div>
+        )}
+
+        {tab==='ansprechpartner'&&(
+          <div>
+            <div style={{display:'flex',justifyContent:'flex-end',marginBottom:16}}>
+              <button className="btn btn-primary btn-sm" onClick={()=>{setApForm(EMPTY_AP);setApModal(true)}}>+ Ansprechpartner</button>
+            </div>
+            {ansprechpartner.length===0?<div className="empty-state"><p>Noch keine Ansprechpartner hinterlegt.</p></div>
+              :<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:16}}>
+                {ansprechpartner.map(ap=>(
+                  <div key={ap.id} style={{border:'2px solid '+(ap.hauptansprechpartner?'var(--gold)':'var(--gray-200)'),borderRadius:'var(--radius)',padding:20,position:'relative'}}>
+                    {ap.hauptansprechpartner&&<span style={{position:'absolute',top:12,right:12,fontSize:11,background:'var(--gold)',color:'var(--navy)',padding:'2px 8px',borderRadius:20,fontWeight:700}}>Hauptkontakt</span>}
+                    <div style={{fontFamily:'"DM Serif Display",serif',fontSize:18,color:'var(--navy)',marginBottom:12}}>{ap.name}</div>
+                    <div style={{display:'grid',gap:8}}>
+                      {ap.position&&<div style={{fontSize:13}}><span style={{color:'var(--gray-400)',fontSize:11,textTransform:'uppercase',letterSpacing:'0.3px',display:'block'}}>Position</span>{ap.position}</div>}
+                      {ap.email&&<div style={{fontSize:13}}><span style={{color:'var(--gray-400)',fontSize:11,textTransform:'uppercase',letterSpacing:'0.3px',display:'block'}}>E-Mail</span><a href={'mailto:'+ap.email} style={{color:'var(--blue)'}}>{ap.email}</a></div>}
+                      {ap.telefon&&<div style={{fontSize:13}}><span style={{color:'var(--gray-400)',fontSize:11,textTransform:'uppercase',letterSpacing:'0.3px',display:'block'}}>Telefon</span><a href={'tel:'+ap.telefon} style={{color:'var(--blue)'}}>{ap.telefon}</a></div>}
+                      {ap.mobil&&<div style={{fontSize:13}}><span style={{color:'var(--gray-400)',fontSize:11,textTransform:'uppercase',letterSpacing:'0.3px',display:'block'}}>Mobil</span><a href={'tel:'+ap.mobil} style={{color:'var(--blue)'}}>{ap.mobil}</a></div>}
+                    </div>
+                    <div style={{display:'flex',gap:8,marginTop:16,flexWrap:'wrap'}}>
+                      {!ap.hauptansprechpartner&&<button className="btn btn-sm btn-outline" onClick={()=>setHauptAP(ap.id)}>Als Hauptkontakt</button>}
+                      <button className="btn btn-sm btn-outline" onClick={()=>{setApForm(ap);setApModal(true)}}>Bearb.</button>
+                      <button className="btn btn-sm btn-danger" onClick={()=>deleteAP(ap.id)}>X</button>
+                    </div>
                   </div>
-                  <input type="file" ref={fileRef} accept="image/*" style={{display:'none'}} onChange={handleLogoChange}/>
-                </div>
-              </div>
+                ))}
+              </div>}
+          </div>
+        )}
 
-              <div className="form-row">
-                <div className="form-group"><label>Firma *</label><input value={form.firma} onChange={e=>setForm(f=>({...f,firma:e.target.value}))}/></div>
-                <div className="form-group"><label>Status</label>
-                  <select value={form.status} onChange={e=>setForm(f=>({...f,status:e.target.value}))}>
-                    {STATUS_LIST.map(s=><option key={s}>{s}</option>)}
-                  </select>
-                </div>
-              </div>
+        {tab==='historie'&&(
+          <div>
+            <div style={{display:'flex',justifyContent:'flex-end',marginBottom:16}}>
+              <button className="btn btn-primary btn-sm" onClick={()=>{setHForm({...EMPTY_H,zustaendig_personen:profile?.name?[profile.name]:[],zustaendig:profile?.name||''});setHistorieModal(true)}}>+ Neue Aktion</button>
+            </div>
+            {historie.length===0?<div className="empty-state"><p>Noch keine Eintraege.</p></div>
+              :<div className="table-wrap"><table>
+                <thead><tr><th>Datum</th><th>Art</th><th>Betreff</th><th>Naechste Aktion</th><th>Faellig</th><th>Zustaendig</th><th>Done</th><th></th></tr></thead>
+                <tbody>{historie.map(h=>(
+                  <tr key={h.id} style={{opacity:h.erledigt?0.55:1}}>
+                    <td style={{whiteSpace:'nowrap',fontSize:13}}>{new Date(h.erstellt_am).toLocaleDateString('de-DE')}</td>
+                    <td><span style={{fontSize:12,background:'var(--gray-100)',padding:'2px 8px',borderRadius:20}}>{h.art}</span></td>
+                    <td><strong style={{fontSize:13}}>{h.betreff}</strong>{h.notiz&&<p style={{fontSize:12,color:'var(--gray-400)',marginTop:2}}>{h.notiz}</p>}</td>
+                    <td style={{fontSize:13}}>{h.naechste_aktion}</td>
+                    <td style={{fontSize:13,color:h.faellig_am&&!h.erledigt&&new Date(h.faellig_am)<new Date()?'var(--red)':'inherit'}}>{h.faellig_am?new Date(h.faellig_am).toLocaleDateString('de-DE'):'--'}</td>
+                    <td style={{fontSize:12,color:'var(--gray-600)'}}>{(h.zustaendig_personen||[]).join(', ')||h.zustaendig||'--'}</td>
+                    <td><button onClick={()=>toggleErledigt(h)} style={{background:'none',border:'none',cursor:'pointer',fontSize:18}}>{h.erledigt?'✅':'⬜'}</button></td>
+                    <td style={{whiteSpace:'nowrap'}}>
+                      <button className="btn btn-sm btn-outline" onClick={()=>{setHForm({...h,zustaendig_personen:h.zustaendig_personen||[]});setHistorieModal(true)}}>Bearb.</button>
+                      {' '}<button className="btn btn-sm btn-danger" onClick={()=>deleteHistorie(h.id)}>X</button>
+                    </td>
+                  </tr>
+                ))}</tbody>
+              </table></div>}
+          </div>
+        )}
 
-              <div className="form-row">
-                <div className="form-group"><label>Kategorie</label>
-                  <select value={form.kategorie} onChange={e=>setForm(f=>({...f,kategorie:e.target.value}))}>
-                    {KAT_LIST.map(k=><option key={k}>{k}</option>)}
-                  </select>
-                </div>
-                <div className="form-group" style={{position:'relative'}}>
-                  <label>Branche</label>
-                  <input value={brancheInput} onChange={e=>handleBrancheInput(e.target.value)} placeholder="z.B. Gesundheit, IT, Handel..." autoComplete="off"/>
-                  {brancheSuggestions.length>0&&(
-                    <div style={{position:'absolute',top:'100%',left:0,right:0,background:'var(--white)',border:'1.5px solid var(--gray-200)',borderRadius:'var(--radius)',zIndex:10,boxShadow:'var(--shadow)'}}>
-                      {brancheSuggestions.map(b=>(
-                        <div key={b.id} onClick={()=>selectBranche(b.name)} style={{padding:'8px 14px',cursor:'pointer',fontSize:14}} onMouseEnter={e=>e.target.style.background='var(--gray-100)'} onMouseLeave={e=>e.target.style.background='transparent'}>{b.name}</div>
+        {tab==='events'&&(
+          <div>
+            <div style={{display:'flex',justifyContent:'flex-end',marginBottom:16}}>
+              <button className="btn btn-primary btn-sm" onClick={()=>setEventModal(true)}>Events verwalten</button>
+            </div>
+            {events.length===0?<div className="empty-state"><p>Noch mit keinem Event verknuepft.</p></div>
+              :<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(250px,1fr))',gap:16}}>
+                {events.map(e=>(
+                  <div key={e.id} style={{border:'1px solid var(--gray-200)',borderRadius:'var(--radius)',padding:16}}>
+                    <div style={{fontWeight:600,marginBottom:4}}>{e.veranstaltungen?.name}</div>
+                    <div style={{fontSize:13,color:'var(--gray-600)'}}>{e.veranstaltungen?.datum?new Date(e.veranstaltungen.datum).toLocaleDateString('de-DE'):'--'}{e.veranstaltungen?.ort?' · '+e.veranstaltungen.ort:''}</div>
+                    {e.teilgenommen&&<span style={{fontSize:11,background:'#e2efda',color:'#2d6b3a',padding:'2px 8px',borderRadius:20,fontWeight:600,marginTop:8,display:'inline-block'}}>Teilgenommen</span>}
+                  </div>
+                ))}
+              </div>}
+          </div>
+        )}
+
+        {tab==='sponsoring'&&(
+          <div>
+            {/* Vertragsinfo */}
+            {sponsoring?(
+              <div style={{background:'var(--gray-100)',borderRadius:'var(--radius)',padding:16,marginBottom:20,display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:12}}>
+                {[['Paket',sponsoring.sponsoring_pakete?.name||'Individuell'],['Status',sponsoring.status],['Jahresbetrag',sponsoring.jahresbetrag?Number(sponsoring.jahresbetrag).toLocaleString('de-DE')+' EUR':null],['Vertragsende',sponsoring.vertragsende?new Date(sponsoring.vertragsende).toLocaleDateString('de-DE'):null],['Unterzeichnet',sponsoring.vertrag_unterzeichnet?'Ja':'Nein']].filter(([,v])=>v).map(([l,v])=>(
+                  <div key={l}><div style={{fontSize:11,textTransform:'uppercase',letterSpacing:'0.5px',color:'var(--gray-400)',marginBottom:2}}>{l}</div><div style={{fontSize:14,fontWeight:500}}>{v}</div></div>
+                ))}
+                {sponsoring.drive_link&&<div><div style={{fontSize:11,textTransform:'uppercase',letterSpacing:'0.5px',color:'var(--gray-400)',marginBottom:2}}>Vertrag</div><a href={sponsoring.drive_link} target="_blank" rel="noreferrer" style={{color:'var(--blue)',fontSize:14}}>Oeffnen</a></div>}
+              </div>
+            ):(
+              <div className="alert alert-info" style={{marginBottom:20}}>Noch kein Sponsoring-Vertrag hinterlegt. Bitte zuerst im Sponsoring-Bereich einen Vertrag anlegen.</div>
+            )}
+
+            {/* Gebuchte Leistungen */}
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+              <div className="section-title" style={{margin:0}}>Gebuchte Leistungen ({gebuchteLeistungen.length})</div>
+              {sponsoring&&<button className="btn btn-primary btn-sm" onClick={()=>{setLForm({leistung_id:'',saison_id:saisons.find(s=>s.aktiv)?.id||'',anzahl:1,preis_vereinbart:'',abrechnung:'saison',notiz:''});setLeistungModal(true)}}>+ Leistung buchen</button>}
+            </div>
+
+            {gebuchteLeistungen.length===0?<div className="empty-state"><p>Noch keine Leistungen gebucht.</p></div>
+              :<div>
+                {kategorien.map(kat=>{
+                  const katGL = gebuchteLeistungen.filter(gl=>gl.leistungen_katalog?.leistungen_kategorien?.name===kat.name)
+                  if(katGL.length===0) return null
+                  return <div key={kat.id} style={{marginBottom:20}}>
+                    <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}>
+                      <div style={{width:10,height:10,borderRadius:'50%',background:kat.farbe}}></div>
+                      <strong style={{fontSize:14}}>{kat.name}</strong>
+                    </div>
+                    <div style={{display:'grid',gap:8}}>
+                      {katGL.map(gl=>(
+                        <div key={gl.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 14px',border:'1.5px solid var(--gray-200)',borderRadius:'var(--radius)',background:'var(--white)'}}>
+                          <div>
+                            <div style={{fontWeight:600,fontSize:13}}>{gl.leistungen_katalog?.name}</div>
+                            <div style={{fontSize:12,color:'var(--gray-400)',marginTop:2}}>{gl.saisons?.name||'--'} · {gl.anzahl>1?gl.anzahl+'x · ':''}{gl.abrechnung==='saison'?'pro Saison':'pro Vertrag'}{gl.preis_vereinbart?' · '+Number(gl.preis_vereinbart).toLocaleString('de-DE')+' EUR':''}</div>
+                            {gl.notiz&&<div style={{fontSize:12,color:'var(--gray-600)',marginTop:2}}>{gl.notiz}</div>}
+                          </div>
+                          <button onClick={()=>deleteLeistungBuchung(gl.id)} style={{background:'none',border:'none',cursor:'pointer',color:'var(--red)',fontSize:16,padding:'4px 8px'}}>X</button>
+                        </div>
                       ))}
                     </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="form-row">
-                <div className="form-group"><label>E-Mail</label><input type="email" value={form.email||''} onChange={e=>setForm(f=>({...f,email:e.target.value}))}/></div>
-                <div className="form-group"><label>Telefon</label><input value={form.telefon||''} onChange={e=>setForm(f=>({...f,telefon:e.target.value}))}/></div>
-              </div>
-
-              <div className="form-row">
-                <div className="form-group"><label>Website</label><input type="url" placeholder="https://..." value={form.website||''} onChange={e=>setForm(f=>({...f,website:e.target.value}))}/></div>
-                <div className="form-group"><label>Zustaendig (intern)</label>
-                  <select value={form.zustaendig||''} onChange={e=>setForm(f=>({...f,zustaendig:e.target.value}))}>
-                    <option value="">-- Bitte waehlen --</option>
-                    {personen.map(p=><option key={p.id} value={p.name}>{p.name}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              {/* Adresse */}
-              <div style={{background:'var(--gray-100)',borderRadius:'var(--radius)',padding:16,marginBottom:16}}>
-                <div style={{fontSize:12,fontWeight:600,color:'var(--gray-600)',textTransform:'uppercase',letterSpacing:'0.3px',marginBottom:12}}>Adresse</div>
-                <div className="form-group"><label>Strasse & Hausnummer</label><input value={form.adresse_strasse||''} onChange={e=>setForm(f=>({...f,adresse_strasse:e.target.value}))} placeholder="Musterstrasse 1"/></div>
-                <div className="form-row">
-                  <div className="form-group"><label>PLZ</label><input value={form.adresse_plz||''} onChange={e=>setForm(f=>({...f,adresse_plz:e.target.value}))} placeholder="28195"/></div>
-                  <div className="form-group"><label>Stadt</label><input value={form.adresse_stadt||''} onChange={e=>setForm(f=>({...f,adresse_stadt:e.target.value}))} placeholder="Bremen"/></div>
-                </div>
-                {(form.adresse_strasse||form.adresse_stadt) && (
-                  <div style={{marginTop:8}}>
-                    <iframe
-                      src={`https://maps.google.com/maps?q=${encodeURIComponent([form.adresse_strasse,form.adresse_plz,form.adresse_stadt].filter(Boolean).join(', '))}&output=embed&zoom=15`}
-                      width="100%" height="180" style={{border:'none',borderRadius:'var(--radius)'}} title="Karte" loading="lazy"
-                    />
+                  </div>
+                })}
+                {/* Leistungen ohne Kategorie */}
+                {gebuchteLeistungen.filter(gl=>!gl.leistungen_katalog?.leistungen_kategorien).length>0&&(
+                  <div style={{marginBottom:20}}>
+                    <strong style={{fontSize:14,color:'var(--gray-400)'}}>Sonstige</strong>
+                    {gebuchteLeistungen.filter(gl=>!gl.leistungen_katalog?.leistungen_kategorien).map(gl=>(
+                      <div key={gl.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 14px',border:'1.5px solid var(--gray-200)',borderRadius:'var(--radius)',background:'var(--white)',marginTop:8}}>
+                        <div><div style={{fontWeight:600,fontSize:13}}>{gl.leistungen_katalog?.name}</div></div>
+                        <button onClick={()=>deleteLeistungBuchung(gl.id)} style={{background:'none',border:'none',cursor:'pointer',color:'var(--red)',fontSize:16}}>X</button>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
+            }
+          </div>
+        )}
+      </div>
 
-              <div className="form-group"><label>Notiz</label><textarea value={form.notiz||''} onChange={e=>setForm(f=>({...f,notiz:e.target.value}))}/></div>
+      {/* MODAL: AKTION */}
+      {historieModal&&(
+        <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setHistorieModal(false)}>
+          <div className="modal">
+            <div className="modal-header"><span className="modal-title">{hForm.id?'Aktion bearbeiten':'Neue Aktion'}</span><button className="close-btn" onClick={()=>setHistorieModal(false)}>x</button></div>
+            <div className="modal-body">
+              <div className="form-row">
+                <div className="form-group"><label>Art</label><select value={hForm.art} onChange={e=>setHForm(f=>({...f,art:e.target.value}))}>{ART_LIST.map(a=><option key={a}>{a}</option>)}</select></div>
+                <div className="form-group"><label>Ansprechpartner</label>
+                  <select value={hForm.ansprechpartner} onChange={e=>setHForm(f=>({...f,ansprechpartner:e.target.value}))}>
+                    <option value="">Kein / Allgemein</option>
+                    {ansprechpartner.map(ap=><option key={ap.id} value={ap.name}>{ap.name}{ap.position?' ('+ap.position+')':''}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="form-group"><label>Betreff / Thema</label><input value={hForm.betreff} onChange={e=>setHForm(f=>({...f,betreff:e.target.value}))}/></div>
+              <div className="form-group"><label>Notiz / Ergebnis</label><textarea value={hForm.notiz} onChange={e=>setHForm(f=>({...f,notiz:e.target.value}))}/></div>
+              <div className="form-row">
+                <div className="form-group"><label>Naechste Aktion</label><input value={hForm.naechste_aktion} onChange={e=>setHForm(f=>({...f,naechste_aktion:e.target.value}))}/></div>
+                <div className="form-group"><label>Faellig am</label><input type="date" value={hForm.faellig_am} onChange={e=>setHForm(f=>({...f,faellig_am:e.target.value}))}/></div>
+              </div>
+              <div className="form-group">
+                <label>Zustaendig (Mehrfachauswahl)</label>
+                <div style={{border:'1.5px solid var(--gray-200)',borderRadius:'var(--radius)',padding:10,marginBottom:8,display:'flex',flexWrap:'wrap',gap:8,minHeight:44}}>
+                  {personen.length===0?<span style={{color:'var(--gray-400)',fontSize:13}}>Unten Person hinzufuegen</span>
+                    :personen.map(p=>{const selected=(hForm.zustaendig_personen||[]).includes(p.name);return(
+                      <button key={p.id} type="button" onClick={()=>toggleZustaendig(p.name)} style={{padding:'4px 12px',borderRadius:20,border:'1.5px solid',fontSize:13,cursor:'pointer',background:selected?'var(--navy)':'var(--white)',color:selected?'var(--white)':'var(--gray-600)',borderColor:selected?'var(--navy)':'var(--gray-200)'}}>{p.name}</button>
+                    )})}
+                </div>
+                <div style={{display:'flex',gap:8}}>
+                  <input value={neuePersonInput} onChange={e=>setNeuePersonInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addNeuePerson()} placeholder="Person hinzufuegen..." style={{flex:1,padding:'8px 12px',border:'1.5px solid var(--gray-200)',borderRadius:'var(--radius)',fontSize:13}}/>
+                  <button className="btn btn-sm btn-outline" onClick={addNeuePerson}>+ Hinzufuegen</button>
+                </div>
+              </div>
+              <div className="form-group"><label>Erledigt</label><select value={hForm.erledigt?'Ja':'Nein'} onChange={e=>setHForm(f=>({...f,erledigt:e.target.value==='Ja'}))}><option>Nein</option><option>Ja</option></select></div>
             </div>
-            <div className="modal-footer">
-              <button className="btn btn-outline" onClick={()=>setModal(false)}>Abbrechen</button>
-              <button className="btn btn-primary" onClick={save} disabled={saving}>{saving?'Speichern...':'Speichern'}</button>
-            </div>
+            <div className="modal-footer"><button className="btn btn-outline" onClick={()=>setHistorieModal(false)}>Abbrechen</button><button className="btn btn-primary" onClick={saveHistorie} disabled={saving}>{saving?'Speichern...':'Speichern'}</button></div>
           </div>
         </div>
       )}
 
-      {/* MODAL: ÜBERSICHTSKARTE */}
-      {mapModal && (
-        <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setMapModal(false)}>
-          <div className="modal" style={{maxWidth:900}}>
+      {/* MODAL: ANSPRECHPARTNER */}
+      {apModal&&(
+        <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setApModal(false)}>
+          <div className="modal">
+            <div className="modal-header"><span className="modal-title">{apForm.id?'Ansprechpartner bearbeiten':'Neuer Ansprechpartner'}</span><button className="close-btn" onClick={()=>setApModal(false)}>x</button></div>
+            <div className="modal-body">
+              <div className="form-row">
+                <div className="form-group"><label>Name *</label><input value={apForm.name} onChange={e=>setApForm(f=>({...f,name:e.target.value}))}/></div>
+                <div className="form-group"><label>Position / Rolle</label><input value={apForm.position||''} onChange={e=>setApForm(f=>({...f,position:e.target.value}))} placeholder="z.B. Geschaeftsfuehrer"/></div>
+              </div>
+              <div className="form-row">
+                <div className="form-group"><label>E-Mail</label><input type="email" value={apForm.email||''} onChange={e=>setApForm(f=>({...f,email:e.target.value}))}/></div>
+                <div className="form-group"><label>Telefon (Buero)</label><input value={apForm.telefon||''} onChange={e=>setApForm(f=>({...f,telefon:e.target.value}))}/></div>
+              </div>
+              <div className="form-row">
+                <div className="form-group"><label>Mobil</label><input value={apForm.mobil||''} onChange={e=>setApForm(f=>({...f,mobil:e.target.value}))}/></div>
+                <div className="form-group" style={{display:'flex',alignItems:'center',paddingTop:24}}><label style={{display:'flex',alignItems:'center',gap:8,fontSize:14,cursor:'pointer',textTransform:'none'}}><input type="checkbox" checked={apForm.hauptansprechpartner||false} onChange={e=>setApForm(f=>({...f,hauptansprechpartner:e.target.checked}))}/>Hauptansprechpartner</label></div>
+              </div>
+              <div className="form-group"><label>Notiz</label><textarea value={apForm.notiz||''} onChange={e=>setApForm(f=>({...f,notiz:e.target.value}))}/></div>
+            </div>
+            <div className="modal-footer"><button className="btn btn-outline" onClick={()=>setApModal(false)}>Abbrechen</button><button className="btn btn-primary" onClick={saveAP} disabled={saving}>{saving?'Speichern...':'Speichern'}</button></div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: EVENTS */}
+      {eventModal&&(
+        <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setEventModal(false)}>
+          <div className="modal">
+            <div className="modal-header"><span className="modal-title">Events verwalten</span><button className="close-btn" onClick={()=>setEventModal(false)}>x</button></div>
+            <div className="modal-body">
+              <p style={{fontSize:14,color:'var(--gray-600)',marginBottom:16}}>Waehle alle Events bei denen {kontakt.firma} dabei war:</p>
+              <div style={{display:'grid',gap:8}}>
+                {alleEvents.length===0?<p style={{color:'var(--gray-400)'}}>Noch keine Events angelegt.</p>
+                  :alleEvents.map(ev=>{const selected=selectedEvents.includes(ev.id);return(
+                    <label key={ev.id} style={{display:'flex',alignItems:'center',gap:12,padding:12,border:'1.5px solid '+(selected?'var(--navy)':'var(--gray-200)'),borderRadius:'var(--radius)',cursor:'pointer',background:selected?'rgba(15,34,64,0.04)':'var(--white)'}}>
+                      <input type="checkbox" checked={selected} onChange={e=>setSelectedEvents(prev=>e.target.checked?[...prev,ev.id]:prev.filter(x=>x!==ev.id))}/>
+                      <div><div style={{fontWeight:600,fontSize:14}}>{ev.name}</div><div style={{fontSize:12,color:'var(--gray-400)'}}>{ev.datum?new Date(ev.datum).toLocaleDateString('de-DE'):'kein Datum'}{ev.ort?' · '+ev.ort:''}</div></div>
+                    </label>
+                  )})}
+              </div>
+            </div>
+            <div className="modal-footer"><button className="btn btn-outline" onClick={()=>setEventModal(false)}>Abbrechen</button><button className="btn btn-primary" onClick={saveEvents} disabled={saving}>{saving?'Speichern...':'Speichern'}</button></div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: LEISTUNG BUCHEN */}
+      {leistungModal&&(
+        <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setLeistungModal(false)}>
+          <div className="modal">
+            <div className="modal-header"><span className="modal-title">Leistung buchen</span><button className="close-btn" onClick={()=>setLeistungModal(false)}>x</button></div>
+            <div className="modal-body">
+              <div className="form-group"><label>Leistung *</label>
+                <select value={lForm.leistung_id} onChange={e=>{ const l=katalog.find(k=>k.id===e.target.value); setLForm(f=>({...f,leistung_id:e.target.value,preis_vereinbart:l?.preis||'',abrechnung:l?.abrechnung||'saison'})) }}>
+                  <option value="">Bitte waehlen...</option>
+                  {kategorien.map(kat=>{
+                    const katL=katalog.filter(l=>l.kategorie_id===kat.id)
+                    if(katL.length===0) return null
+                    return <optgroup key={kat.id} label={kat.name}>{katL.map(l=><option key={l.id} value={l.id}>{l.name}{l.preis?' ('+Number(l.preis).toLocaleString('de-DE')+' EUR)':''}</option>)}</optgroup>
+                  })}
+                </select>
+              </div>
+              <div className="form-row">
+                <div className="form-group"><label>Saison</label>
+                  <select value={lForm.saison_id} onChange={e=>setLForm(f=>({...f,saison_id:e.target.value}))}>
+                    <option value="">Keine</option>
+                    {saisons.map(s=><option key={s.id} value={s.id}>{s.name}{s.aktiv?' (aktuell)':''}</option>)}
+                  </select>
+                </div>
+                <div className="form-group"><label>Anzahl</label><input type="number" min="1" value={lForm.anzahl} onChange={e=>setLForm(f=>({...f,anzahl:parseInt(e.target.value)||1}))}/></div>
+              </div>
+              <div className="form-row">
+                <div className="form-group"><label>Vereinbarter Preis (EUR)</label><input type="number" value={lForm.preis_vereinbart||''} onChange={e=>setLForm(f=>({...f,preis_vereinbart:e.target.value}))}/></div>
+                <div className="form-group"><label>Abrechnung</label>
+                  <select value={lForm.abrechnung} onChange={e=>setLForm(f=>({...f,abrechnung:e.target.value}))}>
+                    <option value="saison">Pro Saison</option>
+                    <option value="vertrag">Pro Vertrag</option>
+                  </select>
+                </div>
+              </div>
+              <div className="form-group"><label>Notiz</label><textarea value={lForm.notiz||''} onChange={e=>setLForm(f=>({...f,notiz:e.target.value}))}/></div>
+            </div>
+            <div className="modal-footer"><button className="btn btn-outline" onClick={()=>setLeistungModal(false)}>Abbrechen</button><button className="btn btn-primary" onClick={saveLeistung} disabled={saving}>{saving?'Speichern...':'Speichern'}</button></div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: KONTAKT BEARBEITEN */}
+      {kontaktEditModal && (
+        <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setKontaktEditModal(false)}>
+          <div className="modal" style={{maxWidth:600}}>
             <div className="modal-header">
-              <span className="modal-title">Sponsoren-Übersichtskarte</span>
-              <button className="close-btn" onClick={()=>setMapModal(false)}>×</button>
+              <span className="modal-title">Kontakt bearbeiten</span>
+              <button className="close-btn" onClick={()=>setKontaktEditModal(false)}>×</button>
             </div>
             <div className="modal-body">
-              {mitAdresse.length === 0
-                ? <div className="empty-state"><p>Noch keine Adressen hinterlegt. Trage bei Kontakten Adressen ein damit sie hier erscheinen.</p></div>
-                : <>
-                    <iframe
-                      src={`https://maps.google.com/maps?q=${encodeURIComponent('Bremen, Deutschland')}&output=embed&zoom=12`}
-                      width="100%" height="400" style={{border:'none',borderRadius:'var(--radius)',marginBottom:16}} title="Übersichtskarte" loading="lazy"
-                    />
-                    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))',gap:10}}>
-                      {mitAdresse.map(k=>(
-                        <div key={k.id} style={{padding:'10px 14px',border:'1px solid var(--gray-200)',borderRadius:'var(--radius)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                          <div>
-                            <div style={{fontWeight:600,fontSize:13}}>{k.firma}</div>
-                            <div style={{fontSize:12,color:'var(--gray-400)'}}>{[k.adresse_strasse,k.adresse_plz,k.adresse_stadt].filter(Boolean).join(', ')}</div>
-                          </div>
-                          {getGoogleMapsLink(k) && <a href={getGoogleMapsLink(k)} target="_blank" rel="noreferrer" style={{fontSize:20,textDecoration:'none'}}>📍</a>}
-                        </div>
-                      ))}
-                    </div>
-                  </>
-              }
+              <div className="form-row">
+                <div className="form-group"><label>Firma *</label><input value={kForm.firma||''} onChange={e=>setKForm(f=>({...f,firma:e.target.value}))}/></div>
+                <div className="form-group"><label>Status</label>
+                  <select value={kForm.status||'Offen'} onChange={e=>setKForm(f=>({...f,status:e.target.value}))}>
+                    {['Offen','Eingeladen','Zugesagt','Absage','Aktiver Sponsor','Ehemaliger Sponsor'].map(s=><option key={s}>{s}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="form-group"><label>Kategorie</label>
+                  <select value={kForm.kategorie||'Sponsor'} onChange={e=>setKForm(f=>({...f,kategorie:e.target.value}))}>
+                    {['Sponsor','Foerderverein','Freunde des Vereins','Ehemalige','Partner','Medien','Werbeagentur','Kontakt','Sonstige'].map(k=><option key={k}>{k}</option>)}
+                  </select>
+                </div>
+                <div className="form-group"><label>Branche</label><input value={kForm.branche||''} onChange={e=>setKForm(f=>({...f,branche:e.target.value}))}/></div>
+              </div>
+              <div className="form-row">
+                <div className="form-group"><label>E-Mail</label><input type="email" value={kForm.email||''} onChange={e=>setKForm(f=>({...f,email:e.target.value}))}/></div>
+                <div className="form-group"><label>Telefon</label><input value={kForm.telefon||''} onChange={e=>setKForm(f=>({...f,telefon:e.target.value}))}/></div>
+              </div>
+              <div className="form-row">
+                <div className="form-group"><label>Website</label><input type="url" value={kForm.website||''} onChange={e=>setKForm(f=>({...f,website:e.target.value}))}/></div>
+                <div className="form-group"><label>Zustaendig</label><input value={kForm.zustaendig||''} onChange={e=>setKForm(f=>({...f,zustaendig:e.target.value}))}/></div>
+              </div>
+              <div style={{background:'var(--gray-100)',borderRadius:'var(--radius)',padding:14,marginBottom:16}}>
+                <div style={{fontSize:12,fontWeight:600,color:'var(--gray-600)',textTransform:'uppercase',letterSpacing:'0.3px',marginBottom:10}}>Adresse</div>
+                <div className="form-group"><label>Strasse</label><input value={kForm.adresse_strasse||''} onChange={e=>setKForm(f=>({...f,adresse_strasse:e.target.value}))}/></div>
+                <div className="form-row">
+                  <div className="form-group"><label>PLZ</label><input value={kForm.adresse_plz||''} onChange={e=>setKForm(f=>({...f,adresse_plz:e.target.value}))}/></div>
+                  <div className="form-group"><label>Stadt</label><input value={kForm.adresse_stadt||''} onChange={e=>setKForm(f=>({...f,adresse_stadt:e.target.value}))}/></div>
+                </div>
+              </div>
+              <div className="form-group"><label>Notiz</label><textarea value={kForm.notiz||''} onChange={e=>setKForm(f=>({...f,notiz:e.target.value}))}/></div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={()=>setKontaktEditModal(false)}>Abbrechen</button>
+              <button className="btn btn-primary" onClick={saveKontakt} disabled={saving}>{saving?'Speichern...':'Speichern'}</button>
             </div>
           </div>
         </div>
