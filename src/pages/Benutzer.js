@@ -164,19 +164,28 @@ export default function Benutzer() {
 
   async function updateUser() {
     setSaving(true)
-    await supabase.from('profile').update({
+    const newBereiche = editForm.rolle === 'admin'
+      ? ['kontakte','historie','veranstaltungen','sponsoring','aufgaben','berichte']
+      : editForm.bereiche
+
+    const { error } = await supabase.from('profile').update({
       name: editForm.name,
       rolle: editForm.rolle,
-      bereiche: editForm.rolle === 'admin'
-        ? ['kontakte','historie','veranstaltungen','sponsoring','aufgaben','berichte']
-        : editForm.bereiche
+      bereiche: newBereiche
     }).eq('id', editForm.id)
+
+    if (error) {
+      alert('Fehler beim Speichern: ' + error.message)
+      setSaving(false)
+      return
+    }
     setEditModal(false); setSaving(false); load()
   }
 
   async function deactivateUser(userId) {
     if (!window.confirm('Zugriff entziehen?')) return
-    await supabase.from('profile').update({ rolle: 'readonly', bereiche: [] }).eq('id', userId)
+    const { error } = await supabase.from('profile').update({ rolle: 'readonly', bereiche: [] }).eq('id', userId)
+    if (error) { alert('Fehler: ' + error.message); return }
     load()
   }
 
