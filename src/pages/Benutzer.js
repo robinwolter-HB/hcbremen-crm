@@ -54,7 +54,7 @@ export default function Benutzer() {
         password: form.password,
         name: form.name,
         rolle: form.rolle,
-        bereiche: form.form === 'admin' ? null : form.bereiche
+        bereiche: form.rolle === 'admin' ? null : form.bereiche
       })
     })
 
@@ -182,7 +182,7 @@ export default function Benutzer() {
       {/* MODAL: NEUER BENUTZER */}
       {modal && (
         <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setModal(false)}>
-          <div className="modal" style={{maxWidth:580}}>
+          <div className="modal" style={{maxWidth:680}}>
             <div className="modal-header">
               <span className="modal-title">Neuer Benutzer</span>
               <button className="close-btn" onClick={()=>setModal(false)}>x</button>
@@ -200,7 +200,7 @@ export default function Benutzer() {
                 <label>Rolle</label>
                 <div style={{display:'grid',gap:8,marginTop:4}}>
                   {ROLLEN.map(r => (
-                    <label key={r.key} style={{display:'flex',alignItems:'flex-start',gap:12,padding:12,border:'1.5px solid '+(form.rolle===r.key?'var(--navy)':'var(--gray-200)'),borderRadius:'var(--radius)',cursor:'pointer',background:form.rolle===r.key?'rgba(15,34,64,0.03)':'var(--white)'}}>
+                    <label key={r.key} style={{display:'flex',alignItems:'flex-start',gap:12,padding:14,border:'1.5px solid '+(form.rolle===r.key?'var(--navy)':'var(--gray-200)'),borderRadius:'var(--radius)',cursor:'pointer',background:form.rolle===r.key?'rgba(15,34,64,0.03)':'var(--white)',width:'100%',boxSizing:'border-box'}}>
                       <input type="radio" name="rolle" value={r.key} checked={form.rolle===r.key} onChange={()=>setForm(f=>({...f,rolle:r.key}))} style={{marginTop:2}}/>
                       <div>
                         <div style={{fontWeight:600,fontSize:14}}>{r.label}</div>
@@ -261,7 +261,7 @@ export default function Benutzer() {
                 <label>Rolle</label>
                 <div style={{display:'grid',gap:8,marginTop:4}}>
                   {ROLLEN.map(r => (
-                    <label key={r.key} style={{display:'flex',alignItems:'flex-start',gap:12,padding:12,border:'1.5px solid '+(editForm.rolle===r.key?'var(--navy)':'var(--gray-200)'),borderRadius:'var(--radius)',cursor:'pointer',background:editForm.rolle===r.key?'rgba(15,34,64,0.03)':'var(--white)'}}>
+                    <label key={r.key} style={{display:'flex',alignItems:'flex-start',gap:12,padding:14,border:'1.5px solid '+(editForm.rolle===r.key?'var(--navy)':'var(--gray-200)'),borderRadius:'var(--radius)',cursor:'pointer',background:editForm.rolle===r.key?'rgba(15,34,64,0.03)':'var(--white)',width:'100%',boxSizing:'border-box'}}>
                       <input type="radio" name="edit-rolle" value={r.key} checked={editForm.rolle===r.key} onChange={()=>setEditForm(f=>({...f,rolle:r.key}))} style={{marginTop:2}}/>
                       <div>
                         <div style={{fontWeight:600,fontSize:14}}>{r.label}</div>
