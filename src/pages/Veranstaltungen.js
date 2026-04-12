@@ -76,10 +76,29 @@ export default function Veranstaltungen() {
   async function saveTeilnahme() {
     if (!tForm.kontakt_id || !selectedEvent) return
     setSaving(true)
-    const payload = { ...tForm, veranstaltung_id: selectedEvent.id, teilgenommen: tForm.status === 'Erschienen' }
-    if (tForm.id) await supabase.from('veranstaltung_teilnahme').update(payload).eq('id', tForm.id)
-    else await supabase.from('veranstaltung_teilnahme').insert(payload)
-    setTeilnahmeModal(false); setSaving(false); loadTeilnahmen(selectedEvent.id)
+    const payload = {
+      kontakt_id: tForm.kontakt_id,
+      veranstaltung_id: selectedEvent.id,
+      ansprechpartner_name: tForm.ansprechpartner_name || '',
+      ansprechpartner_email: tForm.ansprechpartner_email || '',
+      ansprechpartner_position: tForm.ansprechpartner_position || '',
+      status: tForm.status || 'Eingeladen',
+      notiz: tForm.notiz || '',
+      teilgenommen: tForm.status === 'Erschienen'
+    }
+    let result
+    if (tForm.id) {
+      result = await supabase.from('veranstaltung_teilnahme').update(payload).eq('id', tForm.id)
+    } else {
+      result = await supabase.from('veranstaltung_teilnahme').insert(payload)
+    }
+    if (result.error) {
+      alert('Fehler beim Speichern: ' + result.error.message)
+    } else {
+      setTeilnahmeModal(false)
+      await loadTeilnahmen(selectedEvent.id)
+    }
+    setSaving(false)
   }
 
   async function updateTeilnahmeStatus(id, status) {
