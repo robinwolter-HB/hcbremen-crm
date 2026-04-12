@@ -185,7 +185,7 @@ export default function KontaktDetail() {
         </div>
 
         <div className="tabs">
-          {[['info','Kontaktdaten'],['ansprechpartner','Ansprechpartner ('+ansprechpartner.length+')'],['notizen','Notizen'],['historie','Historie ('+historie.length+')'],['events','Events ('+events.length+')'],['sponsoring','Sponsoring & Leistungen']].map(([key,label])=>(
+          {[['info','Kontaktdaten'],['ansprechpartner','Ansprechpartner ('+ansprechpartner.length+')'],['notizen','Notizen'],['historie','Historie ('+historie.length+')'],['events','Events ('+events.length+')'],['sponsoring','Sponsoring & Leistungen'],['statistiken','Statistiken']].map(([key,label])=>(
             <button key={key} className={'tab-btn'+(tab===key?' active':'')} onClick={()=>setTab(key)}>{label}</button>
           ))}
         </div>
@@ -477,6 +477,107 @@ export default function KontaktDetail() {
             </div>
             <div className="modal-footer"><button className="btn btn-outline" onClick={()=>setLeistungModal(false)}>Abbrechen</button><button className="btn btn-primary" onClick={saveLeistung} disabled={saving}>{saving?'Speichern...':'Speichern'}</button></div>
           </div>
+        </div>
+      )}
+
+      {tab==='statistiken'&&(
+        <div>
+          {/* Beziehungsdauer */}
+          {(() => {
+            const ersterKontakt = historie.length > 0 ? new Date(Math.min(...historie.map(h=>new Date(h.erstellt_am)))) : null
+            const ersterVertrag = sponsoring ? new Date(sponsoring.vertragsbeginn || sponsoring.erstellt_am) : null
+            const heute = new Date()
+            const beziehungTage = ersterKontakt ? Math.floor((heute-ersterKontakt)/(1000*60*60*24)) : null
+            const beziehungJahre = beziehungTage ? (beziehungTage/365).toFixed(1) : null
+            const aktivSeit = ersterVertrag ? Math.floor((heute-ersterVertrag)/(1000*60*60*24)) : null
+            const aktivJahre = aktivSeit ? (aktivSeit/365).toFixed(1) : null
+            const gesamtGeld = sponsoring?.jahresbetrag ? Number(sponsoring.jahresbetrag) : 0
+            const gesamtWert = sponsoring?.gesamtwert ? Number(sponsoring.gesamtwert) : 0
+            const eventCount = events.length
+            const erschienen = events.filter(e=>e.teilgenommen).length
+
+            return (
+              <div>
+                <div className="stats-row" style={{marginBottom:20}}>
+                  <div className="stat-card blue">
+                    <div className="stat-num">{beziehungJahre||'--'}</div>
+                    <div className="stat-label">Jahre in Kontakt{ersterKontakt?'
+seit '+ersterKontakt.toLocaleDateString('de-DE'):''}</div>
+                  </div>
+                  <div className="stat-card green">
+                    <div className="stat-num">{aktivJahre||'--'}</div>
+                    <div className="stat-label">Jahre aktiver Sponsor{ersterVertrag?'
+seit '+ersterVertrag.toLocaleDateString('de-DE'):''}</div>
+                  </div>
+                  <div className="stat-card gold">
+                    <div className="stat-num" style={{fontSize:20}}>{gesamtGeld.toLocaleString('de-DE')} EUR</div>
+                    <div className="stat-label">Aktueller Jahresbetrag</div>
+                  </div>
+                  <div className="stat-card orange">
+                    <div className="stat-num">{eventCount}</div>
+                    <div className="stat-label">Events eingeladen{erschienen>0?' ('+erschienen+' erschienen)':''}</div>
+                  </div>
+                </div>
+
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
+                  <div className="card">
+                    <div className="section-title" style={{marginBottom:16}}>Kontakt-Aktivität</div>
+                    {[
+                      ['Erster Kontakt', ersterKontakt?ersterKontakt.toLocaleDateString('de-DE'):'--'],
+                      ['Kontakteinträge gesamt', historie.length],
+                      ['Davon erledigt', historie.filter(h=>h.erledigt).length],
+                      ['Davon offen', historie.filter(h=>!h.erledigt).length],
+                      ['Ansprechpartner', ansprechpartner.length],
+                    ].map(([label,value])=>(
+                      <div key={label} style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:'1px solid var(--gray-100)'}}>
+                        <span style={{fontSize:13,color:'var(--gray-600)'}}>{label}</span>
+                        <span style={{fontSize:13,fontWeight:600}}>{value}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="card">
+                    <div className="section-title" style={{marginBottom:16}}>Sponsoring-Übersicht</div>
+                    {sponsoring ? [
+                      ['Status', sponsoring.status],
+                      ['Paket', sponsoring.sponsoring_pakete?.name||'Individuell'],
+                      ['Jahresbetrag', sponsoring.jahresbetrag?Number(sponsoring.jahresbetrag).toLocaleString('de-DE')+' EUR':'--'],
+                      ['Gesamtwert', sponsoring.gesamtwert?Number(sponsoring.gesamtwert).toLocaleString('de-DE')+' EUR':'--'],
+                      ['Vertragsbeginn', sponsoring.vertragsbeginn?new Date(sponsoring.vertragsbeginn).toLocaleDateString('de-DE'):'--'],
+                      ['Vertragsende', sponsoring.vertragsende?new Date(sponsoring.vertragsende).toLocaleDateString('de-DE'):'--'],
+                      ['Unterzeichnet', sponsoring.vertrag_unterzeichnet?'Ja':'Nein'],
+                      ['Gebuchte Leistungen', gebuchteLeistungen.length],
+                    ].map(([label,value])=>(
+                      <div key={label} style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:'1px solid var(--gray-100)'}}>
+                        <span style={{fontSize:13,color:'var(--gray-600)'}}>{label}</span>
+                        <span style={{fontSize:13,fontWeight:600}}>{value}</span>
+                      </div>
+                    )) : <p style={{fontSize:13,color:'var(--gray-400)'}}>Noch kein Sponsoring-Vertrag.</p>}
+                  </div>
+                </div>
+
+                {/* Event-Teilnahme */}
+                {events.length > 0 && (
+                  <div className="card" style={{marginTop:16}}>
+                    <div className="section-title" style={{marginBottom:16}}>Event-Teilnahme</div>
+                    <div style={{display:'grid',gap:8}}>
+                      {events.map(e=>(
+                        <div key={e.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 14px',background:'var(--gray-100)',borderRadius:'var(--radius)'}}>
+                          <div>
+                            <div style={{fontWeight:600,fontSize:13}}>{e.veranstaltungen?.name}</div>
+                            <div style={{fontSize:12,color:'var(--gray-400)'}}>{e.veranstaltungen?.datum?new Date(e.veranstaltungen.datum).toLocaleDateString('de-DE'):'--'}</div>
+                          </div>
+                          <span style={{fontSize:12,fontWeight:600,padding:'2px 10px',borderRadius:20,background:e.status==='Erschienen'?'#e2efda':e.status==='Zugesagt'?'#ddeaff':e.status==='Abgesagt'?'#fce4d6':'#ececec',color:e.status==='Erschienen'?'#2d6b3a':e.status==='Zugesagt'?'#1a4a8a':e.status==='Abgesagt'?'#8a3a1a':'#555'}}>
+                            {e.status||'Eingeladen'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
         </div>
       )}
 
