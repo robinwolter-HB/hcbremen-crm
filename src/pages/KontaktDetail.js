@@ -22,6 +22,9 @@ export default function KontaktDetail() {
   const [katalog, setKatalog] = useState([])
   const [kategorien, setKategorien] = useState([])
   const [gebuchteLeistungen, setGebuchteLeistungen] = useState([])
+  const [links, setLinks] = useState([])
+  const [linkModal, setLinkModal] = useState(false)
+  const [linkForm, setLinkForm] = useState({titel:'',url:'',kategorie:'CI',notiz:''})
   const [saisons, setSaisons] = useState([])
   const [tab, setTab] = useState('info')
   const [historieModal, setHistorieModal] = useState(false)
@@ -52,7 +55,7 @@ export default function KontaktDetail() {
 
   async function load() {
     if (!id || id === 'undefined') return
-    const [{ data: k },{ data: ap },{ data: h },{ data: s },{ data: t },{ data: ev },{ data: p },{ data: kat },{ data: kateg },{ data: gl },{ data: sai }] = await Promise.all([
+    const [{ data: k },{ data: ap },{ data: h },{ data: s },{ data: t },{ data: ev },{ data: p },{ data: kat },{ data: kateg },{ data: gl },{ data: sai },{ data: li }] = await Promise.all([
       supabase.from('kontakte').select('*').eq('id', id).single(),
       supabase.from('ansprechpartner').select('*').eq('kontakt_id', id).order('hauptansprechpartner', { ascending: false }),
       supabase.from('kontakthistorie').select('*').eq('kontakt_id', id).order('erstellt_am', { ascending: false }),
@@ -63,10 +66,12 @@ export default function KontaktDetail() {
       supabase.from('leistungen_katalog').select('*,leistungen_kategorien(name,farbe)').eq('aktiv', true),
       supabase.from('leistungen_kategorien').select('*').order('reihenfolge'),
       supabase.from('sponsoring_leistungen').select('*,leistungen_katalog(name,leistungen_kategorien(name,farbe)),saisons(name)').eq('kontakt_id', id),
-      supabase.from('saisons').select('*').order('beginn', { ascending: false })
+      supabase.from('saisons').select('*').order('beginn', { ascending: false }),
+      supabase.from('kontakt_links').select('*').eq('kontakt_id', id).order('erstellt_am')
     ])
     setKontakt(k); setNotizenText(k?.notizen_text||'')
     if (k) setKForm(k)
+    setLinks(li || [])
     setAnsprechpartner(ap||[]); setHistorie(h||[])
     setSponsoring(s); setEvents(t||[]); setAlleEvents(ev||[])
     setPersonen(p||[]); setKatalog(kat||[]); setKategorien(kateg||[])
@@ -130,6 +135,31 @@ export default function KontaktDetail() {
     setEventModal(false); setSaving(false); load()
   }
 
+  const LINK_KATEGORIEN = [
+    { key:'CI', label:'CI & Branding', icon:'🎨' },
+    { key:'Vertrag', label:'Vertrag', icon:'📄' },
+    { key:'Praesentation', label:'Präsentation', icon:'📊' },
+    { key:'Foto', label:'Fotos & Medien', icon:'📷' },
+    { key:'Website', label:'Website', icon:'🌐' },
+    { key:'Sonstiges', label:'Sonstiges', icon:'🔗' },
+  ]
+
+  async function saveLink() {
+    if (!linkForm.titel || !linkForm.url) return
+    setSaving(true)
+    let url = linkForm.url
+    if (!url.startsWith('http')) url = 'https://' + url
+    const payload = { kontakt_id: id, titel: linkForm.titel, url, kategorie: linkForm.kategorie, notiz: linkForm.notiz||null }
+    if (linkForm.id) await supabase.from('kontakt_links').update(payload).eq('id', linkForm.id)
+    else await supabase.from('kontakt_links').insert(payload)
+    setLinkModal(false); setSaving(false); load()
+  }
+
+  async function deleteLink(lid) {
+    if (!window.confirm('Link löschen?')) return
+    await supabase.from('kontakt_links').delete().eq('id', lid); load()
+  }
+
   async function saveLeistung() {
     setSaving(true)
     const sponsoringId = sponsoring?.id
@@ -185,7 +215,7 @@ export default function KontaktDetail() {
         </div>
 
         <div className="tabs">
-          {[['info','Kontaktdaten'],['ansprechpartner','Ansprechpartner ('+ansprechpartner.length+')'],['notizen','Notizen'],['historie','Historie ('+historie.length+')'],['events','Events ('+events.length+')'],['sponsoring','Sponsoring & Leistungen'],['statistiken','Statistiken']].map(([key,label])=>(
+          {[['info','Kontaktdaten'],['ansprechpartner','Ansprechpartner ('+ansprechpartner.length+')'],['notizen','Notizen'],['historie','Historie ('+historie.length+')'],['events','Events ('+events.length+')'],['sponsoring','Sponsoring & Leistungen'],['links','Links & Dateien ('+links.length+')'],['statistiken','Statistiken']].map(([key,label])=>(
             <button key={key} className={'tab-btn'+(tab===key?' active':'')} onClick={()=>setTab(key)}>{label}</button>
           ))}
         </div>
@@ -480,6 +510,47 @@ export default function KontaktDetail() {
         </div>
       )}
 
+      {tab==='links'&&(
+        <div>
+          <div style={{display:'flex',justifyContent:'flex-end',marginBottom:16}}>
+            <button className="btn btn-primary btn-sm" onClick={()=>{setLinkForm({titel:'',url:'',kategorie:'CI',notiz:''});setLinkModal(true)}}>+ Link hinzufügen</button>
+          </div>
+
+          {links.length === 0
+            ? <div className="empty-state card"><p>Noch keine Links hinterlegt. Füge Links zu CI-Dateien, Verträgen, Präsentationen etc. hinzu.</p></div>
+            : <div>
+                {['CI','Vertrag','Praesentation','Foto','Website','Sonstiges'].map(kat => {
+                  const katLinks = links.filter(l => l.kategorie === kat)
+                  if (katLinks.length === 0) return null
+                  const katInfo = [{key:'CI',label:'CI & Branding',icon:'🎨'},{key:'Vertrag',label:'Vertrag',icon:'📄'},{key:'Praesentation',label:'Präsentation',icon:'📊'},{key:'Foto',label:'Fotos & Medien',icon:'📷'},{key:'Website',label:'Website',icon:'🌐'},{key:'Sonstiges',label:'Sonstiges',icon:'🔗'}].find(k=>k.key===kat)
+                  return (
+                    <div key={kat} className="card" style={{marginBottom:12}}>
+                      <div style={{fontSize:14,fontWeight:600,marginBottom:12,color:'var(--gray-600)'}}>{katInfo?.icon} {katInfo?.label}</div>
+                      <div style={{display:'grid',gap:8}}>
+                        {katLinks.map(l => (
+                          <div key={l.id} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',border:'1.5px solid var(--gray-200)',borderRadius:'var(--radius)',background:'var(--white)'}}>
+                            <a href={l.url} target="_blank" rel="noreferrer" style={{flex:1,minWidth:0,textDecoration:'none'}}
+                              onClick={e=>e.stopPropagation()}>
+                              <div style={{fontWeight:600,fontSize:14,color:'var(--navy)',marginBottom:2}}>{l.titel}</div>
+                              <div style={{fontSize:12,color:'var(--blue)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{l.url}</div>
+                              {l.notiz&&<div style={{fontSize:12,color:'var(--gray-400)',marginTop:2}}>{l.notiz}</div>}
+                            </a>
+                            <div style={{display:'flex',gap:6,flexShrink:0}}>
+                              <a href={l.url} target="_blank" rel="noreferrer" className="btn btn-sm btn-outline" onClick={e=>e.stopPropagation()}>Öffnen</a>
+                              <button className="btn btn-sm btn-outline" onClick={()=>{setLinkForm(l);setLinkModal(true)}}>Bearb.</button>
+                              <button className="btn btn-sm btn-danger" onClick={()=>deleteLink(l.id)}>X</button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+          }
+        </div>
+      )}
+
       {tab==='statistiken'&&(
         <div>
           {/* Beziehungsdauer */}
@@ -501,13 +572,11 @@ export default function KontaktDetail() {
                 <div className="stats-row" style={{marginBottom:20}}>
                   <div className="stat-card blue">
                     <div className="stat-num">{beziehungJahre||'--'}</div>
-                    <div className="stat-label">Jahre in Kontakt{ersterKontakt?'
-seit '+ersterKontakt.toLocaleDateString('de-DE'):''}</div>
+                    <div className="stat-label">Jahre in Kontakt{ersterKontakt?' · seit '+ersterKontakt.toLocaleDateString('de-DE'):''}</div>
                   </div>
                   <div className="stat-card green">
                     <div className="stat-num">{aktivJahre||'--'}</div>
-                    <div className="stat-label">Jahre aktiver Sponsor{ersterVertrag?'
-seit '+ersterVertrag.toLocaleDateString('de-DE'):''}</div>
+                    <div className="stat-label">Jahre aktiver Sponsor{ersterVertrag?' · seit '+ersterVertrag.toLocaleDateString('de-DE'):''}</div>
                   </div>
                   <div className="stat-card gold">
                     <div className="stat-num" style={{fontSize:20}}>{gesamtGeld.toLocaleString('de-DE')} EUR</div>
@@ -515,7 +584,7 @@ seit '+ersterVertrag.toLocaleDateString('de-DE'):''}</div>
                   </div>
                   <div className="stat-card orange">
                     <div className="stat-num">{eventCount}</div>
-                    <div className="stat-label">Events eingeladen{erschienen>0?' ('+erschienen+' erschienen)':''}</div>
+                    <div className="stat-label">Events{erschienen>0?' · '+erschienen+' erschienen':''}</div>
                   </div>
                 </div>
 
@@ -578,6 +647,41 @@ seit '+ersterVertrag.toLocaleDateString('de-DE'):''}</div>
               </div>
             )
           })()}
+        </div>
+      )}
+
+      {/* MODAL: LINK */}
+      {linkModal && (
+        <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setLinkModal(false)}>
+          <div className="modal" style={{maxWidth:520}}>
+            <div className="modal-header">
+              <span className="modal-title">{linkForm.id?'Link bearbeiten':'Neuer Link'}</span>
+              <button className="close-btn" onClick={()=>setLinkModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-group">
+                <label>Kategorie</label>
+                <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                  {[{key:'CI',icon:'🎨'},{key:'Vertrag',icon:'📄'},{key:'Praesentation',icon:'📊'},{key:'Foto',icon:'📷'},{key:'Website',icon:'🌐'},{key:'Sonstiges',icon:'🔗'}].map(k=>(
+                    <button key={k.key} type="button" onClick={()=>setLinkForm(f=>({...f,kategorie:k.key}))}
+                      style={{padding:'6px 14px',borderRadius:20,border:'1.5px solid',fontSize:13,cursor:'pointer',
+                        background:linkForm.kategorie===k.key?'var(--navy)':'var(--white)',
+                        color:linkForm.kategorie===k.key?'white':'var(--gray-600)',
+                        borderColor:linkForm.kategorie===k.key?'var(--navy)':'var(--gray-200)'}}>
+                      {k.icon} {k.key}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="form-group"><label>Titel *</label><input value={linkForm.titel||''} onChange={e=>setLinkForm(f=>({...f,titel:e.target.value}))} placeholder="z.B. CI-Handbuch, Logopaket"/></div>
+              <div className="form-group"><label>URL *</label><input type="url" value={linkForm.url||''} onChange={e=>setLinkForm(f=>({...f,url:e.target.value}))} placeholder="https://drive.google.com/..."/></div>
+              <div className="form-group"><label>Notiz (optional)</label><input value={linkForm.notiz||''} onChange={e=>setLinkForm(f=>({...f,notiz:e.target.value}))} placeholder="z.B. Zugriff für alle, zuletzt aktualisiert 2024"/></div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={()=>setLinkModal(false)}>Abbrechen</button>
+              <button className="btn btn-primary" onClick={saveLink} disabled={saving}>{saving?'Speichern...':'Speichern'}</button>
+            </div>
+          </div>
         </div>
       )}
 
