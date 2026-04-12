@@ -11,6 +11,7 @@ import Veranstaltungen from './pages/Veranstaltungen'
 import Sponsoring from './pages/Sponsoring'
 import Benutzer from './pages/Benutzer'
 import MeineAufgaben from './pages/MeineAufgaben'
+import Kalender from './pages/Kalender'
 
 function PrivateRoute({ children, bereich }) {
   const { user, loading, canAccess } = useAuth()
@@ -44,6 +45,7 @@ function Header() {
           <NavLink to="/sponsoring" className={({isActive})=>'nav-link'+(isActive?' active':'')}>Sponsoring</NavLink>
           {isAdmin() && <NavLink to="/benutzer" className={({isActive})=>'nav-link'+(isActive?' active':'')}>🔒 Nutzer</NavLink>}
           <NavLink to="/aufgaben" className={({isActive})=>'nav-link'+(isActive?' active':'')}>✓ Aufgaben</NavLink>
+          <NavLink to="/kalender" className={({isActive})=>'nav-link'+(isActive?' active':'')}>📅 Kalender</NavLink>
           <button className="nav-link" onClick={handleLogout}>Abmelden</button>
         </nav>
       </div>
@@ -67,6 +69,7 @@ function App() {
             <Route path="/sponsoring" element={<PrivateRoute bereich="sponsoring"><Sponsoring /></PrivateRoute>} />
             <Route path="/benutzer" element={<PrivateRoute><Benutzer /></PrivateRoute>} />
             <Route path="/aufgaben" element={<PrivateRoute><MeineAufgaben /></PrivateRoute>} />
+            <Route path="/kalender" element={<PrivateRoute><Kalender /></PrivateRoute>} />
           </Routes>
         </div>
       </BrowserRouter>
