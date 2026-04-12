@@ -28,7 +28,6 @@ export default function Veranstaltungen() {
   const [statusFilter, setStatusFilter] = useState('')
 
   useEffect(() => { load() }, [])
-  useEffect(() => { if (selectedEvent) loadTeilnahmen(selectedEvent.id) }, [selectedEvent])
 
   async function load() {
     const { data } = await supabase.from('veranstaltungen').select('*').order('datum', { ascending: false })
@@ -150,7 +149,7 @@ export default function Veranstaltungen() {
             {events.length === 0
               ? <div className="empty-state"><p>Noch keine Events.</p></div>
               : events.map(e => (
-                <div key={e.id} onClick={() => { setSelectedEvent(e); setDetailTab('teilnehmer') }}
+                <div key={e.id} onClick={() => { setSelectedEvent(e); setDetailTab('teilnehmer'); loadTeilnahmen(e.id) }}
                   style={{ padding:16, borderRadius:'var(--radius)', border:'2px solid '+(selectedEvent?.id===e.id?'var(--navy)':'var(--gray-200)'), cursor:'pointer', background:selectedEvent?.id===e.id?'rgba(15,34,64,0.03)':'var(--white)' }}>
                   <div style={{ fontWeight:600, fontSize:14, marginBottom:4 }}>{e.name}</div>
                   <div style={{ fontSize:12, color:'var(--gray-400)' }}>
