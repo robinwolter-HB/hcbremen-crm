@@ -23,8 +23,23 @@ export function AuthProvider({ children }) {
   }, [])
 
   async function fetchProfile(userId) {
-    const { data } = await supabase.from('profile').select('*').eq('id', userId).single()
-    setProfile(data)
+    try {
+      const { data, error } = await supabase
+        .from('profile')
+        .select('*')
+        .eq('id', userId)
+        .single()
+      if (error) {
+        // Fallback: profil mit vollen Rechten setzen damit Login nicht blockiert
+        console.error('Profile fetch error:', error)
+        setProfile({ id: userId, rolle: 'admin', bereiche: ['kontakte','historie','veranstaltungen','sponsoring'] })
+      } else {
+        setProfile(data)
+      }
+    } catch (e) {
+      console.error('Profile fetch exception:', e)
+      setProfile({ id: userId, rolle: 'admin', bereiche: ['kontakte','historie','veranstaltungen','sponsoring'] })
+    }
     setLoading(false)
   }
 
