@@ -12,7 +12,7 @@ import Sponsoring from './pages/Sponsoring'
 import Benutzer from './pages/Benutzer'
 import MeineAufgaben from './pages/MeineAufgaben'
 import Kalender from './pages/Kalender'
-import EmailModal from './components/EmailModal'
+import EmailModal from './EmailModal'
 import Einstellungen from './pages/Einstellungen'
 
 function PrivateRoute({ children, bereich }) {
