@@ -9,7 +9,7 @@ export default function MeineAufgaben() {
   const [aufgaben, setAufgaben] = useState([])
   const [alle, setAlle] = useState([])
   const [filter, setFilter] = useState('offen')
-  const [personFilter, setPersonFilter] = useState('')
+  const [personFilter, setPersonFilter] = useState(undefined)
   const [nutzer, setNutzer] = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -33,8 +33,13 @@ export default function MeineAufgaben() {
   const meinName = profile?.name || profile?.email || ''
 
   const filtered = alle.filter(h => {
-    const person = personFilter || meinName
-    const istZustaendig = (h.zustaendig_personen || []).includes(person) || h.zustaendig === person || (!person && true)
+    const person = personFilter !== undefined ? personFilter : meinName
+    let istZustaendig = true
+    if (person) {
+      istZustaendig = (h.zustaendig_personen || []).includes(person) || 
+                      h.zustaendig === person ||
+                      (h.zustaendig || '').split(',').map(s=>s.trim()).includes(person)
+    }
     const matchFilter = filter === 'alle' ? true : filter === 'offen' ? !h.erledigt : h.erledigt
     return istZustaendig && matchFilter
   })
@@ -106,7 +111,7 @@ export default function MeineAufgaben() {
           <option value={meinName}>Meine Aufgaben ({meinName})</option>
           <option value="">Alle Personen</option>
           {nutzer.filter(n=>(n.name||n.email)!==meinName).map(n=>(
-            <option key={n.email} value={n.name||n.email}>{n.name||n.email}</option>
+            <option key={n.email||n.name} value={n.name||n.email}>{n.name||n.email}</option>
           ))}
         </select>
         <select value={filter} onChange={e=>setFilter(e.target.value)}>
