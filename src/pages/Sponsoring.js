@@ -29,13 +29,14 @@ export default function Sponsoring() {
   const [uebersichtKat, setUebersichtKat] = useState('')
   const [uebersichtSaison, setUebersichtSaison] = useState('')
   const [neueLeistungPaket, setNeueLeistungPaket] = useState('')
+  const [paketLeistungen, setPaketLeistungen] = useState({})
   const [saisonModal, setSaisonModal] = useState(false)
   const [saisonForm, setSaisonForm] = useState({name:'',beginn:'',ende:'',aktiv:false})
 
   useEffect(() => { loadAll() }, [])
 
   async function loadAll() {
-    const [{ data: v },{ data: s },{ data: p },{ data: k },{ data: kat },{ data: gl },{ data: st },{ data: ko }] = await Promise.all([
+    const [{ data: v },{ data: s },{ data: p },{ data: k },{ data: kat },{ data: gl },{ data: st },{ data: ko },{ data: plRaw }] = await Promise.all([
       supabase.from('sponsoring').select('*,kontakte(firma,logo_url),saisons(name),sponsoring_pakete(name),sponsoring_saisons(saison_id,saisons(name))').order('erstellt_am', { ascending: false }),
       supabase.from('saisons').select('*').order('beginn', { ascending: false }),
       supabase.from('sponsoring_pakete').select('*').order('basispreis', { ascending: true, nullsFirst: false }),
@@ -43,7 +44,8 @@ export default function Sponsoring() {
       supabase.from('leistungen_kategorien').select('*').order('reihenfolge'),
       supabase.from('sponsoring_leistungen').select('*,leistungen_katalog(name,exklusiv,max_anzahl,leistungen_kategorien(name,farbe)),kontakte(firma),saisons(name)').order('erstellt_am'),
       supabase.from('sachleistungen_typen').select('*').eq('aktiv', true),
-      supabase.from('kontakte').select('id,firma').order('firma')
+      supabase.from('kontakte').select('id,firma').order('firma'),
+      supabase.from('paket_leistungen').select('*,leistungen_katalog(id,name,leistungen_kategorien(name,farbe))').order('erstellt_am')
     ])
     setVertraege(v || [])
     setSaisons(s || [])
@@ -53,6 +55,13 @@ export default function Sponsoring() {
     setGebuchteLeistungen(gl || [])
     setSachleistungenTypen(st || [])
     setKontakte(ko || [])
+    // Paket-Leistungen gruppiert nach Paket-ID
+    const plByPaket = (plRaw || []).reduce((acc, pl) => {
+      if (!acc[pl.paket_id]) acc[pl.paket_id] = []
+      acc[pl.paket_id].push(pl)
+      return acc
+    }, {})
+    setPaketLeistungen(plByPaket)
     const aktiv = s?.find(x => x.aktiv)
     if (aktiv) { setSelectedSaison(aktiv.id); setUebersichtSaison(aktiv.id) }
     setLoading(false)
@@ -135,6 +144,23 @@ export default function Sponsoring() {
   async function deleteSaison(id) {
     if (!window.confirm('Saison loeschen? Alle Verknuepfungen bleiben erhalten.')) return
     await supabase.from('saisons').delete().eq('id', id); loadAll()
+  }
+
+  async function savePaketLeistung(paketId, leistungId, anzahl) {
+    if (!leistungId) return
+    const { error } = await supabase.from('paket_leistungen').upsert({ paket_id: paketId, leistung_id: leistungId, anzahl: anzahl || 1 }, { onConflict: 'paket_id,leistung_id' })
+    if (!error) loadAll()
+  }
+
+  async function deletePaketLeistung(paketId, leistungId) {
+    await supabase.from('paket_leistungen').delete().eq('paket_id', paketId).eq('leistung_id', leistungId)
+    loadAll()
+  }
+
+  // Beim Waehlen eines Pakets im Vertrag: Leistungen automatisch vorschlagen
+  async function onPaketChange(paketId) {
+    const p = pakete.find(p => p.id === paketId)
+    setForm(f => ({ ...f, paket_id: paketId, jahresbetrag: p?.basispreis || f.jahresbetrag }))
   }
 
   // ---- KATEGORIEN ----
@@ -662,7 +688,47 @@ export default function Sponsoring() {
               <div className="form-group"><label>Beschreibung</label><input value={paketForm.beschreibung||''} onChange={e=>setPaketForm(f=>({...f,beschreibung:e.target.value}))}/></div>
               <div className="form-group">
                 <label>Enthaltene Leistungen</label>
-                {(paketForm.leistungen||[]).map((l,i)=>(
+                {/* Leistungen aus dem Katalog */}
+              <div style={{marginBottom:12}}>
+                <div style={{fontSize:12,color:'var(--gray-400)',marginBottom:8}}>Leistungen aus dem Katalog:</div>
+                {paketForm.id && kategorien.map(kat => {
+                  const katL = katalog.filter(l => l.kategorie_id === kat.id && l.aktiv)
+                  if (katL.length === 0) return null
+                  return (
+                    <div key={kat.id} style={{marginBottom:12}}>
+                      <div style={{fontSize:12,fontWeight:600,color:kat.farbe,marginBottom:6}}>{kat.name}</div>
+                      {katL.map(l => {
+                        const existing = (paketLeistungen[paketForm.id]||[]).find(pl => pl.leistung_id === l.id)
+                        return (
+                          <div key={l.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'8px 12px',background:existing?'rgba(15,34,64,0.04)':'var(--white)',border:'1px solid var(--gray-200)',borderRadius:6,marginBottom:4}}>
+                            <label style={{display:'flex',alignItems:'center',gap:10,cursor:'pointer',flex:1}}>
+                              <input type="checkbox" checked={!!existing} onChange={e => {
+                                if (e.target.checked) savePaketLeistung(paketForm.id, l.id, 1)
+                                else deletePaketLeistung(paketForm.id, l.id)
+                              }} style={{width:16,height:16}}/>
+                              <span style={{fontSize:13}}>{l.name}</span>
+                              {l.preis && <span style={{fontSize:12,color:'var(--gray-400)'}}>{Number(l.preis).toLocaleString('de-DE')} EUR</span>}
+                            </label>
+                            {existing && (
+                              <div style={{display:'flex',alignItems:'center',gap:6}}>
+                                <span style={{fontSize:12,color:'var(--gray-400)'}}>Anzahl:</span>
+                                <input type="number" min="1" value={existing.anzahl||1}
+                                  onChange={e => savePaketLeistung(paketForm.id, l.id, parseInt(e.target.value)||1)}
+                                  style={{width:50,padding:'2px 6px',border:'1px solid var(--gray-200)',borderRadius:4,fontSize:13}}/>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )
+                })}
+                {!paketForm.id && <p style={{fontSize:12,color:'var(--gray-400)'}}>Paket zuerst speichern, dann Leistungen aus dem Katalog zuordnen.</p>}
+              </div>
+
+              {/* Freitext Leistungen */}
+              <div style={{fontSize:12,color:'var(--gray-400)',marginBottom:8}}>Zusaetzliche Leistungen (Freitext):</div>
+              {(paketForm.leistungen||[]).map((l,i)=>(
                   <div key={i} style={{display:'flex',gap:8,marginBottom:6,alignItems:'center'}}>
                     <span style={{fontSize:13,flex:1,padding:'6px 10px',background:'var(--gray-100)',borderRadius:'var(--radius)'}}>{l}</span>
                     <button onClick={()=>setPaketForm(f=>({...f,leistungen:f.leistungen.filter((_,j)=>j!==i)}))} style={{background:'none',border:'none',cursor:'pointer',color:'var(--red)',fontSize:16}}>X</button>
