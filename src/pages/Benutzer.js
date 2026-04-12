@@ -115,7 +115,9 @@ export default function Benutzer() {
 
     try {
       const { data: { session } } = await supabase.auth.getSession()
-      const res = await fetch(`${process.env.REACT_APP_SUPABASE_URL}/functions/v1/create-user`, {
+      if (!session) { setError('Nicht eingeloggt – bitte neu einloggen'); setSaving(false); return }
+      const supabaseUrl = process.env.REACT_APP_SUPABASE_URL || 'https://dgwvjtragknnotcnqdsu.supabase.co'
+      const res = await fetch(`${supabaseUrl}/functions/v1/create-user`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
