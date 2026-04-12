@@ -674,8 +674,9 @@ export default function Sponsoring() {
                 </div>
               </div>
               <div className="form-group">
-                <label style={{display:'flex',alignItems:'center',gap:8,fontSize:14,cursor:'pointer',textTransform:'none'}}>
-                  <input type="checkbox" checked={paketForm.aktiv} onChange={e=>setPaketForm(f=>({...f,aktiv:e.target.checked}))}/>Paket aktiv
+                <label style={{display:'flex',alignItems:'center',gap:10,fontSize:14,cursor:'pointer',textTransform:'none',padding:'10px 0'}}>
+                  <input type="checkbox" style={{width:18,height:18,flexShrink:0}} checked={paketForm.aktiv} onChange={e=>setPaketForm(f=>({...f,aktiv:e.target.checked}))}/>
+                  <span>Paket aktiv</span>
                 </label>
               </div>
             </div>
