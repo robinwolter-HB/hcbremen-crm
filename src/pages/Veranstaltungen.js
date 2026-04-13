@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
-const STATUS_LIST = ['Eingeladen','Zugesagt','Abgesagt','Offen','Erschienen']
+const STATUS_LIST = ['Eingeladen','Zugesagt','Abgesagt','Offen','Erschienen','Nicht erschienen']
 const STATUS_COLORS = {
   'Eingeladen': { bg:'#ddeaff', color:'#1a4a8a' },
   'Zugesagt': { bg:'#e2efda', color:'#2d6b3a' },
   'Abgesagt': { bg:'#fce4d6', color:'#8a3a1a' },
   'Offen': { bg:'#fff3cd', color:'#8a6a00' },
   'Erschienen': { bg:'#c6efce', color:'#1a5a2a' },
+  'Nicht erschienen': { bg:'#ececec', color:'#555' },
 }
 const ART_LIST = ['Networking-Event','Heimspiel','Sponsoren-Meeting','Praesentation','Sonstiges']
 const EMPTY_EVENT = { name:'', datum:'', ort:'', art:'Networking-Event', notizen:'', agenda:'', praesentation_link:'', zustaendig:'', einladung_versendet:false }
@@ -94,6 +95,113 @@ export default function Veranstaltungen() {
     await supabase.from('veranstaltungen').delete().eq('id', id)
     if (selectedEvent?.id === id) setSelectedEvent(null)
     load()
+  }
+
+  async function exportPDF() {
+    if (!selectedEvent) return
+
+    const doc = `
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: Arial, sans-serif; margin: 40px; color: #1a1816; }
+          h1 { color: #0f2240; font-size: 28px; margin-bottom: 4px; }
+          .subtitle { color: #9a9590; font-size: 14px; margin-bottom: 32px; }
+          h2 { color: #0f2240; font-size: 18px; border-bottom: 2px solid #c8a84b; padding-bottom: 8px; margin-top: 32px; }
+          .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+          .info-item label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #9a9590; display: block; margin-bottom: 4px; }
+          .info-item span { font-size: 14px; font-weight: 600; }
+          table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+          th { background: #0f2240; color: white; padding: 10px 12px; text-align: left; font-size: 12px; }
+          td { padding: 10px 12px; border-bottom: 1px solid #e0ddd6; font-size: 13px; }
+          tr:last-child td { border-bottom: none; }
+          .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+          .badge-erschienen { background: #c6efce; color: #1a5a2a; }
+          .badge-zugesagt { background: #e2efda; color: #2d6b3a; }
+          .badge-eingeladen { background: #ddeaff; color: #1a4a8a; }
+          .badge-abgesagt { background: #fce4d6; color: #8a3a1a; }
+          .badge-offen { background: #fff3cd; color: #8a6a00; }
+          .badge-nicht { background: #ececec; color: #555; }
+          .agenda-box { background: #f8f5ef; padding: 16px; border-radius: 8px; font-size: 13px; line-height: 1.7; }
+          .notizen-box { background: #f8f5ef; padding: 16px; border-radius: 8px; font-size: 13px; line-height: 1.7; }
+          .stats { display: flex; gap: 20px; margin: 16px 0; }
+          .stat { text-align: center; padding: 12px 20px; background: #f8f5ef; border-radius: 8px; }
+          .stat-num { font-size: 24px; font-weight: 700; color: #0f2240; }
+          .stat-label { font-size: 11px; color: #9a9590; text-transform: uppercase; }
+          .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e0ddd6; font-size: 11px; color: #9a9590; }
+        </style>
+      </head>
+      <body>
+        <h1>${selectedEvent.name}</h1>
+        <div class="subtitle">
+          ${selectedEvent.datum ? new Date(selectedEvent.datum).toLocaleDateString('de-DE', {weekday:'long',year:'numeric',month:'long',day:'numeric'}) : ''}
+          ${selectedEvent.ort ? ' · ' + selectedEvent.ort : ''}
+          ${selectedEvent.zustaendig ? ' · Zuständig: ' + selectedEvent.zustaendig : ''}
+        </div>
+
+        <!-- Statistiken -->
+        <div class="stats">
+          ${['Erschienen','Zugesagt','Eingeladen','Abgesagt','Nicht erschienen','Offen'].map(s => {
+            const count = teilnahmen.filter(t => t.status === s).length
+            if (count === 0) return ''
+            return `<div class="stat"><div class="stat-num">${count}</div><div class="stat-label">${s}</div></div>`
+          }).join('')}
+          <div class="stat"><div class="stat-num">${teilnahmen.length}</div><div class="stat-label">Gesamt</div></div>
+        </div>
+
+        <!-- Teilnehmer -->
+        <h2>Teilnehmerliste (${teilnahmen.length})</h2>
+        <table>
+          <thead>
+            <tr><th>Name / Ansprechpartner</th><th>Firma</th><th>Position</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            ${teilnahmen.map(t => {
+              const badgeClass = t.status === 'Erschienen' ? 'badge-erschienen' :
+                t.status === 'Zugesagt' ? 'badge-zugesagt' :
+                t.status === 'Eingeladen' ? 'badge-eingeladen' :
+                t.status === 'Abgesagt' ? 'badge-abgesagt' :
+                t.status === 'Nicht erschienen' ? 'badge-nicht' : 'badge-offen'
+              return `<tr>
+                <td>${t.ansprechpartner_name || '-'}</td>
+                <td>${t.kontakte?.firma || '-'}</td>
+                <td>${t.ansprechpartner_position || '-'}</td>
+                <td><span class="badge ${badgeClass}">${t.status || 'Eingeladen'}</span></td>
+              </tr>`
+            }).join('')}
+          </tbody>
+        </table>
+
+        ${selectedEvent.agenda ? `
+        <h2>Agenda</h2>
+        <div class="agenda-box">${selectedEvent.agenda}</div>
+        ` : ''}
+
+        ${selectedEvent.notizen ? `
+        <h2>Notizen & Nachbereitung</h2>
+        <div class="notizen-box">${selectedEvent.notizen}</div>
+        ` : ''}
+
+        ${selectedEvent.praesentation_link ? `
+        <h2>Präsentation</h2>
+        <p style="font-size:13px"><a href="${selectedEvent.praesentation_link}">${selectedEvent.praesentation_link}</a></p>
+        ` : ''}
+
+        <div class="footer">
+          HC Bremen CRM · Exportiert am ${new Date().toLocaleDateString('de-DE')} ${new Date().toLocaleTimeString('de-DE', {hour:'2-digit',minute:'2-digit'})}
+        </div>
+      </body>
+      </html>
+    `
+
+    const blob = new Blob([doc], { type: 'text/html' })
+    const url = URL.createObjectURL(blob)
+    const printWindow = window.open(url, '_blank')
+    printWindow.onload = () => {
+      printWindow.print()
+      URL.revokeObjectURL(url)
+    }
   }
 
   async function loadAnsprechpartner(kontaktId) {
@@ -215,6 +323,7 @@ export default function Veranstaltungen() {
                   </div>
                 </div>
                 <div style={{ display:'flex', gap:8 }}>
+                  <button className="btn btn-sm btn-outline" onClick={exportPDF}>📄 PDF</button>
                   <button className="btn btn-sm btn-outline" onClick={() => { setForm(selectedEvent); setModal(true) }}>Bearbeiten</button>
                   <button className="btn btn-sm btn-danger" onClick={() => deleteEvent(selectedEvent.id)}>Loeschen</button>
                 </div>
