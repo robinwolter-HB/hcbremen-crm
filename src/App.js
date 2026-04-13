@@ -106,11 +106,9 @@ function Header() {
             { to:'/kalender', label:'📅 Kalender' },
             { to:'/inbox', label:'📬 Inbox', badge: unreadCount },
           ]} onEmail={()=>setEmailModal(true)}/>
-          {isAdmin() && <DropdownMenu label="⚙️ Verwaltung" onClose={()=>setNavOpen(false)} items={[
-            { to:'/benutzer', label:'👥 Nutzer' },
-            { to:'/einstellungen', label:'⚙️ Einstellungen' },
-          ]}/>}
-          <button className="nav-link" onClick={handleLogout}>Abmelden</button>
+          <DropdownMenu label="⚙️ Verwaltung" onClose={()=>setNavOpen(false)} items={[
+            ...(isAdmin() ? [{ to:'/benutzer', label:'👥 Nutzer' }, { to:'/einstellungen', label:'⚙️ Einstellungen' }] : []),
+          ]} onLogout={handleLogout}/>
         </nav>
       </div>
     </header>
