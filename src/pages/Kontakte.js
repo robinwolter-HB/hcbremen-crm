@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase'
 const STATUS_LIST = ['Offen','Eingeladen','Zugesagt','Absage','Aktiver Sponsor','Ehemaliger Sponsor']
 const KAT_LIST = ['Sponsor','Foerderverein','Freunde des Vereins','Ehemalige','Partner','Medien','Werbeagentur','Kontakt','Sonstige']
 const BADGE_MAP = { 'Zugesagt':'badge-zugesagt','Eingeladen':'badge-eingeladen','Offen':'badge-offen','Absage':'badge-absage','Aktiver Sponsor':'badge-aktiv','Ehemaliger Sponsor':'badge-ehemaliger' }
-const EMPTY = { firma:'', email:'', telefon:'', website:'', branche:'', status:'Offen', kategorie:'Sponsor', zustaendig:'', notiz:'', adresse_strasse:'', adresse_plz:'', adresse_stadt:'', adresse_land:'Deutschland', logo_url:null }
+const EMPTY = { firma:'', email:'', telefon:'', website:'', branche:'', status:'Offen', kategorie:'Sponsor', zustaendig:'', notiz:'', adresse_strasse:'', adresse_plz:'', adresse_stadt:'', adresse_land:'Deutschland', logo_url:null, ist_ev:false }
 
 export default function Kontakte() {
   const [kontakte, setKontakte] = useState([])
@@ -60,7 +60,8 @@ export default function Kontakte() {
     let r = kontakte
     if (search) { const q = search.toLowerCase(); r = r.filter(k => k.firma?.toLowerCase().includes(q) || k.branche?.toLowerCase().includes(q) || k.adresse_stadt?.toLowerCase().includes(q)) }
     if (statusFilter) r = r.filter(k => k.status === statusFilter)
-    if (katFilter) r = r.filter(k => k.kategorie === katFilter)
+    if (katFilter === '__ev__') r = r.filter(k => k.ist_ev)
+    else if (katFilter) r = r.filter(k => k.kategorie === katFilter)
     setFiltered(r)
   }
 
@@ -113,7 +114,7 @@ export default function Kontakte() {
     if (form.branche && !branchen.find(b => b.name.toLowerCase() === form.branche.toLowerCase())) {
       await supabase.from('branchen').upsert({ name: form.branche }, { onConflict: 'name', ignoreDuplicates: true })
     }
-    const payload = { firma:form.firma, email:form.email||null, telefon:form.telefon||null, website:form.website||null, branche:form.branche||null, status:form.status, kategorie:form.kategorie, zustaendig:form.zustaendig||null, notiz:form.notiz||null, adresse_strasse:form.adresse_strasse||null, adresse_plz:form.adresse_plz||null, adresse_stadt:form.adresse_stadt||null, adresse_land:form.adresse_land||'Deutschland', logo_url, geaendert_am:new Date().toISOString() }
+    const payload = { firma:form.firma, email:form.email||null, telefon:form.telefon||null, website:form.website||null, branche:form.branche||null, status:form.status, kategorie:form.kategorie, zustaendig:form.zustaendig||null, notiz:form.notiz||null, adresse_strasse:form.adresse_strasse||null, adresse_plz:form.adresse_plz||null, adresse_stadt:form.adresse_stadt||null, adresse_land:form.adresse_land||'Deutschland', logo_url, ist_ev:form.ist_ev||false, geaendert_am:new Date().toISOString() }
     if (form.id) await supabase.from('kontakte').update(payload).eq('id', form.id)
     else await supabase.from('kontakte').insert(payload)
     setModal(false); setSaving(false); load()
@@ -163,6 +164,9 @@ export default function Kontakte() {
         </select>
         <button className="btn btn-outline" onClick={() => setMapModal(true)} title="Übersichtskarte">🗺️</button>
         <button className="btn btn-primary" onClick={openNew}>+ Neuer Kontakt</button>
+        <button className="btn btn-outline" style={{borderColor:'#e07b30',color:'#e07b30'}} onClick={()=>setKatFilter(katFilter==='__ev__'?'':'__ev__')}>
+          {katFilter==='__ev__'?'✕ ':''}🏛️ e.V.
+        </button>
       </div>
 
       <div className="table-wrap">
@@ -174,12 +178,15 @@ export default function Kontakte() {
             {filtered.length === 0
               ? <tr><td colSpan="7"><div className="empty-state"><p>Keine Ergebnisse.</p></div></td></tr>
               : filtered.map(k => (
-                <tr key={k.id} onClick={() => navigate('/kontakte/'+k.id)}>
+                <tr key={k.id} onClick={() => navigate('/kontakte/'+k.id)} style={{background:k.ist_ev?'#fff8f0':'inherit'}}>
                   <td>
                     <div className="firma-cell">
                       {k.logo_url ? <img src={k.logo_url} alt="" className="firma-logo-sm"/> : <div className="firma-logo-placeholder">{k.firma?.[0]||'?'}</div>}
                       <div>
-                        <strong>{k.firma}</strong>
+                        <div style={{display:'flex',alignItems:'center',gap:6}}>
+                          <strong>{k.firma}</strong>
+                          {k.ist_ev&&<span style={{fontSize:10,background:'#e07b30',color:'white',padding:'1px 6px',borderRadius:10,fontWeight:700,flexShrink:0}}>e.V.</span>}
+                        </div>
                         {k.adresse_stadt && <div style={{fontSize:11,color:'var(--gray-400)'}}>📍 {k.adresse_stadt}</div>}
                       </div>
                     </div>
@@ -284,6 +291,15 @@ export default function Kontakte() {
                 )}
               </div>
 
+              <div className="form-group">
+                <label style={{display:'flex',alignItems:'center',gap:10,textTransform:'none',fontSize:14,cursor:'pointer',padding:'8px 0'}}>
+                  <input type="checkbox" style={{width:18,height:18,flexShrink:0}} checked={form.ist_ev||false} onChange={e=>setForm(f=>({...f,ist_ev:e.target.checked}))}/>
+                  <span style={{display:'flex',alignItems:'center',gap:8}}>
+                    <span style={{background:'#e07b30',color:'white',padding:'1px 8px',borderRadius:10,fontSize:12,fontWeight:700}}>e.V.</span>
+                    HC Bremen e.V. Kontakt (läuft nicht ins Sponsoring-Budget)
+                  </span>
+                </label>
+              </div>
               <div className="form-group"><label>Notiz</label><textarea value={form.notiz||''} onChange={e=>setForm(f=>({...f,notiz:e.target.value}))}/></div>
             </div>
             <div className="modal-footer">
