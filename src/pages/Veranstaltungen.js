@@ -24,6 +24,11 @@ export default function Veranstaltungen() {
   const [tForm, setTForm] = useState({ kontakt_id:'', ansprechpartner_name:'', ansprechpartner_email:'', ansprechpartner_position:'', status:'Eingeladen', notiz:'' })
   const [kontaktAnsprechpartner, setKontaktAnsprechpartner] = useState([])
   const [saving, setSaving] = useState(false)
+  const [orte, setOrte] = useState([])
+  const [ortModal, setOrtModal] = useState(false)
+  const [ortForm, setOrtForm] = useState({ name:'', adresse_strasse:'', adresse_plz:'', adresse_stadt:'', kapazitaet:'', notiz:'' })
+  const [ortSuche, setOrtSuche] = useState('')
+  const [zeigOrtSuche, setZeigOrtSuche] = useState(false)
   const [detailTab, setDetailTab] = useState('teilnehmer')
   const [statusFilter, setStatusFilter] = useState('')
 
@@ -34,6 +39,8 @@ export default function Veranstaltungen() {
     setEvents(data || [])
     const { data: k } = await supabase.from('kontakte').select('id,firma').order('firma')
     setKontakte(k || [])
+    const { data: o } = await supabase.from('veranstaltungsorte').select('*').order('name')
+    setOrte(o || [])
     setLoading(false)
   }
 
@@ -41,6 +48,35 @@ export default function Veranstaltungen() {
     const { data, error } = await supabase.from('veranstaltung_teilnahme').select('*,kontakte(id,firma,logo_url)').eq('veranstaltung_id', eventId)
     if (error) console.error('Teilnahmen Fehler:', error)
     setTeilnahmen(data || [])
+  }
+
+  async function saveOrt() {
+    if (!ortForm.name.trim()) return
+    setSaving(true)
+    const payload = { name:ortForm.name, adresse_strasse:ortForm.adresse_strasse||null, adresse_plz:ortForm.adresse_plz||null, adresse_stadt:ortForm.adresse_stadt||null, kapazitaet:ortForm.kapazitaet||null, notiz:ortForm.notiz||null }
+    let savedOrt
+    if (ortForm.id) {
+      await supabase.from('veranstaltungsorte').update(payload).eq('id', ortForm.id)
+      savedOrt = { ...ortForm, ...payload }
+    } else {
+      const { data } = await supabase.from('veranstaltungsorte').insert(payload).select().single()
+      savedOrt = data
+    }
+    setOrtModal(false); setSaving(false)
+    const { data: o } = await supabase.from('veranstaltungsorte').select('*').order('name')
+    setOrte(o || [])
+    // Direkt im Event-Form übernehmen
+    if (savedOrt) {
+      setForm(f => ({ ...f, ort: savedOrt.name, ort_id: savedOrt.id }))
+      setZeigOrtSuche(false)
+    }
+  }
+
+  async function deleteOrt(id) {
+    if (!window.confirm('Ort löschen?')) return
+    await supabase.from('veranstaltungsorte').delete().eq('id', id)
+    const { data: o } = await supabase.from('veranstaltungsorte').select('*').order('name')
+    setOrte(o || [])
   }
 
   async function saveEvent() {
@@ -329,7 +365,30 @@ export default function Veranstaltungen() {
               <div className="form-group"><label>Name *</label><input value={form.name||''} onChange={e=>setForm(f=>({...f,name:e.target.value}))}/></div>
               <div className="form-row">
                 <div className="form-group"><label>Datum</label><input type="date" value={form.datum||''} onChange={e=>setForm(f=>({...f,datum:e.target.value}))}/></div>
-                <div className="form-group"><label>Ort</label><input value={form.ort||''} onChange={e=>setForm(f=>({...f,ort:e.target.value}))}/></div>
+                <div className="form-group" style={{position:'relative'}}>
+                  <label>Ort</label>
+                  <div style={{display:'flex',gap:8}}>
+                    <input value={form.ort||''} onChange={e=>{setForm(f=>({...f,ort:e.target.value,ort_id:null}));setOrtSuche(e.target.value);setZeigOrtSuche(true)}}
+                      onFocus={()=>setZeigOrtSuche(true)}
+                      placeholder="Ort eingeben oder auswählen..."
+                      style={{flex:1,padding:'10px 14px',border:'1.5px solid var(--gray-200)',borderRadius:'var(--radius)',fontSize:14}}/>
+                    <button type="button" className="btn btn-sm btn-outline" onClick={()=>{setOrtForm({name:form.ort||'',adresse_strasse:'',adresse_plz:'',adresse_stadt:'',kapazitaet:'',notiz:''});setOrtModal(true)}} title="Neuen Ort anlegen">+</button>
+                  </div>
+                  {zeigOrtSuche && orte.filter(o=>!ortSuche||o.name.toLowerCase().includes(ortSuche.toLowerCase())).length > 0 && (
+                    <div style={{position:'absolute',top:'100%',left:0,right:0,background:'white',border:'1.5px solid var(--gray-200)',borderRadius:'var(--radius)',zIndex:10,boxShadow:'var(--shadow)',maxHeight:200,overflowY:'auto'}}>
+                      {orte.filter(o=>!ortSuche||o.name.toLowerCase().includes(ortSuche.toLowerCase())).map(o=>(
+                        <div key={o.id} onClick={()=>{setForm(f=>({...f,ort:o.name,ort_id:o.id}));setOrtSuche('');setZeigOrtSuche(false)}}
+                          style={{padding:'10px 14px',cursor:'pointer',fontSize:14,borderBottom:'1px solid var(--gray-100)'}}
+                          onMouseEnter={e=>e.currentTarget.style.background='var(--gray-100)'}
+                          onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                          <div style={{fontWeight:600}}>{o.name}</div>
+                          {(o.adresse_strasse||o.adresse_stadt) && <div style={{fontSize:12,color:'var(--gray-400)'}}>{[o.adresse_strasse,o.adresse_plz,o.adresse_stadt].filter(Boolean).join(', ')}</div>}
+                          {o.kapazitaet && <div style={{fontSize:12,color:'var(--gray-400)'}}>Kapazität: {o.kapazitaet} Personen</div>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="form-row">
                 <div className="form-group"><label>Art</label>
@@ -408,6 +467,40 @@ export default function Veranstaltungen() {
           </div>
         </div>
       )}
+
+      {/* MODAL: ORT ANLEGEN */}
+      {ortModal && (
+        <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setOrtModal(false)}>
+          <div className="modal" style={{maxWidth:520}}>
+            <div className="modal-header">
+              <span className="modal-title">{ortForm.id?'Ort bearbeiten':'Neuer Veranstaltungsort'}</span>
+              <button className="close-btn" onClick={()=>setOrtModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-group"><label>Name *</label><input value={ortForm.name||''} onChange={e=>setOrtForm(f=>({...f,name:e.target.value}))} placeholder="z.B. Sporthalle Ronzelenstraße" autoFocus/></div>
+              <div className="form-group"><label>Strasse & Hausnummer</label><input value={ortForm.adresse_strasse||''} onChange={e=>setOrtForm(f=>({...f,adresse_strasse:e.target.value}))} placeholder="Musterstrasse 1"/></div>
+              <div className="form-row">
+                <div className="form-group"><label>PLZ</label><input value={ortForm.adresse_plz||''} onChange={e=>setOrtForm(f=>({...f,adresse_plz:e.target.value}))} placeholder="28195"/></div>
+                <div className="form-group"><label>Stadt</label><input value={ortForm.adresse_stadt||''} onChange={e=>setOrtForm(f=>({...f,adresse_stadt:e.target.value}))} placeholder="Bremen"/></div>
+              </div>
+              <div className="form-group"><label>Kapazität (Personen)</label><input type="number" value={ortForm.kapazitaet||''} onChange={e=>setOrtForm(f=>({...f,kapazitaet:e.target.value}))} placeholder="z.B. 200"/></div>
+              <div className="form-group"><label>Notiz</label><textarea value={ortForm.notiz||''} onChange={e=>setOrtForm(f=>({...f,notiz:e.target.value}))} placeholder="z.B. Parkplätze vorhanden, Catering möglich..."/></div>
+              {(ortForm.adresse_strasse||ortForm.adresse_stadt) && (
+                <iframe
+                  src={`https://maps.google.com/maps?q=${encodeURIComponent([ortForm.adresse_strasse,ortForm.adresse_plz,ortForm.adresse_stadt].filter(Boolean).join(', '))}&output=embed&zoom=15`}
+                  width="100%" height="160" style={{border:'none',borderRadius:'var(--radius)',marginTop:8}} title="Karte" loading="lazy"
+                />
+              )}
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={()=>setOrtModal(false)}>Abbrechen</button>
+              <button className="btn btn-primary" onClick={saveOrt} disabled={saving}>{saving?'Speichern...':'Speichern'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ORTE VERWALTEN */}
     </main>
   )
 }
