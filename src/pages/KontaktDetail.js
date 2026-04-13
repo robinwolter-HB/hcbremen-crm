@@ -54,6 +54,7 @@ export default function KontaktDetail() {
 
   async function saveKontakt() {
     setSaving(true)
+    console.log('saveKontakt called, id:', id, 'kForm:', JSON.stringify(kForm))
     const payload = { 
       firma: kForm.firma, 
       email: kForm.email||null, 
