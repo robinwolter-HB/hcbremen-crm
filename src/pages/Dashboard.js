@@ -22,7 +22,7 @@ export default function Dashboard() {
   async function load() {
     const [{ data: s },{ data: v },{ data: a },{ data: e },{ data: ev }] = await Promise.all([
       supabase.from('saisons').select('*').order('beginn', { ascending: false }),
-      supabase.from('sponsoring').select('*,kontakte(id,firma,logo_url),saisons(name),sponsoring_pakete(name),sponsoring_saisons(saison_id)').order('erstellt_am', { ascending: false }),
+      supabase.from('sponsoring').select('*,kontakte(id,firma,logo_url),saisons(name),sponsoring_pakete(name),sponsoring_saisons(saison_id)').eq('ist_ev', false).order('erstellt_am', { ascending: false }),
       supabase.from('kontakthistorie').select('*,kontakte(firma)').eq('erledigt', false).not('faellig_am', 'is', null).lte('faellig_am', new Date().toISOString().split('T')[0]),
       supabase.from('veranstaltungen').select('*').order('datum', { ascending: false }).limit(5),
       supabase.from('sponsoring').select('*,kontakte(firma)').eq('ist_ev', true)
