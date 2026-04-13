@@ -144,7 +144,24 @@ export default function Kalender() {
       <div className="page-title">Kalender</div>
       <p className="page-subtitle">Aufgaben, Events und Verträge im Überblick</p>
 
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 320px', gap:24, alignItems:'start' }}>
+      {/* Dieser Monat - ÜBER dem Kalender */}
+      <div className="card" style={{ marginBottom:16, padding:'14px 20px' }}>
+        <div className="section-title" style={{ marginBottom:12, fontSize:16 }}>Dieser Monat</div>
+        <div style={{ display:'flex', gap:16, flexWrap:'wrap' }}>
+          {Object.entries(EVENT_TYPES).map(([key, t]) => {
+            const count = kalenderEvents.filter(e => e.type === key && e.datum.getFullYear() === jahr && e.datum.getMonth() === monat).length
+            return (
+              <div key={key} style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 14px', borderRadius:20, background:count>0?t.farbe+'15':'var(--gray-100)', border:'1.5px solid '+(count>0?t.farbe:'var(--gray-200)') }}>
+                <span style={{ fontSize:14 }}>{t.icon}</span>
+                <span style={{ fontSize:13, fontWeight:600, color:count>0?t.farbe:'var(--gray-400)' }}>{t.label}</span>
+                <span style={{ fontSize:14, fontWeight:700, color:count>0?t.farbe:'var(--gray-400)' }}>{count}</span>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      <div style={{ display:'grid', gridTemplateColumns:'1fr', gap:24, alignItems:'start' }}>
 
         {/* KALENDER */}
         <div>
@@ -249,53 +266,38 @@ export default function Kalender() {
           )}
         </div>
 
-        {/* RECHTE SPALTE: Kommende 30 Tage */}
-        <div>
-          <div className="card">
-            <div className="section-title" style={{ marginBottom:16 }}>Nächste 30 Tage</div>
-            {kommende.length === 0
-              ? <p style={{ fontSize:13, color:'var(--gray-400)' }}>Keine anstehenden Termine.</p>
-              : <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                  {kommende.map(e => {
-                    const diff = Math.ceil((e.datum - today) / (1000*60*60*24))
-                    const diffLabel = diff === 0 ? 'Heute' : diff === 1 ? 'Morgen' : 'in '+diff+' Tagen'
-                    return (
-                      <div key={e.id} onClick={() => e.link && navigate(e.link)}
-                        style={{ padding:'10px 12px', borderRadius:'var(--radius)',
-                          border:'1px solid '+EVENT_TYPES[e.type].farbe+'33',
-                          borderLeft:'3px solid '+EVENT_TYPES[e.type].farbe,
-                          background:EVENT_TYPES[e.type].farbe+'08', cursor: e.link ? 'pointer' : 'default' }}>
-                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:8 }}>
-                          <div style={{ flex:1, minWidth:0 }}>
-                            <div style={{ fontSize:13, fontWeight:600, marginBottom:2 }}>{e.titel}</div>
-                            {e.untertitel && <div style={{ fontSize:11, color:'var(--gray-400)' }}>{e.untertitel}</div>}
-                          </div>
-                          <div style={{ textAlign:'right', flexShrink:0 }}>
-                            <div style={{ fontSize:11, fontWeight:700, color:diff<=3?'var(--red)':diff<=7?'var(--orange)':'var(--gray-400)' }}>{diffLabel}</div>
-                            <div style={{ fontSize:10, color:'var(--gray-400)' }}>{e.datum.toLocaleDateString('de-DE')}</div>
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-            }
-          </div>
+      </div>
 
-          {/* Monats-Statistik */}
-          <div className="card" style={{ marginTop:16 }}>
-            <div className="section-title" style={{ marginBottom:12 }}>Dieser Monat</div>
-            {Object.entries(EVENT_TYPES).map(([key, t]) => {
-              const count = kalenderEvents.filter(e => e.type === key && e.datum.getFullYear() === jahr && e.datum.getMonth() === monat).length
-              return (
-                <div key={key} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'6px 0', borderBottom:'1px solid var(--gray-100)' }}>
-                  <span style={{ fontSize:13 }}>{t.icon} {t.label}</span>
-                  <span style={{ fontSize:13, fontWeight:700, color: count > 0 ? t.farbe : 'var(--gray-400)' }}>{count}</span>
-                </div>
-              )
-            })}
-          </div>
-        </div>
+      {/* Nächste 30 Tage - UNTER dem Kalender */}
+      <div className="card" style={{ marginTop:16 }}>
+        <div className="section-title" style={{ marginBottom:16 }}>Nächste 30 Tage</div>
+        {kommende.length === 0
+          ? <p style={{ fontSize:13, color:'var(--gray-400)' }}>Keine anstehenden Termine.</p>
+          : <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:10 }}>
+              {kommende.map(e => {
+                const diff = Math.ceil((e.datum - today) / (1000*60*60*24))
+                const diffLabel = diff === 0 ? 'Heute' : diff === 1 ? 'Morgen' : 'in '+diff+' Tagen'
+                return (
+                  <div key={e.id} onClick={() => e.link && navigate(e.link)}
+                    style={{ padding:'10px 12px', borderRadius:'var(--radius)',
+                      border:'1px solid '+EVENT_TYPES[e.type].farbe+'33',
+                      borderLeft:'3px solid '+EVENT_TYPES[e.type].farbe,
+                      background:EVENT_TYPES[e.type].farbe+'08', cursor: e.link ? 'pointer' : 'default' }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:8 }}>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontSize:13, fontWeight:600, marginBottom:2 }}>{e.titel}</div>
+                        {e.untertitel && <div style={{ fontSize:11, color:'var(--gray-400)' }}>{e.untertitel}</div>}
+                      </div>
+                      <div style={{ textAlign:'right', flexShrink:0 }}>
+                        <div style={{ fontSize:11, fontWeight:700, color:diff<=3?'var(--red)':diff<=7?'var(--orange)':'var(--gray-400)' }}>{diffLabel}</div>
+                        <div style={{ fontSize:10, color:'var(--gray-400)' }}>{e.datum.toLocaleDateString('de-DE')}</div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+        }
       </div>
     </main>
   )
