@@ -54,8 +54,27 @@ export default function KontaktDetail() {
 
   async function saveKontakt() {
     setSaving(true)
-    const payload = { firma:kForm.firma, email:kForm.email||null, telefon:kForm.telefon||null, website:kForm.website||null, branche:kForm.branche||null, status:kForm.status, kategorie:kForm.kategorie, zustaendig:kForm.zustaendig||null, notiz:kForm.notiz||null, adresse_strasse:kForm.adresse_strasse||null, adresse_plz:kForm.adresse_plz||null, adresse_stadt:kForm.adresse_stadt||null }
-    await supabase.from('kontakte').update(payload).eq('id', id)
+    const payload = { 
+      firma: kForm.firma, 
+      email: kForm.email||null, 
+      telefon: kForm.telefon||null, 
+      website: kForm.website||null, 
+      branche: kForm.branche||null, 
+      status: kForm.status, 
+      kategorie: kForm.kategorie, 
+      zustaendig: kForm.zustaendig||null, 
+      notiz: kForm.notiz||null, 
+      adresse_strasse: kForm.adresse_strasse||null, 
+      adresse_plz: kForm.adresse_plz||null, 
+      adresse_stadt: kForm.adresse_stadt||null,
+      geaendert_am: new Date().toISOString()
+    }
+    const { error } = await supabase.from('kontakte').update(payload).eq('id', id)
+    if (error) {
+      alert('Speichern fehlgeschlagen: ' + error.message)
+      setSaving(false)
+      return
+    }
     setKontaktEditModal(false); setSaving(false); load()
   }
 
