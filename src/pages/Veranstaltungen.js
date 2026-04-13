@@ -11,7 +11,7 @@ const STATUS_COLORS = {
   'Nicht erschienen': { bg:'#ececec', color:'#555' },
 }
 const ART_LIST = ['Networking-Event','Heimspiel','Sponsoren-Meeting','Praesentation','Sonstiges']
-const EMPTY_EVENT = { name:'', datum:'', ort:'', art:'Networking-Event', notizen:'', agenda:'', praesentation_link:'', zustaendig:'', einladung_versendet:false }
+const EMPTY_EVENT = { name:'', datum:'', ort:'', art:'Networking-Event', notizen:'', agenda:'', praesentation_link:'', dokument_link_1:'', dokument_link_2:'', dokument_link_3:'', dokument_titel_1:'', dokument_titel_2:'', dokument_titel_3:'', zustaendig:'', einladung_versendet:false }
 
 export default function Veranstaltungen() {
   const [events, setEvents] = useState([])
@@ -187,9 +187,23 @@ export default function Veranstaltungen() {
         ` : ''}
 
         ${selectedEvent.praesentation_link ? `
-        <h2>Präsentation</h2>
-        <p style="font-size:13px"><a href="${selectedEvent.praesentation_link}">${selectedEvent.praesentation_link}</a></p>
-        ` : ''}
+        <h2>Links & Dokumente</h2>
+        <table>
+          <thead><tr><th>Titel</th><th>Link</th></tr></thead>
+          <tbody>
+            <tr><td>📊 Präsentation</td><td><a href="${selectedEvent.praesentation_link}">${selectedEvent.praesentation_link}</a></td></tr>
+            ${[1,2,3].map(n => selectedEvent[`dokument_link_${n}`] ? `<tr><td>📎 ${selectedEvent[`dokument_titel_${n}`]||'Dokument '+n}</td><td><a href="${selectedEvent[`dokument_link_${n}`]}">${selectedEvent[`dokument_link_${n}`]}</a></td></tr>` : '').join('')}
+          </tbody>
+        </table>
+        ` : ([1,2,3].some(n => selectedEvent[`dokument_link_${n}`]) ? `
+        <h2>Dokumente</h2>
+        <table>
+          <thead><tr><th>Titel</th><th>Link</th></tr></thead>
+          <tbody>
+            ${[1,2,3].map(n => selectedEvent[`dokument_link_${n}`] ? `<tr><td>📎 ${selectedEvent[`dokument_titel_${n}`]||'Dokument '+n}</td><td><a href="${selectedEvent[`dokument_link_${n}`]}">${selectedEvent[`dokument_link_${n}`]}</a></td></tr>` : '').join('')}
+          </tbody>
+        </table>
+        ` : '')}
 
         <div class="footer">
           HC Bremen CRM · Exportiert am ${new Date().toLocaleDateString('de-DE')} ${new Date().toLocaleTimeString('de-DE', {hour:'2-digit',minute:'2-digit'})}
@@ -342,9 +356,15 @@ export default function Veranstaltungen() {
                 {selectedEvent.praesentation_link && (
                   <a href={selectedEvent.praesentation_link} target="_blank" rel="noreferrer"
                     style={{ fontSize:12, padding:'3px 10px', borderRadius:20, background:'#ddeaff', color:'#1a4a8a', fontWeight:600, textDecoration:'none' }}>
-                    📊 Präsentation öffnen
+                    📊 Präsentation
                   </a>
                 )}
+                {[1,2,3].map(n => selectedEvent[`dokument_link_${n}`] && (
+                  <a key={n} href={selectedEvent[`dokument_link_${n}`]} target="_blank" rel="noreferrer"
+                    style={{ fontSize:12, padding:'3px 10px', borderRadius:20, background:'#e2efda', color:'#2d6b3a', fontWeight:600, textDecoration:'none' }}>
+                    📎 {selectedEvent[`dokument_titel_${n}`] || `Dokument ${n}`}
+                  </a>
+                ))}
               </div>
             </div>
 
@@ -511,6 +531,15 @@ export default function Veranstaltungen() {
                 <div className="form-group"><label>Zustaendig</label><input value={form.zustaendig||''} onChange={e=>setForm(f=>({...f,zustaendig:e.target.value}))}/></div>
               </div>
               <div className="form-group"><label>Praesentations-Link (z.B. Google Slides)</label><input type="url" placeholder="https://..." value={form.praesentation_link||''} onChange={e=>setForm(f=>({...f,praesentation_link:e.target.value}))}/></div>
+              <div style={{background:'var(--gray-100)',borderRadius:'var(--radius)',padding:14,marginBottom:8}}>
+                <div style={{fontSize:12,fontWeight:600,color:'var(--gray-600)',textTransform:'uppercase',letterSpacing:'0.3px',marginBottom:12}}>Weitere Dokument-Links</div>
+                {[1,2,3].map(n=>(
+                  <div key={n} className="form-row" style={{marginBottom:8}}>
+                    <div className="form-group" style={{margin:0}}><label>Titel {n}</label><input value={form[`dokument_titel_${n}`]||''} onChange={e=>setForm(f=>({...f,[`dokument_titel_${n}`]:e.target.value}))} placeholder={`z.B. Teilnehmerliste, Sponsorenmappe...`}/></div>
+                    <div className="form-group" style={{margin:0}}><label>Link {n}</label><input type="url" value={form[`dokument_link_${n}`]||''} onChange={e=>setForm(f=>({...f,[`dokument_link_${n}`]:e.target.value}))} placeholder="https://drive.google.com/..."/></div>
+                  </div>
+                ))}
+              </div>
               <div className="form-group">
                 <label style={{display:'flex',alignItems:'center',gap:10,textTransform:'none',fontSize:14,cursor:'pointer',padding:'8px 0'}}>
                   <input type="checkbox" style={{width:18,height:18,flexShrink:0}} checked={form.einladung_versendet||false} onChange={e=>setForm(f=>({...f,einladung_versendet:e.target.checked}))}/>
