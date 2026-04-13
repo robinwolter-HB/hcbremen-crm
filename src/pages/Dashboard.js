@@ -43,8 +43,20 @@ export default function Dashboard() {
 
   const aktiveSaison = saisons.find(s => s.id === selectedSaison)
   const aktiveVertraege = vertraege.filter(v => v.status === 'Aktiv')
-  const gesamtGeld = vertraege.reduce((s, v) => s + (Number(v.jahresbetrag) || 0), 0)
+  const inVerhandlung = vertraege.filter(v => v.status === 'In Verhandlung' || v.status === 'Anfrage')
+  const gekuendigt = vertraege.filter(v => v.status === 'Ausgelaufen' || v.status === 'Gekuendigt')
+  
+  // Gesicherte Summe: nur unterzeichnete Verträge
+  const gesichertGeld = vertraege.filter(v => v.vertrag_unterzeichnet && v.status === 'Aktiv')
+    .reduce((s, v) => s + (Number(v.jahresbetrag) || 0), 0)
+  // In Verhandlung: potenzielle Summe
+  const potenzielleGeld = inVerhandlung.reduce((s, v) => s + (Number(v.jahresbetrag) || 0), 0)
+  // Alle aktiven (inkl. nicht unterzeichnet)
+  const gesamtGeld = vertraege.filter(v => v.status === 'Aktiv')
+    .reduce((s, v) => s + (Number(v.jahresbetrag) || 0), 0)
   const gesamtWert = vertraege.reduce((s, v) => s + (Number(v.gesamtwert) || 0), 0)
+  const gekuendigtGeld = gekuendigt.reduce((s, v) => s + (Number(v.jahresbetrag) || 0), 0)
+  const gesamtPotenzial = gesamtGeld + potenzielleGeld
   const zielerreichung = ziel > 0 ? Math.min((gesamtGeld / ziel) * 100, 100) : 0
   const auslaufend = alleVertraege.filter(v => {
     if (!v.vertragsende) return false
@@ -104,17 +116,44 @@ export default function Dashboard() {
             <span style={{fontSize:13,color:'rgba(255,255,255,0.7)'}}>Zielerreichung</span>
             <span style={{fontSize:13,fontWeight:700,color:'var(--gold)'}}>{zielerreichung.toFixed(1)}%</span>
           </div>
-          <div style={{height:12,background:'rgba(255,255,255,0.15)',borderRadius:6,overflow:'hidden'}}>
-            <div style={{height:'100%',width:zielerreichung+'%',background:'linear-gradient(90deg, var(--gold), #e8c96b)',borderRadius:6,transition:'width 0.5s'}}/>
+          {/* Doppelter Fortschrittsbalken: gesichert + in Verhandlung */}
+          <div style={{height:12,background:'rgba(255,255,255,0.15)',borderRadius:6,overflow:'hidden',position:'relative'}}>
+            <div style={{position:'absolute',height:'100%',width:Math.min((gesamtPotenzial/ziel)*100,100)+'%',background:'rgba(45,111,163,0.6)',borderRadius:6}}/>
+            <div style={{position:'absolute',height:'100%',width:zielerreichungGesichert+'%',background:'linear-gradient(90deg, var(--gold), #e8c96b)',borderRadius:6,transition:'width 0.5s'}}/>
           </div>
-          <div style={{display:'flex',justifyContent:'space-between',marginTop:6}}>
-            <span style={{fontSize:12,color:'rgba(255,255,255,0.5)'}}>0 EUR</span>
+          <div style={{display:'flex',justifyContent:'space-between',marginTop:6,flexWrap:'wrap',gap:4}}>
+            <div style={{display:'flex',gap:12}}>
+              <span style={{fontSize:11,color:'rgba(255,255,255,0.6)',display:'flex',alignItems:'center',gap:4}}><span style={{display:'inline-block',width:10,height:10,borderRadius:2,background:'var(--gold)'}}></span>Gesichert {zielerreichungGesichert.toFixed(0)}%</span>
+              <span style={{fontSize:11,color:'rgba(255,255,255,0.6)',display:'flex',alignItems:'center',gap:4}}><span style={{display:'inline-block',width:10,height:10,borderRadius:2,background:'rgba(45,111,163,0.8)'}}></span>Potenzial {Math.min((gesamtPotenzial/ziel)*100,100).toFixed(0)}%</span>
+            </div>
             <span style={{fontSize:12,color:'rgba(255,255,255,0.5)'}}>{(ziel - gesamtGeld).toLocaleString('de-DE')} EUR fehlen noch</span>
           </div>
         </div>
       </div>
 
       {/* KENNZAHLEN */}
+      <div className="stats-row" style={{marginBottom:12}}>
+        <div className="stat-card green">
+          <div className="stat-num" style={{fontSize:20}}>{gesichertGeld.toLocaleString('de-DE')} EUR</div>
+          <div className="stat-label">Gesichert (unterzeichnet)</div>
+          <div style={{fontSize:11,color:'var(--gray-400)',marginTop:4}}>{vertraege.filter(v=>v.vertrag_unterzeichnet&&v.status==='Aktiv').length} Verträge</div>
+        </div>
+        <div className="stat-card blue">
+          <div className="stat-num" style={{fontSize:20}}>{potenzielleGeld.toLocaleString('de-DE')} EUR</div>
+          <div className="stat-label">In Verhandlung (potenziell)</div>
+          <div style={{fontSize:11,color:'var(--gray-400)',marginTop:4}}>{inVerhandlung.length} Verträge</div>
+        </div>
+        <div className="stat-card gold">
+          <div className="stat-num" style={{fontSize:20}}>{gesamtPotenzial.toLocaleString('de-DE')} EUR</div>
+          <div className="stat-label">Gesamtpotenzial</div>
+          <div style={{fontSize:11,color:'var(--gray-400)',marginTop:4}}>Gesichert + In Verhandlung</div>
+        </div>
+        <div className="stat-card red">
+          <div className="stat-num" style={{fontSize:20}}>{gekuendigtGeld.toLocaleString('de-DE')} EUR</div>
+          <div className="stat-label">Weggefallen (gekündigt/ausgelaufen)</div>
+          <div style={{fontSize:11,color:'var(--gray-400)',marginTop:4}}>{gekuendigt.length} Verträge</div>
+        </div>
+      </div>
       <div className="stats-row" style={{marginBottom:20}}>
         <div className="stat-card green"><div className="stat-num">{aktiveVertraege.length}</div><div className="stat-label">Aktive Sponsoren</div></div>
         <div className="stat-card blue"><div className="stat-num">{vertraege.length}</div><div className="stat-label">Verträge gesamt</div></div>
