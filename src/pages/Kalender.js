@@ -11,6 +11,8 @@ const EVENT_TYPES = {
   event: { farbe: '#e07b30', label: 'Veranstaltung', icon: '📅' },
   vertrag_ende: { farbe: '#d94f4f', label: 'Vertragsende', icon: '⚠️' },
   vertrag_start: { farbe: '#3a8a5a', label: 'Vertragsbeginn', icon: '✅' },
+  ev_vertrag_start: { farbe: '#e07b30', label: 'e.V. Vertragsbeginn', icon: '🏛️' },
+  ev_vertrag_ende: { farbe: '#c8621a', label: 'e.V. Vertragsende', icon: '🏛️⚠️' },
 }
 
 export default function Kalender() {
@@ -21,20 +23,38 @@ export default function Kalender() {
   const [kalenderEvents, setKalenderEvents] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedDay, setSelectedDay] = useState(null)
-  const [filter, setFilter] = useState({ todo: true, meeting: true, event: true, vertrag_ende: true, vertrag_start: true })
+  const [filter, setFilter] = useState({ todo: true, meeting: true, event: true, vertrag_ende: true, vertrag_start: true, ev_vertrag_start: true, ev_vertrag_ende: true })
 
   useEffect(() => { load() }, [])
 
   async function load() {
-    const [{ data: todos }, { data: events }, { data: vertraege }] = await Promise.all([
+    const [{ data: todos }, { data: events }, { data: vertraege }, { data: evVertraege }] = await Promise.all([
       supabase.from('kontakthistorie').select('*,kontakte(id,firma)').eq('erledigt', false).not('faellig_am', 'is', null),
       supabase.from('veranstaltungen').select('*').not('datum', 'is', null),
-      supabase.from('sponsoring').select('*,kontakte(firma)').not('vertragsende', 'is', null)
+      supabase.from('sponsoring').select('*,kontakte(firma)').eq('ist_ev', false).not('vertragsende', 'is', null),
+      supabase.from('sponsoring').select('*,kontakte(firma)').eq('ist_ev', true)
     ])
 
     const alle = []
 
-    // Meetings (moved to after m is loaded)
+    // e.V. Verträge
+    ;(evVertraege || []).forEach(v => {
+      if (v.vertragsbeginn) alle.push({
+        id: 'ev-start-'+v.id, type: 'ev_vertrag_start',
+        datum: new Date(v.vertragsbeginn),
+        titel: '🏛️ ' + (v.kontakte?.firma || 'e.V.') + ' – Vertragsbeginn',
+        untertitel: v.jahresbetrag ? Number(v.jahresbetrag).toLocaleString('de-DE') + ' EUR' : '',
+        link: null
+      })
+      if (v.vertragsende) alle.push({
+        id: 'ev-ende-'+v.id, type: 'ev_vertrag_ende',
+        datum: new Date(v.vertragsende),
+        titel: '🏛️ ' + (v.kontakte?.firma || 'e.V.') + ' – Vertragsende',
+        untertitel: v.jahresbetrag ? Number(v.jahresbetrag).toLocaleString('de-DE') + ' EUR' : '',
+        link: null
+      })
+    })
+
     // ToDos
     ;(todos || []).forEach(t => {
       alle.push({
