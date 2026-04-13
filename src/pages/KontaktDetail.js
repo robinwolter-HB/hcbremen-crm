@@ -5,7 +5,7 @@ import { useAuth } from '../lib/AuthContext'
 
 const BADGE_MAP = { 'Zugesagt':'badge-zugesagt','Eingeladen':'badge-eingeladen','Offen':'badge-offen','Absage':'badge-absage','Aktiver Sponsor':'badge-aktiv','Ehemaliger Sponsor':'badge-ehemaliger' }
 const ART_LIST = ['Anruf','E-Mail','Meeting','Veranstaltung','WhatsApp','Brief','Sonstiges']
-const EMPTY_H = { ansprechpartner:'', art:'Anruf', betreff:'', notiz:'', naechste_aktion:'', faellig_am:'', zustaendig:'', zustaendig_personen:[], erledigt:false }
+const EMPTY_H = { ansprechpartner:'', art:'Anruf', betreff:'', notiz:'', naechste_aktion:'', faellig_am:'', zustaendig:'', zustaendig_personen:[], erledigt:false, meeting_datum:'', meeting_uhrzeit:'', meeting_ort:'', meeting_teilnehmer:[] }
 const EMPTY_AP = { name:'', position:'', email:'', telefon:'', mobil:'', hauptansprechpartner:false, notiz:'' }
 
 export default function KontaktDetail() {
@@ -395,6 +395,9 @@ export default function KontaktDetail() {
                           {h.notiz&&<p style={{fontSize:13,color:'var(--gray-600)',marginBottom:4}}>{h.notiz}</p>}
                           <div style={{display:'flex',gap:12,fontSize:12,color:'var(--gray-400)',flexWrap:'wrap'}}>
                             <span>{new Date(h.erstellt_am).toLocaleDateString('de-DE')}</span>
+                            {h.meeting_datum&&<span style={{color:'var(--blue)',fontWeight:600}}>📅 {new Date(h.meeting_datum).toLocaleDateString('de-DE')}{h.meeting_uhrzeit?' um '+h.meeting_uhrzeit.slice(0,5):''}</span>}
+                            {h.meeting_ort&&<span>📍 {h.meeting_ort}</span>}
+                            {h.meeting_teilnehmer?.length>0&&<span>👥 {h.meeting_teilnehmer.join(', ')}</span>}
                             {h.naechste_aktion&&<span>→ {h.naechste_aktion}</span>}
                             {h.faellig_am&&<span style={{color:isUeberfaellig?'var(--red)':'inherit'}}>Fällig: {new Date(h.faellig_am).toLocaleDateString('de-DE')}</span>}
                             {((h.zustaendig_personen||[]).join(', ')||h.zustaendig)&&<span>👤 {(h.zustaendig_personen||[]).join(', ')||h.zustaendig}</span>}
@@ -608,6 +611,37 @@ export default function KontaktDetail() {
               </div>
               <div className="form-group"><label>Betreff / Thema</label><input value={hForm.betreff} onChange={e=>setHForm(f=>({...f,betreff:e.target.value}))}/></div>
               <div className="form-group"><label>Notiz / Ergebnis</label><textarea value={hForm.notiz} onChange={e=>setHForm(f=>({...f,notiz:e.target.value}))}/></div>
+              {/* Meeting-Felder - nur bei Art "Meeting" */}
+              {hForm.art === 'Meeting' && (
+                <div style={{background:'var(--gray-100)',borderRadius:'var(--radius)',padding:14,marginBottom:4}}>
+                  <div style={{fontSize:12,fontWeight:600,color:'var(--gray-600)',textTransform:'uppercase',letterSpacing:'0.3px',marginBottom:12}}>Meeting-Details</div>
+                  <div className="form-row">
+                    <div className="form-group"><label>Datum</label><input type="date" value={hForm.meeting_datum||''} onChange={e=>setHForm(f=>({...f,meeting_datum:e.target.value}))}/></div>
+                    <div className="form-group"><label>Uhrzeit</label><input type="time" value={hForm.meeting_uhrzeit||''} onChange={e=>setHForm(f=>({...f,meeting_uhrzeit:e.target.value}))}/></div>
+                  </div>
+                  <div className="form-group"><label>Ort</label><input value={hForm.meeting_ort||''} onChange={e=>setHForm(f=>({...f,meeting_ort:e.target.value}))} placeholder="z.B. Büro HC Bremen, Zoom, Café..."/></div>
+                  <div className="form-group">
+                    <label>Teilnehmer (aus dem Team)</label>
+                    <div style={{border:'1.5px solid var(--gray-200)',borderRadius:'var(--radius)',padding:10,display:'flex',flexWrap:'wrap',gap:8,minHeight:44,background:'var(--white)'}}>
+                      {personen.map(p => {
+                        const selected = (hForm.meeting_teilnehmer||[]).includes(p.name)
+                        return (
+                          <button key={p.id} type="button" onClick={()=>setHForm(f=>{
+                            const current = f.meeting_teilnehmer||[]
+                            const updated = current.includes(p.name) ? current.filter(n=>n!==p.name) : [...current,p.name]
+                            return {...f, meeting_teilnehmer: updated}
+                          })} style={{padding:'4px 12px',borderRadius:20,border:'1.5px solid',fontSize:13,cursor:'pointer',
+                            background:selected?'var(--navy)':'var(--white)',
+                            color:selected?'white':'var(--gray-600)',
+                            borderColor:selected?'var(--navy)':'var(--gray-200)'}}>
+                            {p.name}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
               <div className="form-row">
                 <div className="form-group"><label>Naechste Aktion</label><input value={hForm.naechste_aktion} onChange={e=>setHForm(f=>({...f,naechste_aktion:e.target.value}))}/></div>
                 <div className="form-group"><label>Faellig am</label><input type="date" value={hForm.faellig_am} onChange={e=>setHForm(f=>({...f,faellig_am:e.target.value}))}/></div>
