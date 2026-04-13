@@ -29,7 +29,14 @@ export default function Kontakte() {
   const fileRef = useRef()
   const navigate = useNavigate()
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { loadListen(); load() }, [])
+
+  async function loadListen() {
+    const { data: st } = await supabase.from('crm_status').select('name').eq('aktiv', true).order('reihenfolge')
+    if (st && st.length > 0) setStatusListe(st.map(s => s.name))
+    const { data: kt } = await supabase.from('kontakt_kategorien').select('name').eq('aktiv', true).order('reihenfolge')
+    if (kt && kt.length > 0) setKategorienListe(kt.map(k => k.name))
+  }
   useEffect(() => { applyFilter() }, [kontakte, search, statusFilter, katFilter])
 
   async function load() {
