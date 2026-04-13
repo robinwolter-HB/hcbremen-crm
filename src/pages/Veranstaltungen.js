@@ -157,7 +157,10 @@ export default function Veranstaltungen() {
             <tr><th>Name / Ansprechpartner</th><th>Firma</th><th>Position</th><th>Status</th></tr>
           </thead>
           <tbody>
-            ${teilnahmen.map(t => {
+            ${[...teilnahmen].sort((a,b) => {
+              const order = ['Erschienen','Zugesagt','Eingeladen','Offen','Nicht erschienen','Abgesagt']
+              return order.indexOf(a.status||'Offen') - order.indexOf(b.status||'Offen')
+            }).map(t => {
               const badgeClass = t.status === 'Erschienen' ? 'badge-erschienen' :
                 t.status === 'Zugesagt' ? 'badge-zugesagt' :
                 t.status === 'Eingeladen' ? 'badge-eingeladen' :
