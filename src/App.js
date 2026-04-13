@@ -94,21 +94,22 @@ function Header() {
           <span/><span/><span/>
         </button>
         <span className="user-badge">👤 {profile?.name || user.email}</span>
-        <nav className={`nav${navOpen ? ' open' : ''}`} onClick={() => setNavOpen(false)}>
-          <NavLink to="/" className={({isActive})=>'nav-link'+(isActive?' active':'')} end>Dashboard</NavLink>
-          <NavLink to="/kontakte" className={({isActive})=>'nav-link'+(isActive?' active':'')}>Kontakte</NavLink>
-          <NavLink to="/historie" className={({isActive})=>'nav-link'+(isActive?' active':'')}>Historie</NavLink>
-          <NavLink to="/veranstaltungen" className={({isActive})=>'nav-link'+(isActive?' active':'')}>Events</NavLink>
-          <NavLink to="/sponsoring" className={({isActive})=>'nav-link'+(isActive?' active':'')}>Sponsoring</NavLink>
-          {isAdmin() && <NavLink to="/benutzer" className={({isActive})=>'nav-link'+(isActive?' active':'')}>🔒 Nutzer</NavLink>}
-          <NavLink to="/aufgaben" className={({isActive})=>'nav-link'+(isActive?' active':'')}>✓ Aufgaben</NavLink>
-          <NavLink to="/kalender" className={({isActive})=>'nav-link'+(isActive?' active':'')}>📅 Kalender</NavLink>
-          <NavLink to="/inbox" className={({isActive})=>'nav-link'+(isActive?' active':'')} style={{position:'relative'}}>
-            📬 Inbox{unreadCount>0&&<span style={{position:'absolute',top:-6,right:-8,background:'var(--red)',color:'white',borderRadius:'50%',width:18,height:18,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700}}>{unreadCount}</span>}
-          </NavLink>
-          <button className="nav-link" onClick={() => setEmailModal(true)}>✉️ E-Mail</button>
-          <NavLink to="/ev" className={({isActive})=>'nav-link'+(isActive?' active':'')} style={({isActive})=>isActive?{}:{color:'rgba(255,255,255,0.7)'}}>🏛️ e.V.</NavLink>
-          {isAdmin() && <NavLink to="/einstellungen" className={({isActive})=>'nav-link'+(isActive?' active':'')}>⚙️ Einstellungen</NavLink>}
+        <nav className={`nav${navOpen ? ' open' : ''}`} onClick={e => { if(e.target===e.currentTarget) setNavOpen(false) }}>
+          <NavLink to="/" className={({isActive})=>'nav-link'+(isActive?' active':'')} end onClick={()=>setNavOpen(false)}>Dashboard</NavLink>
+          <NavLink to="/kontakte" className={({isActive})=>'nav-link'+(isActive?' active':'')} onClick={()=>setNavOpen(false)}>Kontakte</NavLink>
+          <NavLink to="/veranstaltungen" className={({isActive})=>'nav-link'+(isActive?' active':'')} onClick={()=>setNavOpen(false)}>Events</NavLink>
+          <NavLink to="/sponsoring" className={({isActive})=>'nav-link'+(isActive?' active':'')} onClick={()=>setNavOpen(false)}>Sponsoring</NavLink>
+          <NavLink to="/ev" className={({isActive})=>'nav-link'+(isActive?' active':'')} onClick={()=>setNavOpen(false)}>🏛️ e.V.</NavLink>
+          <DropdownMenu label="Aktivitäten" onClose={()=>setNavOpen(false)} items={[
+            { to:'/historie', label:'📋 Historie' },
+            { to:'/aufgaben', label:'✓ Aufgaben' },
+            { to:'/kalender', label:'📅 Kalender' },
+            { to:'/inbox', label:'📬 Inbox', badge: unreadCount },
+          ]} onEmail={()=>setEmailModal(true)}/>
+          {isAdmin() && <DropdownMenu label="⚙️ Verwaltung" onClose={()=>setNavOpen(false)} items={[
+            { to:'/benutzer', label:'👥 Nutzer' },
+            { to:'/einstellungen', label:'⚙️ Einstellungen' },
+          ]}/>}
           <button className="nav-link" onClick={handleLogout}>Abmelden</button>
         </nav>
       </div>
