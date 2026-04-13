@@ -16,6 +16,7 @@ import Kalender from './pages/Kalender'
 import EmailModal from './components/EmailModal'
 import Einstellungen from './pages/Einstellungen'
 import Inbox from './pages/Inbox'
+import EV from './pages/EV'
 
 function PrivateRoute({ children, bereich }) {
   const { user, loading, canAccess } = useAuth()
@@ -76,6 +77,7 @@ function Header() {
             📬 Inbox{unreadCount>0&&<span style={{position:'absolute',top:-6,right:-8,background:'var(--red)',color:'white',borderRadius:'50%',width:18,height:18,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700}}>{unreadCount}</span>}
           </NavLink>
           <button className="nav-link" onClick={() => setEmailModal(true)}>✉️ E-Mail</button>
+          <NavLink to="/ev" className={({isActive})=>'nav-link'+(isActive?' active':'')} style={({isActive})=>isActive?{}:{color:'rgba(255,255,255,0.7)'}}>🏛️ e.V.</NavLink>
           {isAdmin() && <NavLink to="/einstellungen" className={({isActive})=>'nav-link'+(isActive?' active':'')}>⚙️ Einstellungen</NavLink>}
           <button className="nav-link" onClick={handleLogout}>Abmelden</button>
         </nav>
@@ -105,6 +107,7 @@ function App() {
             <Route path="/kalender" element={<PrivateRoute><Kalender /></PrivateRoute>} />
             <Route path="/einstellungen" element={<PrivateRoute><Einstellungen /></PrivateRoute>} />
             <Route path="/inbox" element={<PrivateRoute><Inbox /></PrivateRoute>} />
+            <Route path="/ev" element={<PrivateRoute><EV /></PrivateRoute>} />
           </Routes>
         </div>
       </BrowserRouter>
