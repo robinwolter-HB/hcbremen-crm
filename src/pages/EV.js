@@ -8,7 +8,7 @@ const EV_TEXT = '#8a4a00'
 const STATUS_LIST = ['Anfrage','In Verhandlung','Aktiv','Ausgelaufen','Gekuendigt']
 
 const EMPTY_V = {
-  kontakt_id: '', saison_id: '', status: 'Anfrage',
+  kontakt_id: '', saison_id: '', selected_saisons: [], status: 'Anfrage',
   jahresbetrag: '', vertragsbeginn: '', vertragsende: '',
   vertrag_unterzeichnet: false, notizen: ''
 }
@@ -33,7 +33,7 @@ export default function EV() {
     const [{ data: k }, { data: v }, { data: s }] = await Promise.all([
       supabase.from('kontakte').select('*').eq('ist_ev', true).order('firma'),
       supabase.from('sponsoring')
-        .select('*, kontakte(id,firma,logo_url), saisons(name)')
+        .select('*, kontakte(id,firma,logo_url), saisons(name), sponsoring_saisons(saison_id, saisons(name))')
         .eq('ist_ev', true)
         .order('erstellt_am', { ascending: false }),
       supabase.from('saisons').select('*').order('beginn', { ascending: false })
@@ -44,6 +44,14 @@ export default function EV() {
     const aktiv = s?.find(x => x.aktiv)
     if (aktiv) setFilterSaison(aktiv.id)
     setLoading(false)
+  }
+
+  function toggleSaison(sid) {
+    setVForm(f => {
+      const current = f.selected_saisons || []
+      const updated = current.includes(sid) ? current.filter(s => s !== sid) : [...current, sid]
+      return { ...f, selected_saisons: updated, saison_id: updated[0] || '' }
+    })
   }
 
   async function saveKontakt() {
@@ -70,7 +78,7 @@ export default function EV() {
     setSaving(true)
     const payload = {
       kontakt_id: vForm.kontakt_id,
-      saison_id: vForm.saison_id || null,
+      saison_id: vForm.selected_saisons?.[0] || vForm.saison_id || null,
       status: vForm.status || 'Anfrage',
       jahresbetrag: vForm.jahresbetrag ? Number(vForm.jahresbetrag) : null,
       vertragsbeginn: vForm.vertragsbeginn || null,
@@ -88,6 +96,16 @@ export default function EV() {
     if (vForm.id) result = await supabase.from('sponsoring').update(payload).eq('id', vForm.id)
     else result = await supabase.from('sponsoring').insert(payload)
     if (result.error) { alert('Fehler: ' + result.error.message); setSaving(false); return }
+
+    // Mehrfach-Saisons speichern
+    const sponsoringId = vForm.id || result.data?.[0]?.id
+    if (sponsoringId && vForm.selected_saisons?.length > 0) {
+      await supabase.from('sponsoring_saisons').delete().eq('sponsoring_id', sponsoringId)
+      await supabase.from('sponsoring_saisons').insert(
+        vForm.selected_saisons.map(sid => ({ sponsoring_id: sponsoringId, saison_id: sid }))
+      )
+    }
+
     setVertragModal(false); setSaving(false); load()
   }
 
@@ -101,7 +119,7 @@ export default function EV() {
     await supabase.from('sponsoring').delete().eq('id', id); load()
   }
 
-  const filteredVertraege = vertraege.filter(v => !filterSaison || v.saison_id === filterSaison)
+  const filteredVertraege = vertraege.filter(v => !filterSaison || v.saison_id === filterSaison || (v.sponsoring_saisons||[]).some(ss=>ss.saison_id===filterSaison))
   const gesamtGeld = filteredVertraege.reduce((s, v) => s + (Number(v.jahresbetrag) || 0), 0)
   const aktiveVertraege = filteredVertraege.filter(v => v.status === 'Aktiv')
 
@@ -184,13 +202,13 @@ export default function EV() {
                   {filteredVertraege.map(v=>(
                     <tr key={v.id} style={{background:'#fff8f0'}}>
                       <td><div style={{display:'flex',alignItems:'center',gap:8}}><div style={{width:8,height:8,borderRadius:'50%',background:EV_COLOR,flexShrink:0}}/><strong>{v.kontakte?.firma}</strong></div></td>
-                      <td style={{fontSize:13}}>{v.saisons?.name||'--'}</td>
+                      <td style={{fontSize:13}}>{v.sponsoring_saisons?.length>0?v.sponsoring_saisons.map(ss=>ss.saisons?.name).filter(Boolean).join(', '):v.saisons?.name||'--'}</td>
                       <td style={{fontWeight:600}}>{v.jahresbetrag?Number(v.jahresbetrag).toLocaleString('de-DE')+' EUR':'--'}</td>
                       <td style={{fontSize:13}}>{v.vertragsbeginn?new Date(v.vertragsbeginn).toLocaleDateString('de-DE'):'--'}{v.vertragsende?' – '+new Date(v.vertragsende).toLocaleDateString('de-DE'):''}</td>
                       <td><span style={{fontSize:12,padding:'2px 10px',borderRadius:20,fontWeight:600,background:v.status==='Aktiv'?'#e2efda':EV_LIGHT,color:v.status==='Aktiv'?'#2d6b3a':EV_TEXT}}>{v.status}</span></td>
                       <td>{v.vertrag_unterzeichnet?'✅':'⬜'}</td>
                       <td style={{whiteSpace:'nowrap'}}>
-                        <button className="btn btn-sm btn-outline" onClick={()=>{setVForm({...v,saison_id:v.saison_id||''});setVertragModal(true)}}>Bearb.</button>
+                        <button className="btn btn-sm btn-outline" onClick={()=>{setVForm({...v,saison_id:v.saison_id||'',selected_saisons:(v.sponsoring_saisons||[]).map(ss=>ss.saison_id)});setVertragModal(true)}}>Bearb.</button>
                         {' '}<button className="btn btn-sm btn-danger" onClick={()=>deleteVertrag(v.id)}>X</button>
                       </td>
                     </tr>
@@ -255,11 +273,22 @@ export default function EV() {
                     {kontakte.map(k=><option key={k.id} value={k.id}>{k.firma}</option>)}
                   </select>
                 </div>
-                <div className="form-group"><label>Saison</label>
-                  <select value={vForm.saison_id||''} onChange={e=>setVForm(f=>({...f,saison_id:e.target.value}))}>
-                    <option value="">Keine Saison</option>
-                    {saisons.map(s=><option key={s.id} value={s.id}>{s.name}{s.aktiv?' (aktuell)':''}</option>)}
-                  </select>
+                <div className="form-group">
+                  <label>Saisons (Mehrfachauswahl)</label>
+                  <div style={{border:'1.5px solid var(--gray-200)',borderRadius:'var(--radius)',padding:10,display:'flex',flexWrap:'wrap',gap:8,minHeight:44}}>
+                    {saisons.map(s => {
+                      const selected = (vForm.selected_saisons||[]).includes(s.id)
+                      return (
+                        <button key={s.id} type="button" onClick={()=>toggleSaison(s.id)}
+                          style={{padding:'4px 12px',borderRadius:20,border:'1.5px solid',fontSize:13,cursor:'pointer',
+                            background:selected?EV_COLOR:'var(--white)',
+                            color:selected?'white':'var(--gray-600)',
+                            borderColor:selected?EV_COLOR:'var(--gray-200)'}}>
+                          {s.name}{s.aktiv?' ★':''}
+                        </button>
+                      )
+                    })}
+                  </div>
                 </div>
               </div>
               <div className="form-row">
