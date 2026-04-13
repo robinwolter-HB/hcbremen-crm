@@ -41,6 +41,8 @@ export default function KontaktDetail() {
   const [kommentare, setKommentare] = useState({})
   const [kommentarText, setKommentarText] = useState({})
   const [kommentarSaving, setKommentarSaving] = useState(false)
+  const [mentionSuggestions, setMentionSuggestions] = useState({})
+  const [showMentions, setShowMentions] = useState({})
   const [expandedHistorie, setExpandedHistorie] = useState({})
   const [notizenText, setNotizenText] = useState('')
   const [notizenSaving, setNotizenSaving] = useState(false)
@@ -103,15 +105,39 @@ export default function KontaktDetail() {
     setKommentare(prev => ({ ...prev, [historieId]: data || [] }))
   }
 
-  async function addKommentar(historieId) {
+  async function addKommentar(historieId, kontaktFirma) {
     const text = kommentarText[historieId]?.trim()
     if (!text) return
     setKommentarSaving(true)
-    await supabase.from('historie_kommentare').insert({
+
+    // @mentions extrahieren
+    const mentionMatches = text.match(/@([\w\s]+?)(?=[^\w\s]|$)/g) || []
+    const mentions = mentionMatches.map(m => m.slice(1).trim()).filter(Boolean)
+
+    const { data: newKommentar } = await supabase.from('historie_kommentare').insert({
       historie_id: historieId,
       autor_id: profile?.id,
-      text
-    })
+      text,
+      mentions
+    }).select().single()
+
+    // Mentions per Edge Function verarbeiten
+    if (mentions.length > 0 && newKommentar) {
+      const { data: { session } } = await supabase.auth.getSession()
+      fetch(`${process.env.REACT_APP_SUPABASE_URL}/functions/v1/send-mention`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+        body: JSON.stringify({
+          kommentar_id: newKommentar.id,
+          mentions,
+          autor_name: profile?.name || profile?.email,
+          kontakt_firma: kontaktFirma || kontakt?.firma,
+          kommentar_text: text,
+          kontakt_id: id
+        })
+      }).catch(e => console.warn('Mention notification failed:', e))
+    }
+
     setKommentarText(prev => ({ ...prev, [historieId]: '' }))
     setKommentarSaving(false)
     loadKommentare(historieId)
@@ -377,7 +403,13 @@ export default function KontaktDetail() {
                                         {k.autor_id===profile?.id&&<button onClick={()=>deleteKommentar(k.id,h.id)} style={{background:'none',border:'none',cursor:'pointer',color:'var(--red)',fontSize:14,padding:0}}>×</button>}
                                       </div>
                                     </div>
-                                    <p style={{fontSize:13,margin:0,lineHeight:1.5}}>{k.text}</p>
+                                    <p style={{fontSize:13,margin:0,lineHeight:1.5}}>
+                                      {k.text.split(/(@\w[\w\s]*?)(?=[^\w\s]|$)/g).map((part,i)=>
+                                        part.startsWith('@')
+                                          ? <span key={i} style={{background:'#ddeaff',color:'#1a4a8a',borderRadius:4,padding:'1px 4px',fontWeight:600}}>{part}</span>
+                                          : part
+                                      )}
+                                    </p>
                                   </div>
                                 </div>
                               ))}
@@ -392,14 +424,52 @@ export default function KontaktDetail() {
                               }
                             </div>
                             <div style={{flex:1,display:'flex',gap:8}}>
-                              <input
-                                value={kommentarText[h.id]||''}
-                                onChange={e=>setKommentarText(prev=>({...prev,[h.id]:e.target.value}))}
-                                onKeyDown={e=>e.key==='Enter'&&!e.shiftKey&&addKommentar(h.id)}
-                                placeholder="Kommentar schreiben... (Enter zum Senden)"
-                                style={{flex:1,padding:'8px 12px',border:'1.5px solid var(--gray-200)',borderRadius:'var(--radius)',fontSize:13,background:'var(--white)'}}
-                              />
-                              <button className="btn btn-sm btn-primary" onClick={()=>addKommentar(h.id)} disabled={kommentarSaving||!kommentarText[h.id]?.trim()}>
+                              <div style={{flex:1,position:'relative'}}>
+                                <input
+                                  value={kommentarText[h.id]||''}
+                                  onChange={e=>{
+                                    const val = e.target.value
+                                    setKommentarText(prev=>({...prev,[h.id]:val}))
+                                    // @ detection
+                                    const atMatch = val.match(/@(\w*)$/)
+                                    if (atMatch) {
+                                      const query = atMatch[1].toLowerCase()
+                                      const sugg = personen.filter(p=>p.name.toLowerCase().includes(query)).slice(0,4)
+                                      setMentionSuggestions(prev=>({...prev,[h.id]:sugg}))
+                                      setShowMentions(prev=>({...prev,[h.id]:true}))
+                                    } else {
+                                      setShowMentions(prev=>({...prev,[h.id]:false}))
+                                    }
+                                  }}
+                                  onKeyDown={e=>{
+                                    if(e.key==='Enter'&&!e.shiftKey&&!showMentions[h.id]){
+                                      e.preventDefault()
+                                      addKommentar(h.id, kontakt?.firma)
+                                    }
+                                    if(e.key==='Escape') setShowMentions(prev=>({...prev,[h.id]:false}))
+                                  }}
+                                  placeholder="Kommentar... @Name zum Erwähnen, Enter zum Senden"
+                                  style={{width:'100%',padding:'8px 12px',border:'1.5px solid var(--gray-200)',borderRadius:'var(--radius)',fontSize:13,background:'var(--white)',boxSizing:'border-box'}}
+                                />
+                                {showMentions[h.id]&&(mentionSuggestions[h.id]||[]).length>0&&(
+                                  <div style={{position:'absolute',bottom:'100%',left:0,right:0,background:'var(--white)',border:'1.5px solid var(--gray-200)',borderRadius:'var(--radius)',boxShadow:'var(--shadow)',zIndex:10,marginBottom:4}}>
+                                    {(mentionSuggestions[h.id]||[]).map(p=>(
+                                      <div key={p.id} onClick={()=>{
+                                        const val = kommentarText[h.id]||''
+                                        const newVal = val.replace(/@\w*$/, '@'+p.name+' ')
+                                        setKommentarText(prev=>({...prev,[h.id]:newVal}))
+                                        setShowMentions(prev=>({...prev,[h.id]:false}))
+                                      }} style={{padding:'8px 12px',cursor:'pointer',display:'flex',alignItems:'center',gap:8,fontSize:13}}
+                                      onMouseEnter={e=>e.currentTarget.style.background='var(--gray-100)'}
+                                      onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                                        <div style={{width:24,height:24,borderRadius:'50%',background:'var(--navy)',display:'flex',alignItems:'center',justifyContent:'center',color:'white',fontSize:11,fontWeight:700,flexShrink:0}}>{p.name[0]}</div>
+                                        {p.name}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                              <button className="btn btn-sm btn-primary" onClick={()=>addKommentar(h.id,kontakt?.firma)} disabled={kommentarSaving||!kommentarText[h.id]?.trim()}>
                                 Senden
                               </button>
                             </div>
