@@ -15,6 +15,7 @@ import MeineAufgaben from './pages/MeineAufgaben'
 import Kalender from './pages/Kalender'
 import EmailModal from './components/EmailModal'
 import Einstellungen from './pages/Einstellungen'
+import Inbox from './pages/Inbox'
 
 function PrivateRoute({ children, bereich }) {
   const { user, loading, canAccess } = useAuth()
@@ -31,6 +32,22 @@ function PrivateRoute({ children, bereich }) {
 function Header() {
   const { user, profile, isAdmin } = useAuth()
   const [emailModal, setEmailModal] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
+  useEffect(() => {
+    if (user) loadUnread()
+    // Alle 60 Sekunden aktualisieren
+    const interval = setInterval(() => { if(user) loadUnread() }, 60000)
+    return () => clearInterval(interval)
+  }, [user])
+
+  async function loadUnread() {
+    const { supabase } = await import('./lib/supabase')
+    const { data: profileData } = await supabase.from('profile').select('id').eq('email', user.email).single()
+    if (!profileData) return
+    const { count } = await supabase.from('benachrichtigungen').select('*', { count: 'exact', head: true }).eq('empfaenger_id', profileData.id).eq('gelesen', false)
+    setUnreadCount(count || 0)
+  }
+
   const handleLogout = async () => {
     const { supabase } = await import('./lib/supabase')
     await supabase.auth.signOut()
@@ -51,6 +68,9 @@ function Header() {
           {isAdmin() && <NavLink to="/benutzer" className={({isActive})=>'nav-link'+(isActive?' active':'')}>🔒 Nutzer</NavLink>}
           <NavLink to="/aufgaben" className={({isActive})=>'nav-link'+(isActive?' active':'')}>✓ Aufgaben</NavLink>
           <NavLink to="/kalender" className={({isActive})=>'nav-link'+(isActive?' active':'')}>📅 Kalender</NavLink>
+          <NavLink to="/inbox" className={({isActive})=>'nav-link'+(isActive?' active':'')} style={{position:'relative'}}>
+            📬 Inbox{unreadCount>0&&<span style={{position:'absolute',top:-6,right:-8,background:'var(--red)',color:'white',borderRadius:'50%',width:18,height:18,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700}}>{unreadCount}</span>}
+          </NavLink>
           <button className="nav-link" onClick={() => setEmailModal(true)}>✉️ E-Mail</button>
           {isAdmin() && <NavLink to="/einstellungen" className={({isActive})=>'nav-link'+(isActive?' active':'')}>⚙️ Einstellungen</NavLink>}
           <button className="nav-link" onClick={handleLogout}>Abmelden</button>
@@ -80,6 +100,7 @@ function App() {
             <Route path="/aufgaben" element={<PrivateRoute><MeineAufgaben /></PrivateRoute>} />
             <Route path="/kalender" element={<PrivateRoute><Kalender /></PrivateRoute>} />
             <Route path="/einstellungen" element={<PrivateRoute><Einstellungen /></PrivateRoute>} />
+            <Route path="/inbox" element={<PrivateRoute><Inbox /></PrivateRoute>} />
           </Routes>
         </div>
       </BrowserRouter>
