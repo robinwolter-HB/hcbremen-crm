@@ -77,6 +77,12 @@ export default function KontaktDetail() {
     ])
     setKontakt(k); setNotizenText(k?.notizen_text||'')
     if (k) setKForm(k)
+
+    // Status und Kategorien laden
+    const { data: st } = await supabase.from('crm_status').select('name').eq('aktiv', true).order('reihenfolge')
+    if (st && st.length > 0) setStatusListe(st.map(s => s.name))
+    const { data: kt } = await supabase.from('kontakt_kategorien').select('name').eq('aktiv', true).order('reihenfolge')
+    if (kt && kt.length > 0) setKategorienListe(kt.map(k => k.name))
     setLinks(li || [])
     setAnsprechpartner(ap||[]); setHistorie(h||[])
     setSponsoring(s); setEvents(t||[]); setAlleEvents(ev||[])
@@ -880,14 +886,14 @@ export default function KontaktDetail() {
                 <div className="form-group"><label>Firma *</label><input value={kForm.firma||''} onChange={e=>setKForm(f=>({...f,firma:e.target.value}))}/></div>
                 <div className="form-group"><label>Status</label>
                   <select value={kForm.status||'Offen'} onChange={e=>setKForm(f=>({...f,status:e.target.value}))}>
-                    {['Offen','Eingeladen','Zugesagt','Absage','Aktiver Sponsor','Ehemaliger Sponsor'].map(s=><option key={s}>{s}</option>)}
+                    {statusListe.map(s=><option key={s}>{s}</option>)}
                   </select>
                 </div>
               </div>
               <div className="form-row">
                 <div className="form-group"><label>Kategorie</label>
                   <select value={kForm.kategorie||'Sponsor'} onChange={e=>setKForm(f=>({...f,kategorie:e.target.value}))}>
-                    {['Sponsor','Foerderverein','Freunde des Vereins','Ehemalige','Partner','Medien','Werbeagentur','Kontakt','Sonstige'].map(k=><option key={k}>{k}</option>)}
+                    {kategorienListe.map(k=><option key={k}>{k}</option>)}
                   </select>
                 </div>
                 <div className="form-group"><label>Branche</label><input value={kForm.branche||''} onChange={e=>setKForm(f=>({...f,branche:e.target.value}))}/></div>
