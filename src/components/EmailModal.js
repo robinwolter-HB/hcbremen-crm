@@ -63,6 +63,33 @@ export default function EmailModal({ onClose, vorausgefuellt = {} }) {
       if (result.error) {
         setError(result.error)
       } else {
+        // Historieeintrag direkt im Frontend anlegen für alle Empfänger
+        const { data: { session } } = await supabase.auth.getSession()
+        const autorId = session?.user?.id
+
+        if (mehrere && selectedKontakte.length > 0) {
+          // Rundmail: Eintrag für jeden Kontakt
+          const eintraege = selectedKontakte.map(k => ({
+            kontakt_id: k.id,
+            art: 'E-Mail',
+            betreff: subject,
+            notiz: `E-Mail gesendet an: ${k.email}`,
+            erledigt: true,
+            erstellt_von: autorId
+          }))
+          await supabase.from('kontakthistorie').insert(eintraege)
+        } else if (kontaktId) {
+          // Einzelne E-Mail mit Kontakt
+          await supabase.from('kontakthistorie').insert({
+            kontakt_id: kontaktId,
+            art: 'E-Mail',
+            betreff: subject,
+            notiz: `E-Mail gesendet an: ${Array.isArray(empfaenger) ? empfaenger.join(', ') : empfaenger}`,
+            erledigt: true,
+            erstellt_von: autorId
+          })
+        }
+
         setSuccess(true)
         setTimeout(() => { setSuccess(false); onClose() }, 2000)
       }
