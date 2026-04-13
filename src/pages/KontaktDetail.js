@@ -38,6 +38,8 @@ export default function KontaktDetail() {
   const [saving, setSaving] = useState(false)
   const [kontaktEditModal, setKontaktEditModal] = useState(false)
   const [kForm, setKForm] = useState({})
+  const [statusListe, setStatusListe] = useState(['Offen','Eingeladen','Zugesagt','Absage','Aktiver Sponsor','Ehemaliger Sponsor'])
+  const [kategorienListe, setKategorienListe] = useState(['Sponsor','Foerderverein','Freunde des Vereins','Ehemalige','Partner','Medien','Werbeagentur','Kontakt','Sonstige'])
   const [kommentare, setKommentare] = useState({})
   const [kommentarText, setKommentarText] = useState({})
   const [kommentarSaving, setKommentarSaving] = useState(false)
