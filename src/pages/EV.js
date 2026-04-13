@@ -19,7 +19,7 @@ export default function EV() {
   const [kontaktModal, setKontaktModal] = useState(false)
   const [vertragModal, setVertragModal] = useState(false)
   const [kForm, setKForm] = useState({ firma:'', email:'', telefon:'', status:'Offen', notiz:'', ist_ev:true })
-  const [vForm, setVForm] = useState({ kontakt_id:'', status:'Anfrage', jahresbetrag:'', gesamtwert:'', vertragsbeginn:'', vertragsende:'', notizen:'', ist_ev:true })
+  const [vForm, setVForm] = useState({ kontakt_id:'', status:'Anfrage', jahresbetrag:'', gesamtwert:'', vertragsbeginn:'', vertragsende:'', notizen:'', ist_ev:true, saison_id:'', vertrag_unterzeichnet:false })
   const [saving, setSaving] = useState(false)
 
   useEffect(() => { load() }, [])
@@ -47,10 +47,28 @@ export default function EV() {
   }
 
   async function saveVertrag() {
+    if (!vForm.kontakt_id) { alert('Bitte eine Organisation auswählen'); return }
     setSaving(true)
-    const payload = { ...vForm, ist_ev: true, saison_id: selectedSaison || null }
-    if (vForm.id) await supabase.from('sponsoring').update(payload).eq('id', vForm.id)
-    else await supabase.from('sponsoring').insert(payload)
+    const payload = {
+      kontakt_id: vForm.kontakt_id,
+      ist_ev: true,
+      status: vForm.status || 'Anfrage',
+      jahresbetrag: vForm.jahresbetrag ? Number(vForm.jahresbetrag) : null,
+      gesamtwert: vForm.gesamtwert ? Number(vForm.gesamtwert) : null,
+      vertragsbeginn: vForm.vertragsbeginn || null,
+      vertragsende: vForm.vertragsende || null,
+      notizen: vForm.notizen || null,
+      saison_id: vForm.saison_id || null,
+      vertrag_unterzeichnet: vForm.vertrag_unterzeichnet || false,
+    }
+    let result
+    if (vForm.id) result = await supabase.from('sponsoring').update(payload).eq('id', vForm.id)
+    else result = await supabase.from('sponsoring').insert(payload)
+    if (result.error) {
+      alert('Fehler: ' + result.error.message)
+      setSaving(false)
+      return
+    }
     setVertragModal(false); setSaving(false); load()
   }
 
@@ -149,12 +167,12 @@ export default function EV() {
       {tab==='vertraege'&&(
         <div>
           <div className="toolbar">
-            <button className="btn btn-primary" style={{background:EV_COLOR}} onClick={()=>{setVForm({kontakt_id:'',status:'Anfrage',jahresbetrag:'',gesamtwert:'',vertragsbeginn:'',vertragsende:'',notizen:'',ist_ev:true});setVertragModal(true)}}>+ Neuer e.V.-Vertrag</button>
+            <button className="btn btn-primary" style={{background:EV_COLOR}} onClick={()=>{setVForm({kontakt_id:'',status:'Anfrage',jahresbetrag:'',gesamtwert:'',vertragsbeginn:'',vertragsende:'',notizen:'',ist_ev:true,saison_id:selectedSaison||'',vertrag_unterzeichnet:false});setVertragModal(true)}}>+ Neuer e.V.-Vertrag</button>
           </div>
           {filteredVertraege.length===0
             ? <div className="empty-state card"><p>Keine e.V.-Verträge für diese Auswahl.</p></div>
             : <div className="table-wrap"><table>
-                <thead><tr><th>Organisation</th><th>Jahresbetrag</th><th>Vertragsbeginn</th><th>Vertragsende</th><th>Status</th><th></th></tr></thead>
+                <thead><tr><th>Organisation</th><th>Jahresbetrag</th><th>Saison</th><th>Vertragsbeginn</th><th>Vertragsende</th><th>Status</th><th></th></tr></thead>
                 <tbody>
                   {filteredVertraege.map(v=>(
                     <tr key={v.id}>
@@ -165,6 +183,7 @@ export default function EV() {
                         </div>
                       </td>
                       <td style={{fontWeight:600}}>{v.jahresbetrag?Number(v.jahresbetrag).toLocaleString('de-DE')+' EUR':'--'}</td>
+                      <td style={{fontSize:13,color:'var(--gray-400)'}}>{v.saisons?.name||'--'}</td>
                       <td style={{fontSize:13}}>{v.vertragsbeginn?new Date(v.vertragsbeginn).toLocaleDateString('de-DE'):'--'}</td>
                       <td style={{fontSize:13}}>{v.vertragsende?new Date(v.vertragsende).toLocaleDateString('de-DE'):'--'}</td>
                       <td><span style={{fontSize:12,padding:'2px 10px',borderRadius:20,fontWeight:600,background:v.status==='Aktiv'?'#e2efda':EV_LIGHT,color:v.status==='Aktiv'?'#2d6b3a':EV_TEXT}}>{v.status}</span></td>
@@ -233,11 +252,19 @@ export default function EV() {
               <div style={{background:EV_LIGHT,borderRadius:'var(--radius)',padding:'8px 12px',marginBottom:16,fontSize:13,color:EV_TEXT,fontWeight:600}}>
                 🏛️ Dieser Vertrag läuft nicht ins reguläre Sponsoring-Budget.
               </div>
-              <div className="form-group"><label>Organisation *</label>
-                <select value={vForm.kontakt_id||''} onChange={e=>setVForm(f=>({...f,kontakt_id:e.target.value}))}>
-                  <option value="">Bitte wählen...</option>
-                  {kontakte.map(k=><option key={k.id} value={k.id}>{k.firma}</option>)}
-                </select>
+              <div className="form-row">
+                <div className="form-group"><label>Organisation *</label>
+                  <select value={vForm.kontakt_id||''} onChange={e=>setVForm(f=>({...f,kontakt_id:e.target.value}))}>
+                    <option value="">Bitte wählen...</option>
+                    {kontakte.map(k=><option key={k.id} value={k.id}>{k.firma}</option>)}
+                  </select>
+                </div>
+                <div className="form-group"><label>Saison</label>
+                  <select value={vForm.saison_id||''} onChange={e=>setVForm(f=>({...f,saison_id:e.target.value}))}>
+                    <option value="">Keine Saison</option>
+                    {saisons.map(s=><option key={s.id} value={s.id}>{s.name}{s.aktiv?' (aktuell)':''}</option>)}
+                  </select>
+                </div>
               </div>
               <div className="form-row">
                 <div className="form-group"><label>Jahresbetrag (EUR)</label><input type="number" value={vForm.jahresbetrag||''} onChange={e=>setVForm(f=>({...f,jahresbetrag:e.target.value}))}/></div>
@@ -250,6 +277,12 @@ export default function EV() {
               <div className="form-row">
                 <div className="form-group"><label>Vertragsbeginn</label><input type="date" value={vForm.vertragsbeginn||''} onChange={e=>setVForm(f=>({...f,vertragsbeginn:e.target.value}))}/></div>
                 <div className="form-group"><label>Vertragsende</label><input type="date" value={vForm.vertragsende||''} onChange={e=>setVForm(f=>({...f,vertragsende:e.target.value}))}/></div>
+              </div>
+              <div className="form-group">
+                <label style={{display:'flex',alignItems:'center',gap:10,textTransform:'none',fontSize:14,cursor:'pointer',padding:'6px 0'}}>
+                  <input type="checkbox" style={{width:18,height:18,flexShrink:0}} checked={vForm.vertrag_unterzeichnet||false} onChange={e=>setVForm(f=>({...f,vertrag_unterzeichnet:e.target.checked}))}/>
+                  <span>Vertrag unterzeichnet</span>
+                </label>
               </div>
               <div className="form-group"><label>Notizen</label><textarea value={vForm.notizen||''} onChange={e=>setVForm(f=>({...f,notizen:e.target.value}))}/></div>
             </div>
