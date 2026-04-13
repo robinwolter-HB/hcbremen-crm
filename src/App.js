@@ -30,6 +30,36 @@ function PrivateRoute({ children, bereich }) {
   return children
 }
 
+function DropdownMenu({ label, items, extra }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div style={{position:'relative'}} onMouseEnter={()=>setOpen(true)} onMouseLeave={()=>setOpen(false)}>
+      <button className="nav-link" style={{display:'flex',alignItems:'center',gap:4}}
+        onClick={()=>setOpen(o=>!o)}>
+        {label} <span style={{fontSize:10,opacity:0.7}}>{open?'▲':'▼'}</span>
+      </button>
+      {open && (
+        <div style={{position:'absolute',top:'100%',left:0,background:'var(--navy)',borderRadius:'var(--radius)',
+          boxShadow:'0 8px 24px rgba(0,0,0,0.3)',minWidth:180,zIndex:200,padding:'6px 0',
+          border:'1px solid rgba(255,255,255,0.1)'}}>
+          {items.map(item => (
+            <NavLink key={item.to} to={item.to} onClick={()=>setOpen(false)}
+              style={({isActive})=>({display:'flex',alignItems:'center',justifyContent:'space-between',
+                padding:'10px 16px',fontSize:14,fontWeight:500,textDecoration:'none',
+                color:isActive?'var(--gold)':'rgba(255,255,255,0.85)',
+                background:isActive?'rgba(200,168,75,0.15)':'transparent'})}>
+              {item.label}
+              {item.badge>0 && <span style={{background:'var(--red)',color:'white',borderRadius:'50%',
+                width:18,height:18,display:'flex',alignItems:'center',justifyContent:'center',
+                fontSize:10,fontWeight:700}}>{item.badge}</span>}
+            </NavLink>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function Header() {
   const { user, profile, isAdmin } = useAuth()
   const [emailModal, setEmailModal] = useState(false)
