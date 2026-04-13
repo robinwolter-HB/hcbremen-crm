@@ -13,12 +13,14 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [ziel, setZiel] = useState(50000)
   const [zielEdit, setZielEdit] = useState(false)
+  const [evSumme, setEvSumme] = useState(0)
+  const [evAnzahl, setEvAnzahl] = useState(0)
 
   useEffect(() => { load() }, [])
   useEffect(() => { if (selectedSaison) filterBySaison() }, [selectedSaison, alleVertraege])
 
   async function load() {
-    const [{ data: s },{ data: v },{ data: a },{ data: e }] = await Promise.all([
+    const [{ data: s },{ data: v },{ data: a },{ data: e },{ data: ev }] = await Promise.all([
       supabase.from('saisons').select('*').order('beginn', { ascending: false }),
       supabase.from('sponsoring').select('*,kontakte(id,firma,logo_url),saisons(name),sponsoring_pakete(name),sponsoring_saisons(saison_id)').order('erstellt_am', { ascending: false }),
       supabase.from('kontakthistorie').select('*,kontakte(firma)').eq('erledigt', false).not('faellig_am', 'is', null).lte('faellig_am', new Date().toISOString().split('T')[0]),
@@ -28,6 +30,9 @@ export default function Dashboard() {
     setAlleVertraege(v || [])
     setEvents(e || [])
     setAufgaben(a || [])
+    const evGeld = (ev || []).reduce((s, v) => s + (Number(v.jahresbetrag) || 0), 0)
+    setEvSumme(evGeld)
+    setEvAnzahl((ev || []).filter(v => v.status === 'Aktiv').length)
     const aktiv = s?.find(x => x.aktiv)
     if (aktiv) setSelectedSaison(aktiv.id)
     setLoading(false)
@@ -161,6 +166,20 @@ export default function Dashboard() {
         <div className="stat-card gold"><div className="stat-num" style={{fontSize:20}}>{gesamtWert.toLocaleString('de-DE')} EUR</div><div className="stat-label">Gesamtwert inkl. Sachleistungen</div></div>
         <div className="stat-card orange"><div className="stat-num" style={{color:auslaufend.length>0?'var(--red)':'inherit'}}>{auslaufend.length}</div><div className="stat-label">Verträge laufen bald aus</div></div>
       </div>
+
+      {/* e.V. Summe */}
+      {evSumme > 0 && (
+        <div className="card" style={{marginBottom:20,borderLeft:'4px solid #e07b30',background:'#fff8f0'}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <div>
+              <div style={{fontSize:12,fontWeight:600,color:'#e07b30',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:4}}>🏛️ HC Bremen e.V. (separat)</div>
+              <div style={{fontFamily:'"DM Serif Display",serif',fontSize:28,color:'#8a4a00'}}>{evSumme.toLocaleString('de-DE')} EUR</div>
+              <div style={{fontSize:13,color:'#c86a20',marginTop:2}}>{evAnzahl} aktive Verträge · Nicht im Sponsoring-Budget enthalten</div>
+            </div>
+            <div style={{fontSize:32}}>🏛️</div>
+          </div>
+        </div>
+      )}
 
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20,marginBottom:20}}>
         {/* TOP SPONSOREN */}
