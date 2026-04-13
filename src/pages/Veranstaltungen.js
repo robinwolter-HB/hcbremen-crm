@@ -38,7 +38,7 @@ export default function Veranstaltungen() {
   async function load() {
     const { data } = await supabase.from('veranstaltungen').select('*').order('datum', { ascending: false })
     setEvents(data || [])
-    const { data: k } = await supabase.from('kontakte').select('id,firma').order('firma')
+    const { data: k } = await supabase.from('kontakte').select('id,firma,ist_ev').order('firma')
     setKontakte(k || [])
     const { data: o } = await supabase.from('veranstaltungsorte').select('*').order('name')
     setOrte(o || [])
@@ -568,7 +568,7 @@ export default function Veranstaltungen() {
                 <div className="form-group"><label>Firma *</label>
                   <select value={tForm.kontakt_id||''} onChange={e=>{setTForm(f=>({...f,kontakt_id:e.target.value}));loadAnsprechpartner(e.target.value)}}>
                     <option value="">Bitte waehlen...</option>
-                    {kontakte.map(k=><option key={k.id} value={k.id}>{k.firma}</option>)}
+                    {kontakte.map(k=><option key={k.id} value={k.id}>{k.ist_ev?'🏛️ ':''}{k.firma}</option>)}
                   </select>
                 </div>
                 <div className="form-group"><label>Status</label>
