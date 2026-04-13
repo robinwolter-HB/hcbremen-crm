@@ -38,6 +38,10 @@ export default function KontaktDetail() {
   const [saving, setSaving] = useState(false)
   const [kontaktEditModal, setKontaktEditModal] = useState(false)
   const [kForm, setKForm] = useState({})
+  const [kommentare, setKommentare] = useState({})
+  const [kommentarText, setKommentarText] = useState({})
+  const [kommentarSaving, setKommentarSaving] = useState(false)
+  const [expandedHistorie, setExpandedHistorie] = useState({})
   const [notizenText, setNotizenText] = useState('')
   const [notizenSaving, setNotizenSaving] = useState(false)
   const [notizenSaved, setNotizenSaved] = useState(false)
@@ -88,6 +92,44 @@ export default function KontaktDetail() {
       setNotizenSaving(false); setNotizenSaved(true)
       setTimeout(() => setNotizenSaved(false), 2000)
     }, 800)
+  }
+
+  async function loadKommentare(historieId) {
+    const { data } = await supabase
+      .from('historie_kommentare')
+      .select('*,profile(name,avatar_url)')
+      .eq('historie_id', historieId)
+      .order('erstellt_am', { ascending: true })
+    setKommentare(prev => ({ ...prev, [historieId]: data || [] }))
+  }
+
+  async function addKommentar(historieId) {
+    const text = kommentarText[historieId]?.trim()
+    if (!text) return
+    setKommentarSaving(true)
+    await supabase.from('historie_kommentare').insert({
+      historie_id: historieId,
+      autor_id: profile?.id,
+      text
+    })
+    setKommentarText(prev => ({ ...prev, [historieId]: '' }))
+    setKommentarSaving(false)
+    loadKommentare(historieId)
+  }
+
+  async function deleteKommentar(kommentarId, historieId) {
+    await supabase.from('historie_kommentare').delete().eq('id', kommentarId)
+    loadKommentare(historieId)
+  }
+
+  function toggleHistorie(historieId) {
+    setExpandedHistorie(prev => {
+      const newState = { ...prev, [historieId]: !prev[historieId] }
+      if (newState[historieId] && !kommentare[historieId]) {
+        loadKommentare(historieId)
+      }
+      return newState
+    })
   }
 
   async function saveHistorie() {
@@ -280,24 +322,94 @@ export default function KontaktDetail() {
               <button className="btn btn-primary btn-sm" onClick={()=>{setHForm({...EMPTY_H,zustaendig_personen:profile?.name?[profile.name]:[],zustaendig:profile?.name||''});setHistorieModal(true)}}>+ Neue Aktion</button>
             </div>
             {historie.length===0?<div className="empty-state"><p>Noch keine Eintraege.</p></div>
-              :<div className="table-wrap"><table>
-                <thead><tr><th>Datum</th><th>Art</th><th>Betreff</th><th>Naechste Aktion</th><th>Faellig</th><th>Zustaendig</th><th>Done</th><th></th></tr></thead>
-                <tbody>{historie.map(h=>(
-                  <tr key={h.id} style={{opacity:h.erledigt?0.55:1}}>
-                    <td style={{whiteSpace:'nowrap',fontSize:13}}>{new Date(h.erstellt_am).toLocaleDateString('de-DE')}</td>
-                    <td><span style={{fontSize:12,background:'var(--gray-100)',padding:'2px 8px',borderRadius:20}}>{h.art}</span></td>
-                    <td><strong style={{fontSize:13}}>{h.betreff}</strong>{h.notiz&&<p style={{fontSize:12,color:'var(--gray-400)',marginTop:2}}>{h.notiz}</p>}</td>
-                    <td style={{fontSize:13}}>{h.naechste_aktion}</td>
-                    <td style={{fontSize:13,color:h.faellig_am&&!h.erledigt&&new Date(h.faellig_am)<new Date()?'var(--red)':'inherit'}}>{h.faellig_am?new Date(h.faellig_am).toLocaleDateString('de-DE'):'--'}</td>
-                    <td style={{fontSize:12,color:'var(--gray-600)'}}>{(h.zustaendig_personen||[]).join(', ')||h.zustaendig||'--'}</td>
-                    <td><button onClick={()=>toggleErledigt(h)} style={{background:'none',border:'none',cursor:'pointer',fontSize:18}}>{h.erledigt?'✅':'⬜'}</button></td>
-                    <td style={{whiteSpace:'nowrap'}}>
-                      <button className="btn btn-sm btn-outline" onClick={()=>{setHForm({...h,zustaendig_personen:h.zustaendig_personen||[]});setHistorieModal(true)}}>Bearb.</button>
-                      {' '}<button className="btn btn-sm btn-danger" onClick={()=>deleteHistorie(h.id)}>X</button>
-                    </td>
-                  </tr>
-                ))}</tbody>
-              </table></div>}
+              :<div style={{display:'grid',gap:12}}>
+                {historie.map(h=>{
+                  const isExpanded = expandedHistorie[h.id]
+                  const hKommentare = kommentare[h.id] || []
+                  const isUeberfaellig = h.faellig_am && !h.erledigt && new Date(h.faellig_am) < new Date()
+                  return (
+                    <div key={h.id} style={{border:'1.5px solid var(--gray-200)',borderRadius:'var(--radius)',overflow:'hidden',opacity:h.erledigt?0.7:1}}>
+                      {/* Header */}
+                      <div style={{display:'flex',alignItems:'flex-start',gap:12,padding:'12px 16px',background:isExpanded?'rgba(15,34,64,0.02)':'var(--white)'}}>
+                        <button onClick={()=>toggleErledigt(h)} style={{background:'none',border:'none',cursor:'pointer',fontSize:20,flexShrink:0,marginTop:2}}>{h.erledigt?'✅':'⬜'}</button>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4,flexWrap:'wrap'}}>
+                            <span style={{fontSize:12,background:'var(--gray-100)',padding:'2px 8px',borderRadius:20,flexShrink:0}}>{h.art}</span>
+                            <strong style={{fontSize:14}}>{h.betreff}</strong>
+                            {isUeberfaellig&&<span style={{fontSize:11,color:'var(--red)',fontWeight:700,flexShrink:0}}>ÜBERFÄLLIG</span>}
+                          </div>
+                          {h.notiz&&<p style={{fontSize:13,color:'var(--gray-600)',marginBottom:4}}>{h.notiz}</p>}
+                          <div style={{display:'flex',gap:12,fontSize:12,color:'var(--gray-400)',flexWrap:'wrap'}}>
+                            <span>{new Date(h.erstellt_am).toLocaleDateString('de-DE')}</span>
+                            {h.naechste_aktion&&<span>→ {h.naechste_aktion}</span>}
+                            {h.faellig_am&&<span style={{color:isUeberfaellig?'var(--red)':'inherit'}}>Fällig: {new Date(h.faellig_am).toLocaleDateString('de-DE')}</span>}
+                            {((h.zustaendig_personen||[]).join(', ')||h.zustaendig)&&<span>👤 {(h.zustaendig_personen||[]).join(', ')||h.zustaendig}</span>}
+                          </div>
+                        </div>
+                        <div style={{display:'flex',gap:6,flexShrink:0}}>
+                          <button onClick={()=>toggleHistorie(h.id)} style={{background:'none',border:'1.5px solid var(--gray-200)',borderRadius:'var(--radius)',padding:'4px 10px',cursor:'pointer',fontSize:12,color:'var(--gray-600)',display:'flex',alignItems:'center',gap:4}}>
+                            💬 {hKommentare.length||''}
+                            {isExpanded?' ▲':' ▼'}
+                          </button>
+                          <button className="btn btn-sm btn-outline" onClick={()=>{setHForm({...h,zustaendig_personen:h.zustaendig_personen||[]});setHistorieModal(true)}}>Bearb.</button>
+                          <button className="btn btn-sm btn-danger" onClick={()=>deleteHistorie(h.id)}>X</button>
+                        </div>
+                      </div>
+
+                      {/* Kommentare */}
+                      {isExpanded&&(
+                        <div style={{borderTop:'1px solid var(--gray-100)',background:'var(--gray-100)'}}>
+                          {hKommentare.length>0&&(
+                            <div style={{padding:'12px 16px',display:'grid',gap:10}}>
+                              {hKommentare.map(k=>(
+                                <div key={k.id} style={{display:'flex',gap:10,alignItems:'flex-start'}}>
+                                  <div style={{width:32,height:32,borderRadius:'50%',flexShrink:0,overflow:'hidden',border:'2px solid var(--gray-200)'}}>
+                                    {k.profile?.avatar_url
+                                      ? <img src={k.profile.avatar_url} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>
+                                      : <div style={{width:'100%',height:'100%',background:'var(--navy)',display:'flex',alignItems:'center',justifyContent:'center',color:'white',fontWeight:700,fontSize:13}}>{(k.profile?.name||'?')[0].toUpperCase()}</div>
+                                    }
+                                  </div>
+                                  <div style={{flex:1,background:'var(--white)',borderRadius:'var(--radius)',padding:'8px 12px',border:'1px solid var(--gray-200)'}}>
+                                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
+                                      <span style={{fontWeight:600,fontSize:13}}>{k.profile?.name||'Unbekannt'}</span>
+                                      <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                                        <span style={{fontSize:11,color:'var(--gray-400)'}}>{new Date(k.erstellt_am).toLocaleDateString('de-DE')} {new Date(k.erstellt_am).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})}</span>
+                                        {k.autor_id===profile?.id&&<button onClick={()=>deleteKommentar(k.id,h.id)} style={{background:'none',border:'none',cursor:'pointer',color:'var(--red)',fontSize:14,padding:0}}>×</button>}
+                                      </div>
+                                    </div>
+                                    <p style={{fontSize:13,margin:0,lineHeight:1.5}}>{k.text}</p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {/* Kommentar schreiben */}
+                          <div style={{padding:'10px 16px',display:'flex',gap:10,alignItems:'flex-start'}}>
+                            <div style={{width:32,height:32,borderRadius:'50%',flexShrink:0,overflow:'hidden',border:'2px solid var(--gray-200)'}}>
+                              {profile?.avatar_url
+                                ? <img src={profile.avatar_url} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>
+                                : <div style={{width:'100%',height:'100%',background:'var(--navy)',display:'flex',alignItems:'center',justifyContent:'center',color:'white',fontWeight:700,fontSize:13}}>{(profile?.name||'?')[0].toUpperCase()}</div>
+                              }
+                            </div>
+                            <div style={{flex:1,display:'flex',gap:8}}>
+                              <input
+                                value={kommentarText[h.id]||''}
+                                onChange={e=>setKommentarText(prev=>({...prev,[h.id]:e.target.value}))}
+                                onKeyDown={e=>e.key==='Enter'&&!e.shiftKey&&addKommentar(h.id)}
+                                placeholder="Kommentar schreiben... (Enter zum Senden)"
+                                style={{flex:1,padding:'8px 12px',border:'1.5px solid var(--gray-200)',borderRadius:'var(--radius)',fontSize:13,background:'var(--white)'}}
+                              />
+                              <button className="btn btn-sm btn-primary" onClick={()=>addKommentar(h.id)} disabled={kommentarSaving||!kommentarText[h.id]?.trim()}>
+                                Senden
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>}
           </div>
         )}
 
