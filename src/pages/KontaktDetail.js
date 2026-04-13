@@ -188,9 +188,32 @@ export default function KontaktDetail() {
 
   async function saveHistorie() {
     setSaving(true)
-    const payload = { ...hForm, kontakt_id: id, erstellt_von: profile?.id }
-    if (hForm.id) await supabase.from('kontakthistorie').update(payload).eq('id', hForm.id)
-    else await supabase.from('kontakthistorie').insert(payload)
+    // Nur bekannte Felder senden - keine unbekannten Spalten
+    const payload = {
+      kontakt_id: id,
+      erstellt_von: profile?.id,
+      ansprechpartner: hForm.ansprechpartner || '',
+      art: hForm.art || 'Anruf',
+      betreff: hForm.betreff || '',
+      notiz: hForm.notiz || '',
+      naechste_aktion: hForm.naechste_aktion || '',
+      faellig_am: hForm.faellig_am || null,
+      zustaendig: hForm.zustaendig || '',
+      zustaendig_personen: hForm.zustaendig_personen || [],
+      erledigt: hForm.erledigt || false,
+      meeting_datum: hForm.meeting_datum || null,
+      meeting_uhrzeit: hForm.meeting_uhrzeit || null,
+      meeting_ort: hForm.meeting_ort || null,
+      meeting_teilnehmer: hForm.meeting_teilnehmer || []
+    }
+    let result
+    if (hForm.id) result = await supabase.from('kontakthistorie').update(payload).eq('id', hForm.id)
+    else result = await supabase.from('kontakthistorie').insert(payload)
+    if (result.error) {
+      alert('Fehler beim Speichern: ' + result.error.message)
+      setSaving(false)
+      return
+    }
     setHistorieModal(false); setSaving(false); load()
   }
 
