@@ -116,18 +116,11 @@ export default function Benutzer() {
     try {
       // Session holen
       const { data: sessionData } = await supabase.auth.getSession()
-      let accessToken = sessionData?.session?.access_token
-      
-      // Falls keine Session, User direkt holen
-      if (!accessToken) {
-        const { data: userData } = await supabase.auth.getUser()
-        if (!userData?.user) { setError('Bitte neu einloggen'); setSaving(false); return }
-      }
-      
-      if (!accessToken) { setError('Kein Token – bitte neu einloggen'); setSaving(false); return }
-      
-      const supabaseUrl = 'https://dgwvjtragknnotcnqdsu.supabase.co'
-      const res = await fetch(`${supabaseUrl}/functions/v1/create-user`, {
+      const accessToken = sessionData?.session?.access_token
+      if (!accessToken) { setError('Bitte neu einloggen'); setSaving(false); return }
+
+      // Netlify Function aufrufen (kein Safari-Token-Problem)
+      const res = await fetch('/.netlify/functions/create-user', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -141,11 +134,10 @@ export default function Benutzer() {
           bereiche: form.rolle === 'admin' ? null : form.bereiche
         })
       })
-      
-      // Antwort als Text lesen falls JSON fehlschlägt
+
       const rawText = await res.text()
       let result
-      try { result = JSON.parse(rawText) } 
+      try { result = JSON.parse(rawText) }
       catch(e) { setError('Unerwartete Antwort: ' + rawText.slice(0,100)); setSaving(false); return }
       if (result.error) {
         setError(result.error)
