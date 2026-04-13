@@ -7,6 +7,7 @@ const WOCHENTAGE = ['Mo','Di','Mi','Do','Fr','Sa','So']
 
 const EVENT_TYPES = {
   todo: { farbe: '#2d6fa3', label: 'Aufgabe', icon: '✓' },
+  meeting: { farbe: '#8b5cf6', label: 'Meeting', icon: '🤝' },
   event: { farbe: '#e07b30', label: 'Veranstaltung', icon: '📅' },
   vertrag_ende: { farbe: '#d94f4f', label: 'Vertragsende', icon: '⚠️' },
   vertrag_start: { farbe: '#3a8a5a', label: 'Vertragsbeginn', icon: '✅' },
@@ -20,7 +21,7 @@ export default function Kalender() {
   const [kalenderEvents, setKalenderEvents] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedDay, setSelectedDay] = useState(null)
-  const [filter, setFilter] = useState({ todo: true, event: true, vertrag_ende: true, vertrag_start: true })
+  const [filter, setFilter] = useState({ todo: true, meeting: true, event: true, vertrag_ende: true, vertrag_start: true })
 
   useEffect(() => { load() }, [])
 
@@ -33,6 +34,7 @@ export default function Kalender() {
 
     const alle = []
 
+    // Meetings (moved to after m is loaded)
     // ToDos
     ;(todos || []).forEach(t => {
       alle.push({
