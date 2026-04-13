@@ -38,7 +38,8 @@ export default function Veranstaltungen() {
   }
 
   async function loadTeilnahmen(eventId) {
-    const { data } = await supabase.from('veranstaltung_teilnahme').select('*,kontakte(id,firma,logo_url)').eq('veranstaltung_id', eventId).order('erstellt_am')
+    const { data, error } = await supabase.from('veranstaltung_teilnahme').select('*,kontakte(id,firma,logo_url)').eq('veranstaltung_id', eventId)
+    if (error) console.error('Teilnahmen Fehler:', error)
     setTeilnahmen(data || [])
   }
 
