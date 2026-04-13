@@ -58,6 +58,7 @@ export default function Dashboard() {
   const gekuendigtGeld = gekuendigt.reduce((s, v) => s + (Number(v.jahresbetrag) || 0), 0)
   const gesamtPotenzial = gesamtGeld + potenzielleGeld
   const zielerreichung = ziel > 0 ? Math.min((gesamtGeld / ziel) * 100, 100) : 0
+  const zielerreichungGesichert = ziel > 0 ? Math.min((gesichertGeld / ziel) * 100, 100) : 0
   const auslaufend = alleVertraege.filter(v => {
     if (!v.vertragsende) return false
     const diff = (new Date(v.vertragsende) - new Date()) / (1000*60*60*24)
