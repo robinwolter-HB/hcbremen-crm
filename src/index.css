@@ -240,3 +240,154 @@ select:focus { outline: none; border-color: var(--navy); }
   .header { padding: 0 16px; }
   .nav-link span { display: none; }
 }
+
+/* ============================================
+   MOBILE RESPONSIVE - HC Bremen CRM
+   ============================================ */
+
+@media (max-width: 768px) {
+
+  /* Header: Hamburger Menu */
+  .header {
+    padding: 0 16px;
+    height: 56px;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+  }
+
+  .logo { font-size: 18px; }
+  .user-badge { display: none; }
+
+  /* Nav: horizontal scrollbar auf Mobile */
+  .nav {
+    display: none;
+    position: fixed;
+    top: 56px;
+    left: 0;
+    right: 0;
+    background: var(--navy);
+    flex-direction: column;
+    padding: 16px;
+    gap: 4px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    z-index: 999;
+    max-height: calc(100vh - 56px);
+    overflow-y: auto;
+  }
+
+  .nav.open { display: flex; }
+
+  .nav-link {
+    padding: 12px 16px;
+    font-size: 15px;
+    border-radius: var(--radius);
+    width: 100%;
+    text-align: left;
+  }
+
+  /* Hamburger Button */
+  .hamburger {
+    display: flex !important;
+    flex-direction: column;
+    gap: 5px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+  }
+  .hamburger span {
+    display: block;
+    width: 22px;
+    height: 2px;
+    background: white;
+    border-radius: 2px;
+    transition: all 0.2s;
+  }
+
+  /* Main content */
+  .main {
+    padding: 16px;
+    max-width: 100%;
+  }
+
+  .page-title { font-size: 24px; }
+  .page-subtitle { font-size: 13px; margin-bottom: 16px; }
+
+  /* Cards */
+  .card { padding: 16px; margin-bottom: 12px; }
+
+  /* Stats */
+  .stats-row {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .stat-card { padding: 14px; }
+  .stat-num { font-size: 26px; }
+
+  /* Toolbar */
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .toolbar select,
+  .toolbar .btn { width: 100%; justify-content: center; }
+  .search-wrap { min-width: unset; }
+
+  /* Tables: horizontal scroll */
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .table-wrap table { min-width: 600px; }
+
+  /* Forms */
+  .form-row,
+  .form-row-3 { grid-template-columns: 1fr; gap: 12px; }
+
+  /* Modals: fullscreen auf Mobile */
+  .modal-overlay { align-items: flex-end; padding: 0; }
+  .modal {
+    width: 100%;
+    max-width: 100%;
+    max-height: 92vh;
+    border-radius: 16px 16px 0 0;
+    margin: 0;
+  }
+  .modal-header { padding: 20px 20px 14px; }
+  .modal-body { padding: 16px 20px; }
+  .modal-footer { padding: 12px 20px 24px; }
+
+  /* Tabs: scroll horizontal */
+  .tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap;
+    gap: 0;
+    padding-bottom: 0;
+  }
+  .tab-btn {
+    white-space: nowrap;
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+
+  /* Detail grid */
+  .detail-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  /* Kontakt table: kompakte Mobile-Ansicht */
+  .table-wrap th:nth-child(n+4),
+  .table-wrap td:nth-child(n+4) {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .stats-row { grid-template-columns: 1fr; }
+  .detail-grid { grid-template-columns: 1fr; }
+
+  .table-wrap th:nth-child(n+3),
+  .table-wrap td:nth-child(n+3) { display: none; }
+}
+
+/* Hamburger always hidden on desktop */
+.hamburger { display: none; }
