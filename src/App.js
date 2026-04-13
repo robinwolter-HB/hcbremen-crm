@@ -33,6 +33,7 @@ function Header() {
   const { user, profile, isAdmin } = useAuth()
   const [emailModal, setEmailModal] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
+  const [navOpen, setNavOpen] = useState(false)
   useEffect(() => {
     if (user) loadUnread()
     // Alle 60 Sekunden aktualisieren
@@ -56,10 +57,13 @@ function Header() {
   return (
     <>
     <header className="header">
-      <NavLink to="/" className="logo">HC <span>Bremen</span> CRM</NavLink>
+      <NavLink to="/" className="logo" onClick={() => setNavOpen(false)}>HC <span>Bremen</span> CRM</NavLink>
       <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+        <button className="hamburger" onClick={() => setNavOpen(o => !o)} aria-label="Menü">
+          <span/><span/><span/>
+        </button>
         <span className="user-badge">👤 {profile?.name || user.email}</span>
-        <nav className="nav">
+        <nav className={`nav${navOpen ? ' open' : ''}`} onClick={() => setNavOpen(false)}>
           <NavLink to="/" className={({isActive})=>'nav-link'+(isActive?' active':'')} end>Dashboard</NavLink>
           <NavLink to="/kontakte" className={({isActive})=>'nav-link'+(isActive?' active':'')}>Kontakte</NavLink>
           <NavLink to="/historie" className={({isActive})=>'nav-link'+(isActive?' active':'')}>Historie</NavLink>
