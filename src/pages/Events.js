@@ -65,21 +65,31 @@ export default function Events() {
   const [dateiForm, setDateiForm] = useState({})
   const [kostenModal, setKostenModal] = useState(false)
   const [kostenForm, setKostenForm] = useState({})
+  const [dienstleister, setDienstleister] = useState([])
+  const [kostenKategorien, setKostenKategorien] = useState([])
+  const [alleKosten, setAlleKosten] = useState([])
+  const [dashboardTab, setDashboardTab] = useState('events')
 
   useEffect(() => { loadAll() }, [])
   useEffect(() => { if (selectedEvent) loadDetails(selectedEvent.id) }, [selectedEvent])
 
   async function loadAll() {
-    const [{ data: e }, { data: k }, { data: o }, { data: p }] = await Promise.all([
+    const [{ data: e }, { data: k }, { data: o }, { data: p }, { data: dl }, { data: kkat }, { data: ak }] = await Promise.all([
       supabase.from('veranstaltungen').select('*').order('datum', { ascending: false }),
       supabase.from('kontakte').select('id,firma,ist_ev,logo_url').order('firma'),
       supabase.from('veranstaltungsorte').select('*').order('name'),
       supabase.from('personen').select('*').eq('aktiv', true).order('name'),
+      supabase.from('dienstleister').select('id,firma,typ').eq('aktiv', true).order('firma'),
+      supabase.from('kosten_kategorien').select('*').eq('aktiv', true).order('reihenfolge'),
+      supabase.from('event_kosten').select('*').order('erstellt_am'),
     ])
     setEvents(e || [])
     setKontakte(k || [])
     setOrte(o || [])
     setPersonen(p || [])
+    setDienstleister(dl || [])
+    setKostenKategorien(kkat || [])
+    setAlleKosten(ak || [])
     setLoading(false)
   }
 
@@ -230,7 +240,7 @@ export default function Events() {
   async function saveKosten() {
     if (!kostenForm.bezeichnung?.trim()) return
     setSaving(true)
-    const payload = { event_id:selectedEvent.id, kategorie:kostenForm.kategorie||'Sonstiges', bezeichnung:kostenForm.bezeichnung, betrag_geplant:kostenForm.betrag_geplant||0, betrag_tatsaechlich:kostenForm.betrag_tatsaechlich||null, anbieter:kostenForm.anbieter||null, notiz:kostenForm.notiz||null, bezahlt:kostenForm.bezahlt||false }
+    const payload = { event_id:selectedEvent.id, kategorie:kostenForm.kategorie||'Sonstiges', kategorie_id:kostenForm.kategorie_id||null, bezeichnung:kostenForm.bezeichnung, betrag_geplant:kostenForm.betrag_geplant||0, betrag_tatsaechlich:kostenForm.betrag_tatsaechlich||null, anbieter:kostenForm.anbieter||null, dienstleister_id:kostenForm.dienstleister_id||null, rechnung_nr:kostenForm.rechnung_nr||null, notiz:kostenForm.notiz||null, bezahlt:kostenForm.bezahlt||false }
     if (kostenForm.id) await supabase.from('event_kosten').update(payload).eq('id', kostenForm.id)
     else await supabase.from('event_kosten').insert(payload)
     setKostenModal(false); setSaving(false); loadDetails(selectedEvent.id)
@@ -445,6 +455,7 @@ ${[1,2,3].map(n=>selectedEvent[`dokument_link_${n}`]?`<tr><td>${selectedEvent[`d
                 ['notizen','Notizen'],
                 ['dateien',`Dateien (${dateien.length})`],
                 ['kosten','Kosten'],
+                ['dashboard','Kosten-Dashboard'],
               ].map(([key,label]) => (
                 <button key={key} className={'tab-btn'+(detailTab===key?' active':'')} onClick={()=>setDetailTab(key)}>{label}</button>
               ))}
@@ -692,6 +703,121 @@ ${[1,2,3].map(n=>selectedEvent[`dokument_link_${n}`]?`<tr><td>${selectedEvent[`d
           </div>
         )}
       </div>
+
+      {/* ===== KOSTEN DASHBOARD (global, kein selectedEvent noetig) ===== */}
+      {detailTab==='dashboard' && selectedEvent && (() => {
+        const eventKosten = alleKosten.filter(k => k.event_id === selectedEvent.id)
+        // Pro Kategorie aggregieren
+        const perKat = kostenKategorien.map(kat => {
+          const items = alleKosten.filter(k => k.kategorie === kat.name)
+          return { ...kat, geplant: items.reduce((s,k)=>s+Number(k.betrag_geplant||0),0), tatsaechlich: items.reduce((s,k)=>s+Number(k.betrag_tatsaechlich||0),0), anzahl: items.length }
+        }).filter(k => k.anzahl > 0)
+        // Pro Event aggregieren
+        const perEvent = events.map(e => {
+          const items = alleKosten.filter(k => k.event_id === e.id)
+          return { ...e, geplant: items.reduce((s,k)=>s+Number(k.betrag_geplant||0),0), tatsaechlich: items.reduce((s,k)=>s+Number(k.betrag_tatsaechlich||0),0), anzahl: items.length }
+        }).filter(e => e.anzahl > 0).sort((a,b) => b.geplant - a.geplant)
+        const gesamtGeplant = alleKosten.reduce((s,k)=>s+Number(k.betrag_geplant||0),0)
+        const gesamtTats = alleKosten.reduce((s,k)=>s+Number(k.betrag_tatsaechlich||0),0)
+        const maxEventKosten = Math.max(...perEvent.map(e=>e.geplant), 1)
+
+        return (
+          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:300,display:'flex',alignItems:'flex-start',justifyContent:'center',paddingTop:60,overflowY:'auto'}} onClick={()=>setDetailTab('kosten')}>
+            <div style={{background:'var(--white)',borderRadius:'var(--radius)',width:'100%',maxWidth:900,margin:'0 20px 40px',boxShadow:'0 20px 60px rgba(0,0,0,0.3)'}} onClick={e=>e.stopPropagation()}>
+              <div style={{background:'#0f2240',color:'white',padding:'20px 28px',borderRadius:'var(--radius) var(--radius) 0 0',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <div>
+                  <div style={{fontSize:18,fontWeight:700}}>Kosten-Dashboard</div>
+                  <div style={{fontSize:12,opacity:0.7,marginTop:2}}>Jahresübersicht aller Events</div>
+                </div>
+                <button onClick={()=>setDetailTab('kosten')} style={{background:'none',border:'none',color:'white',fontSize:22,cursor:'pointer',opacity:0.7}}>x</button>
+              </div>
+              <div style={{padding:24}}>
+                {/* Gesamt-Stats */}
+                <div className="stats-row" style={{marginBottom:24}}>
+                  <div className="stat-card blue"><div className="stat-num" style={{fontSize:20}}>{perEvent.length}</div><div className="stat-label">Events mit Kosten</div></div>
+                  <div className="stat-card gold"><div className="stat-num" style={{fontSize:20}}>{gesamtGeplant.toLocaleString('de-DE')} EUR</div><div className="stat-label">Geplant gesamt</div></div>
+                  <div className="stat-card" style={{background:gesamtTats>gesamtGeplant?'#fff5f5':'#f0f9f4'}}><div className="stat-num" style={{fontSize:20,color:gesamtTats>gesamtGeplant?'var(--red)':'var(--green)'}}>{gesamtTats.toLocaleString('de-DE')} EUR</div><div className="stat-label">Tatsaechlich gesamt</div></div>
+                  <div className="stat-card"><div className="stat-num" style={{fontSize:20,color:'var(--navy)'}}>{alleKosten.length}</div><div className="stat-label">Kostenpositionen</div></div>
+                </div>
+
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:24,marginBottom:24}}>
+                  {/* Kosten pro Event */}
+                  <div>
+                    <div className="section-title" style={{marginBottom:12}}>Kosten pro Event</div>
+                    <div style={{display:'grid',gap:8}}>
+                      {perEvent.length===0&&<p style={{fontSize:13,color:'var(--gray-400)'}}>Noch keine Kostendaten.</p>}
+                      {perEvent.map(e => (
+                        <div key={e.id} style={{padding:'10px 12px',border:'1.5px solid var(--gray-200)',borderRadius:'var(--radius)',background:'var(--white)'}}>
+                          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+                            <div style={{fontSize:13,fontWeight:600,color:'var(--navy)',flex:1}}>{e.name}</div>
+                            <div style={{fontSize:13,fontWeight:700,flexShrink:0,marginLeft:8}}>{e.geplant.toLocaleString('de-DE')} EUR</div>
+                          </div>
+                          <div style={{height:6,background:'var(--gray-100)',borderRadius:3,overflow:'hidden'}}>
+                            <div style={{height:'100%',width:(e.geplant/maxEventKosten*100)+'%',background:'#0f2240',borderRadius:3}}/>
+                          </div>
+                          {e.tatsaechlich>0&&(
+                            <div style={{fontSize:11,color:e.tatsaechlich>e.geplant?'var(--red)':'var(--green)',marginTop:4,textAlign:'right'}}>
+                              Tatsaechlich: {e.tatsaechlich.toLocaleString('de-DE')} EUR
+                            </div>
+                          )}
+                          {e.datum&&<div style={{fontSize:11,color:'var(--gray-400)',marginTop:2}}>{new Date(e.datum+'T00:00:00').toLocaleDateString('de-DE',{month:'long',year:'numeric'})}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Kosten pro Kategorie */}
+                  <div>
+                    <div className="section-title" style={{marginBottom:12}}>Kosten nach Kategorie</div>
+                    <div style={{display:'grid',gap:8}}>
+                      {perKat.length===0&&<p style={{fontSize:13,color:'var(--gray-400)'}}>Noch keine Kategoriedaten.</p>}
+                      {perKat.sort((a,b)=>b.geplant-a.geplant).map(kat => (
+                        <div key={kat.id} style={{display:'flex',alignItems:'center',gap:12,padding:'8px 12px',border:'1.5px solid var(--gray-200)',borderRadius:'var(--radius)',background:'var(--white)'}}>
+                          <div style={{width:12,height:12,borderRadius:'50%',background:kat.farbe||'#ccc',flexShrink:0}}/>
+                          <div style={{flex:1,fontSize:13,fontWeight:500}}>{kat.name}</div>
+                          <div style={{fontSize:13,fontWeight:700,color:'var(--navy)'}}>{kat.geplant.toLocaleString('de-DE')} EUR</div>
+                          <div style={{fontSize:11,color:'var(--gray-400)'}}>{kat.anzahl}x</div>
+                        </div>
+                      ))}
+                      <div style={{padding:'10px 12px',background:'#0f2240',color:'white',borderRadius:'var(--radius)',display:'flex',justifyContent:'space-between'}}>
+                        <span style={{fontSize:13,fontWeight:600}}>Gesamt</span>
+                        <span style={{fontSize:13,fontWeight:700,color:'#c8a84b'}}>{gesamtGeplant.toLocaleString('de-DE')} EUR</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Alle Kosten Tabelle */}
+                <div>
+                  <div className="section-title" style={{marginBottom:12}}>Alle Kostenpositionen</div>
+                  <div className="table-wrap"><table>
+                    <thead><tr><th>Event</th><th>Kategorie</th><th>Bezeichnung</th><th>Dienstleister</th><th style={{textAlign:'right'}}>Geplant</th><th style={{textAlign:'right'}}>Tatsaechlich</th><th>Bezahlt</th></tr></thead>
+                    <tbody>
+                      {alleKosten.length===0&&<tr><td colSpan="7"><div className="empty-state"><p>Keine Kostenpositionen.</p></div></td></tr>}
+                      {alleKosten.map(k => {
+                        const ev = events.find(e=>e.id===k.event_id)
+                        const dl = dienstleister.find(d=>d.id===k.dienstleister_id)
+                        return (
+                          <tr key={k.id}>
+                            <td style={{fontSize:12,color:'var(--navy)',fontWeight:500}}>{ev?.name||'-'}</td>
+                            <td><span style={{fontSize:11,fontWeight:600,background:'var(--gray-100)',color:'var(--gray-600)',padding:'1px 7px',borderRadius:10}}>{k.kategorie||'-'}</span></td>
+                            <td style={{fontSize:13}}>{k.bezeichnung}</td>
+                            <td style={{fontSize:12,color:'var(--gray-500)'}}>{dl?.firma||k.anbieter||'-'}</td>
+                            <td style={{textAlign:'right',fontWeight:600}}>{Number(k.betrag_geplant||0).toLocaleString('de-DE')} EUR</td>
+                            <td style={{textAlign:'right',fontWeight:600,color:k.betrag_tatsaechlich>k.betrag_geplant?'var(--red)':'var(--green)'}}>{k.betrag_tatsaechlich!==null?Number(k.betrag_tatsaechlich).toLocaleString('de-DE')+' EUR':'-'}</td>
+                            <td><span style={{fontSize:11,padding:'1px 7px',borderRadius:10,fontWeight:600,background:k.bezahlt?'#e2efda':'#fff3cd',color:k.bezahlt?'#2d6b3a':'#8a6a00'}}>{k.bezahlt?'Ja':'Offen'}</span></td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                    <tfoot><tr style={{background:'var(--gray-100)',fontWeight:700}}><td colSpan="4">Gesamt</td><td style={{textAlign:'right'}}>{gesamtGeplant.toLocaleString('de-DE')} EUR</td><td style={{textAlign:'right',color:gesamtTats>gesamtGeplant?'var(--red)':'var(--green)'}}>{gesamtTats.toLocaleString('de-DE')} EUR</td><td>{alleKosten.filter(k=>k.bezahlt).length}/{alleKosten.length} bezahlt</td></tr></tfoot>
+                  </table></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* ===== MODALS ===== */}
 
@@ -965,18 +1091,34 @@ ${[1,2,3].map(n=>selectedEvent[`dokument_link_${n}`]?`<tr><td>${selectedEvent[`d
             <div className="modal-body">
               <div className="form-row">
                 <div className="form-group"><label>Kategorie</label>
-                  <select value={kostenForm.kategorie||'Sonstiges'} onChange={e=>setKostenForm(f=>({...f,kategorie:e.target.value}))}>
-                    {KOSTEN_KAT.map(k=><option key={k}>{k}</option>)}
+                  <select value={kostenForm.kategorie||''} onChange={e=>{
+                    const kat = kostenKategorien.find(k=>k.name===e.target.value)
+                    setKostenForm(f=>({...f,kategorie:e.target.value,kategorie_id:kat?.id||null}))
+                  }}>
+                    <option value="">-- Keine --</option>
+                    {kostenKategorien.length>0
+                      ? kostenKategorien.map(k=><option key={k.id} value={k.name}>{k.name}</option>)
+                      : KOSTEN_KAT.map(k=><option key={k}>{k}</option>)
+                    }
                   </select>
                 </div>
                 <div className="form-group"><label>Bezeichnung *</label><input value={kostenForm.bezeichnung||''} onChange={e=>setKostenForm(f=>({...f,bezeichnung:e.target.value}))} autoFocus/></div>
+              </div>
+              <div className="form-group"><label>Dienstleister (optional)</label>
+                <select value={kostenForm.dienstleister_id||''} onChange={e=>{
+                  const dl = dienstleister.find(d=>d.id===e.target.value)
+                  setKostenForm(f=>({...f,dienstleister_id:e.target.value||null,anbieter:dl?.firma||f.anbieter}))
+                }}>
+                  <option value="">-- Kein Dienstleister --</option>
+                  {dienstleister.map(d=><option key={d.id} value={d.id}>{d.firma} ({d.typ})</option>)}
+                </select>
               </div>
               <div className="form-row">
                 <div className="form-group"><label>Geplanter Betrag (EUR)</label><input type="number" value={kostenForm.betrag_geplant||''} onChange={e=>setKostenForm(f=>({...f,betrag_geplant:e.target.value}))}/></div>
                 <div className="form-group"><label>Tatsaechlicher Betrag (EUR)</label><input type="number" value={kostenForm.betrag_tatsaechlich||''} onChange={e=>setKostenForm(f=>({...f,betrag_tatsaechlich:e.target.value}))}/></div>
               </div>
               <div className="form-row">
-                <div className="form-group"><label>Anbieter</label><input value={kostenForm.anbieter||''} onChange={e=>setKostenForm(f=>({...f,anbieter:e.target.value}))}/></div>
+                <div className="form-group"><label>Rechnungsnummer</label><input value={kostenForm.rechnung_nr||''} onChange={e=>setKostenForm(f=>({...f,rechnung_nr:e.target.value}))}/></div>
                 <div className="form-group"><label>Notiz</label><input value={kostenForm.notiz||''} onChange={e=>setKostenForm(f=>({...f,notiz:e.target.value}))}/></div>
               </div>
               <div className="form-group">
