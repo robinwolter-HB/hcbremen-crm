@@ -460,8 +460,7 @@ ${[1,2,3].map(n=>selectedEvent[`dokument_link_${n}`]?`<tr><td>${selectedEvent[`d
         const gesamtGeplant = alleKosten.reduce((s,k)=>s+Number(k.betrag_geplant||0),0)
         const gesamtTats = alleKosten.reduce((s,k)=>s+Number(k.betrag_tatsaechlich||0),0)
         const maxBetrag = Math.max(...perEvent.map(e=>e.geplant), 1)
-        return (
-          <div>
+        return <div>
             <div className="stats-row" style={{marginBottom:20}}>
               <div className="stat-card blue"><div className="stat-num" style={{fontSize:20}}>{perEvent.length}</div><div className="stat-label">Events mit Kosten</div></div>
               <div className="stat-card gold"><div className="stat-num" style={{fontSize:18}}>{gesamtGeplant.toLocaleString('de-DE')} EUR</div><div className="stat-label">Geplant gesamt</div></div>
@@ -537,7 +536,6 @@ ${[1,2,3].map(n=>selectedEvent[`dokument_link_${n}`]?`<tr><td>${selectedEvent[`d
           </div>
         </div>
       </div>
-        )
       })()}
 
       {/* ===== DIENSTLEISTER ===== */}
