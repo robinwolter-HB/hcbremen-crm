@@ -405,34 +405,44 @@ export default function KontaktDetail() {
                   const hKommentare = kommentare[h.id] || []
                   const isUeberfaellig = h.faellig_am && !h.erledigt && new Date(h.faellig_am) < new Date()
                   return (
-                    <div key={h.id} style={{border:'1.5px solid var(--gray-200)',borderRadius:'var(--radius)',overflow:'hidden',opacity:h.erledigt?0.7:1}}>
-                      {/* Header */}
-                      <div style={{display:'flex',alignItems:'flex-start',gap:12,padding:'12px 16px',background:isExpanded?'rgba(15,34,64,0.02)':'var(--white)'}}>
-                        <button onClick={()=>toggleErledigt(h)} style={{background:'none',border:'none',cursor:'pointer',fontSize:20,flexShrink:0,marginTop:2}}>{h.erledigt?'✅':'⬜'}</button>
+                    <div key={h.id} style={{
+                        border:'1.5px solid var(--gray-200)',
+                        borderLeft:`4px solid ${h.art==='Meeting'?'#8b5cf6':h.art==='E-Mail'?'#2d6fa3':h.art==='Anruf'?'#3a8a5a':h.erledigt?'var(--gray-200)':isUeberfaellig?'var(--red)':'var(--navy)'}`,
+                        borderRadius:'var(--radius)',overflow:'hidden',opacity:h.erledigt?0.65:1
+                      }}>
+                      {/* Header - klickbar zum Aufklappen */}
+                      <div style={{display:'flex',alignItems:'flex-start',gap:12,padding:'12px 16px',
+                          background:isExpanded?'rgba(15,34,64,0.03)':'var(--white)',cursor:'pointer'}}
+                        onClick={()=>toggleHistorie(h.id)}>
+                        <button onClick={e=>{e.stopPropagation();toggleErledigt(h)}}
+                          style={{background:'none',border:'none',cursor:'pointer',fontSize:22,flexShrink:0,marginTop:0}}>
+                          {h.erledigt?'✅':'⬜'}
+                        </button>
                         <div style={{flex:1,minWidth:0}}>
                           <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4,flexWrap:'wrap'}}>
-                            <span style={{fontSize:12,background:'var(--gray-100)',padding:'2px 8px',borderRadius:20,flexShrink:0}}>{h.art}</span>
+                            <span style={{fontSize:12,background:'var(--gray-100)',padding:'2px 8px',borderRadius:20,flexShrink:0,fontWeight:600}}>{h.art}</span>
                             <strong style={{fontSize:14}}>{h.betreff}</strong>
-                            {isUeberfaellig&&<span style={{fontSize:11,color:'var(--red)',fontWeight:700,flexShrink:0}}>ÜBERFÄLLIG</span>}
+                            {isUeberfaellig&&<span style={{fontSize:11,color:'var(--red)',fontWeight:700,background:'#fce4d6',padding:'1px 6px',borderRadius:10}}>ÜBERFÄLLIG</span>}
+                            {h.erledigt&&<span style={{fontSize:11,color:'var(--green)',fontWeight:700}}>✓ Erledigt</span>}
                           </div>
-                          {h.notiz&&<p style={{fontSize:13,color:'var(--gray-600)',marginBottom:4}}>{h.notiz}</p>}
-                          <div style={{display:'flex',gap:12,fontSize:12,color:'var(--gray-400)',flexWrap:'wrap'}}>
+                          {h.notiz&&<p style={{fontSize:13,color:'var(--gray-600)',marginBottom:4,lineHeight:1.4}}>{h.notiz}</p>}
+                          <div style={{display:'flex',gap:10,fontSize:12,color:'var(--gray-400)',flexWrap:'wrap',alignItems:'center'}}>
                             <span>{new Date(h.erstellt_am).toLocaleDateString('de-DE')}</span>
-                            {h.meeting_datum&&<span style={{color:'var(--blue)',fontWeight:600}}>📅 {new Date(h.meeting_datum).toLocaleDateString('de-DE')}{h.meeting_uhrzeit?' um '+h.meeting_uhrzeit.slice(0,5):''}</span>}
+                            {h.meeting_datum&&<span style={{color:'#8b5cf6',fontWeight:600}}>📅 {new Date(h.meeting_datum).toLocaleDateString('de-DE')}{h.meeting_uhrzeit?' um '+h.meeting_uhrzeit.slice(0,5):''}</span>}
                             {h.meeting_ort&&<span>📍 {h.meeting_ort}</span>}
                             {h.meeting_teilnehmer?.length>0&&<span>👥 {h.meeting_teilnehmer.join(', ')}</span>}
-                            {h.naechste_aktion&&<span>→ {h.naechste_aktion}</span>}
-                            {h.faellig_am&&<span style={{color:isUeberfaellig?'var(--red)':'inherit'}}>Fällig: {new Date(h.faellig_am).toLocaleDateString('de-DE')}</span>}
+                            {h.naechste_aktion&&<span style={{color:'var(--blue)'}}>→ {h.naechste_aktion}</span>}
+                            {h.faellig_am&&<span style={{color:isUeberfaellig?'var(--red)':'inherit',fontWeight:isUeberfaellig?600:400}}>⏰ {new Date(h.faellig_am).toLocaleDateString('de-DE')}</span>}
                             {((h.zustaendig_personen||[]).join(', ')||h.zustaendig)&&<span>👤 {(h.zustaendig_personen||[]).join(', ')||h.zustaendig}</span>}
                           </div>
                         </div>
-                        <div style={{display:'flex',gap:6,flexShrink:0}}>
-                          <button onClick={()=>toggleHistorie(h.id)} style={{background:'none',border:'1.5px solid var(--gray-200)',borderRadius:'var(--radius)',padding:'4px 10px',cursor:'pointer',fontSize:12,color:'var(--gray-600)',display:'flex',alignItems:'center',gap:4}}>
-                            💬 {hKommentare.length||''}
+                        <div style={{display:'flex',gap:6,flexShrink:0,alignItems:'center'}}>
+                          <span style={{fontSize:12,color:'var(--gray-400)',display:'flex',alignItems:'center',gap:4}}>
+                            💬{hKommentare.length>0&&<span style={{background:'var(--navy)',color:'white',borderRadius:'50%',width:16,height:16,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10}}>{hKommentare.length}</span>}
                             {isExpanded?' ▲':' ▼'}
-                          </button>
-                          <button className="btn btn-sm btn-outline" onClick={()=>{setHForm({...h,zustaendig_personen:h.zustaendig_personen||[]});setHistorieModal(true)}}>Bearb.</button>
-                          <button className="btn btn-sm btn-danger" onClick={()=>deleteHistorie(h.id)}>X</button>
+                          </span>
+                          <button className="btn btn-sm btn-outline" onClick={e=>{e.stopPropagation();setHForm({...h,zustaendig_personen:h.zustaendig_personen||[]});setHistorieModal(true)}}>Bearb.</button>
+                          <button className="btn btn-sm btn-danger" onClick={e=>{e.stopPropagation();deleteHistorie(h.id)}}>✕</button>
                         </div>
                       </div>
 
