@@ -539,7 +539,7 @@ ${sonderklausel.trim() ? `
           <option value="">-- Vertrag auswählen --</option>
           {vertraege.map(v => (
             <option key={v.id} value={v.id}>
-              {v.kontakte?.firma} · {v.saisons?.name} {v.saisons?.liga && v.saisons.liga !== 'Oberliga' ? '· ' + v.saisons.liga : ''} {v.vertrag_festgeschrieben ? '🔒' : ''}
+              {v.kontakte?.firma} - {v.saisons?.name} {v.saisons?.liga && v.saisons.liga !== "Oberliga" ? "(" + v.saisons.liga + ")" : ""} {v.vertrag_festgeschrieben ? "[gesperrt]" : ""}
             </option>
           ))}
         </select>
@@ -603,13 +603,13 @@ ${sonderklausel.trim() ? `
                         const liga = vertragsDaten.saisons?.liga || 'Oberliga'
                         const preis = getPreisFuerLiga(l, liga)
                         return (
-                          <label key={l.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 12px',border:'1.5px solid '+(aktiv?kat.farbe:'var(--gray-200)'),borderRadius:'var(--radius)',cursor:'pointer',background:aktiv?kat.farbe+'11':'var(--white)'}}>
+                          <label key={l.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 12px',border:'1.5px solid '+(aktiv?(kat.farbe||'var(--navy)'):'var(--gray-200)'),borderRadius:'var(--radius)',cursor:'pointer',background:aktiv?(kat.farbe||'#0f2240')+'22':'var(--white)'}}>
                             <input type="checkbox" checked={aktiv} onChange={()=>toggleLeistung(l.id)} style={{width:16,height:16,flexShrink:0}}/>
                             <div style={{flex:1}}>
                               <div style={{fontSize:13,fontWeight:aktiv?600:400}}>{l.name}</div>
                               {l.beschreibung&&<div style={{fontSize:11,color:'var(--gray-400)'}}>{l.beschreibung}</div>}
                             </div>
-                            <div style={{fontSize:12,color:'var(--gray-500)',whiteSpace:'nowrap'}}>{preis ? Number(preis).toLocaleString('de-DE') + ' €' : '–'}</div>
+                            <div style={{fontSize:12,color:'var(--gray-500)',whiteSpace:'nowrap'}}>{preis ? Number(preis).toLocaleString('de-DE') + ' EUR' : '-'}</div>
                             {l.exklusiv&&<span style={{fontSize:10,background:'#0f2240',color:'white',padding:'1px 5px',borderRadius:8}}>EX</span>}
                           </label>
                         )
