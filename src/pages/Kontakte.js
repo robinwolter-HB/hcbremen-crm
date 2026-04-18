@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase'
 const STATUS_LIST = ['Offen','Eingeladen','Zugesagt','Absage','Aktiver Sponsor','Ehemaliger Sponsor']
 const KAT_LIST = ['Sponsor','Foerderverein','Freunde des Vereins','Ehemalige','Partner','Medien','Werbeagentur','Kontakt','Sonstige']
 const BADGE_MAP = { 'Zugesagt':'badge-zugesagt','Eingeladen':'badge-eingeladen','Offen':'badge-offen','Absage':'badge-absage','Aktiver Sponsor':'badge-aktiv','Ehemaliger Sponsor':'badge-ehemaliger' }
-const EMPTY = { firma:'', email:'', telefon:'', website:'', branche:'', status:'Offen', kategorie:'Sponsor', zustaendig:'', notiz:'', adresse_strasse:'', adresse_plz:'', adresse_stadt:'', adresse_land:'Deutschland', logo_url:null, ist_ev:false }
+const EMPTY = { firma:'', email:'', telefon:'', website:'', branche:'', status:'Offen', kategorie:'Sponsor', zustaendig:'', notiz:'', adresse_strasse:'', adresse_plz:'', adresse_stadt:'', adresse_land:'Deutschland', logo_url:null, ist_ev:false, rechnung_firma:'', rechnung_strasse:'', rechnung_plz:'', rechnung_stadt:'', rechnung_land:'Deutschland', rechnung_email:'', ust_id:'', steuernummer:'' }
 
 export default function Kontakte() {
   const [kontakte, setKontakte] = useState([])
@@ -26,6 +26,8 @@ export default function Kontakte() {
   const [branchen, setBranchen] = useState([])
   const [brancheInput, setBrancheInput] = useState('')
   const [brancheSuggestions, setBrancheSuggestions] = useState([])
+  const [rechnungAbweichend, setRechnungAbweichend] = useState(false)
+  const [modalTab, setModalTab] = useState('stamm')
   const fileRef = useRef()
   const navigate = useNavigate()
 
@@ -37,6 +39,7 @@ export default function Kontakte() {
     const { data: kt } = await supabase.from('kontakt_kategorien').select('name').eq('aktiv', true).order('reihenfolge')
     if (kt && kt.length > 0) setKategorienListe(kt.map(k => k.name))
   }
+
   useEffect(() => { applyFilter() }, [kontakte, search, statusFilter, katFilter])
 
   async function load() {
@@ -47,7 +50,6 @@ export default function Kontakte() {
       ])
       setKontakte(k || [])
       setPersonen(p || [])
-      // Branchen optional laden
       const { data: b } = await supabase.from('branchen').select('*').order('name')
       setBranchen(b || [])
     } catch(e) {
@@ -84,14 +86,29 @@ export default function Kontakte() {
   function openNew() {
     setForm(EMPTY); setLogoFile(null); setLogoPreview(null)
     setBrancheInput(''); setBrancheSuggestions([])
+    setRechnungAbweichend(false); setModalTab('stamm')
     setModal(true)
   }
 
   function openEdit(k, e) {
     e.stopPropagation()
-    setForm({ id:k.id, firma:k.firma||'', email:k.email||'', telefon:k.telefon||'', website:k.website||'', branche:k.branche||'', status:k.status||'Offen', kategorie:k.kategorie||'Sponsor', zustaendig:k.zustaendig||'', notiz:k.notiz||'', adresse_strasse:k.adresse_strasse||'', adresse_plz:k.adresse_plz||'', adresse_stadt:k.adresse_stadt||'', adresse_land:k.adresse_land||'Deutschland', logo_url:k.logo_url||null })
+    const hatRechnung = k.rechnung_strasse || k.rechnung_firma || k.rechnung_email
+    setForm({
+      id:k.id, firma:k.firma||'', email:k.email||'', telefon:k.telefon||'', website:k.website||'',
+      branche:k.branche||'', status:k.status||'Offen', kategorie:k.kategorie||'Sponsor',
+      zustaendig:k.zustaendig||'', notiz:k.notiz||'',
+      adresse_strasse:k.adresse_strasse||'', adresse_plz:k.adresse_plz||'',
+      adresse_stadt:k.adresse_stadt||'', adresse_land:k.adresse_land||'Deutschland',
+      logo_url:k.logo_url||null, ist_ev:k.ist_ev||false,
+      rechnung_firma:k.rechnung_firma||'', rechnung_strasse:k.rechnung_strasse||'',
+      rechnung_plz:k.rechnung_plz||'', rechnung_stadt:k.rechnung_stadt||'',
+      rechnung_land:k.rechnung_land||'Deutschland', rechnung_email:k.rechnung_email||'',
+      ust_id:k.ust_id||'', steuernummer:k.steuernummer||''
+    })
     setBrancheInput(k.branche || '')
     setLogoPreview(k.logo_url || null); setLogoFile(null)
+    setRechnungAbweichend(!!hatRechnung)
+    setModalTab('stamm')
     setModal(true)
   }
 
@@ -110,11 +127,27 @@ export default function Kontakte() {
       const { data: up } = await supabase.storage.from('logos').upload(path, logoFile, { upsert: true })
       if (up) { const { data: pub } = supabase.storage.from('logos').getPublicUrl(up.path); logo_url = pub.publicUrl }
     }
-    // Branche in Branchen-Tabelle speichern falls neu
     if (form.branche && !branchen.find(b => b.name.toLowerCase() === form.branche.toLowerCase())) {
       await supabase.from('branchen').upsert({ name: form.branche }, { onConflict: 'name', ignoreDuplicates: true })
     }
-    const payload = { firma:form.firma, email:form.email||null, telefon:form.telefon||null, website:form.website||null, branche:form.branche||null, status:form.status, kategorie:form.kategorie, zustaendig:form.zustaendig||null, notiz:form.notiz||null, adresse_strasse:form.adresse_strasse||null, adresse_plz:form.adresse_plz||null, adresse_stadt:form.adresse_stadt||null, adresse_land:form.adresse_land||'Deutschland', logo_url, ist_ev:form.ist_ev||false, geaendert_am:new Date().toISOString() }
+    const payload = {
+      firma:form.firma, email:form.email||null, telefon:form.telefon||null,
+      website:form.website||null, branche:form.branche||null, status:form.status,
+      kategorie:form.kategorie, zustaendig:form.zustaendig||null, notiz:form.notiz||null,
+      adresse_strasse:form.adresse_strasse||null, adresse_plz:form.adresse_plz||null,
+      adresse_stadt:form.adresse_stadt||null, adresse_land:form.adresse_land||'Deutschland',
+      logo_url, ist_ev:form.ist_ev||false,
+      // Rechnungsadresse — nur speichern wenn abweichend
+      rechnung_firma: rechnungAbweichend ? (form.rechnung_firma||null) : null,
+      rechnung_strasse: rechnungAbweichend ? (form.rechnung_strasse||null) : null,
+      rechnung_plz: rechnungAbweichend ? (form.rechnung_plz||null) : null,
+      rechnung_stadt: rechnungAbweichend ? (form.rechnung_stadt||null) : null,
+      rechnung_land: rechnungAbweichend ? (form.rechnung_land||'Deutschland') : null,
+      rechnung_email: rechnungAbweichend ? (form.rechnung_email||null) : null,
+      ust_id: form.ust_id||null,
+      steuernummer: form.steuernummer||null,
+      geaendert_am:new Date().toISOString()
+    }
     if (form.id) await supabase.from('kontakte').update(payload).eq('id', form.id)
     else await supabase.from('kontakte').insert(payload)
     setModal(false); setSaving(false); load()
@@ -126,20 +159,12 @@ export default function Kontakte() {
     await supabase.from('kontakte').delete().eq('id', id); load()
   }
 
-  // Karte URL generieren
-  function getMapsUrl(k) {
-    const addr = [k.adresse_strasse, k.adresse_plz, k.adresse_stadt, k.adresse_land].filter(Boolean).join(', ')
-    if (!addr) return null
-    return `https://maps.google.com/maps?q=${encodeURIComponent(addr)}&output=embed`
-  }
-
   function getGoogleMapsLink(k) {
     const addr = [k.adresse_strasse, k.adresse_plz, k.adresse_stadt, k.adresse_land].filter(Boolean).join(', ')
     if (!addr) return null
     return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`
   }
 
-  // Sponsoren mit Adresse für Übersichtskarte
   const mitAdresse = kontakte.filter(k => k.adresse_stadt || k.adresse_strasse)
 
   if (loading) return <div className="loading-center"><div className="spinner"/></div>
@@ -186,6 +211,7 @@ export default function Kontakte() {
                         <div style={{display:'flex',alignItems:'center',gap:6}}>
                           <strong>{k.firma}</strong>
                           {k.ist_ev&&<span style={{fontSize:10,background:'#e07b30',color:'white',padding:'1px 6px',borderRadius:10,fontWeight:700,flexShrink:0}}>e.V.</span>}
+                          {(k.rechnung_strasse||k.rechnung_firma)&&<span title="Abweichende Rechnungsadresse" style={{fontSize:10,background:'#ddeaff',color:'#1a4a8a',padding:'1px 6px',borderRadius:10,fontWeight:700,flexShrink:0}}>📄 Rechng.</span>}
                         </div>
                         {k.adresse_stadt && <div style={{fontSize:11,color:'var(--gray-400)'}}>📍 {k.adresse_stadt}</div>}
                       </div>
@@ -215,93 +241,153 @@ export default function Kontakte() {
               <span className="modal-title">{form.id?'Kontakt bearbeiten':'Neuer Kontakt'}</span>
               <button className="close-btn" onClick={()=>setModal(false)}>×</button>
             </div>
+
+            {/* Modal-Tabs */}
+            <div style={{display:'flex',borderBottom:'1.5px solid var(--gray-200)',padding:'0 24px',background:'var(--white)'}}>
+              {[['stamm','Stammdaten'],['rechnung','Rechnungsadresse & Steuer']].map(([key,label])=>(
+                <button key={key} onClick={()=>setModalTab(key)} style={{padding:'10px 16px',border:'none',background:'none',cursor:'pointer',fontSize:13,fontWeight:modalTab===key?700:400,color:modalTab===key?'var(--navy)':'var(--gray-500)',borderBottom:modalTab===key?'2px solid var(--navy)':'2px solid transparent',marginBottom:-1.5}}>
+                  {label}
+                  {key==='rechnung'&&rechnungAbweichend&&<span style={{marginLeft:6,width:7,height:7,borderRadius:'50%',background:'var(--gold)',display:'inline-block'}}/>}
+                </button>
+              ))}
+            </div>
+
             <div className="modal-body">
-              {/* Logo */}
-              <div className="form-group">
-                <label>Firmenlogo</label>
-                <div style={{display:'flex',alignItems:'center',gap:16}}>
-                  {logoPreview ? <img src={logoPreview} alt="Logo" className="logo-preview"/> : <div className="firma-logo-placeholder" style={{width:64,height:64,fontSize:24}}>{form.firma?.[0]||'?'}</div>}
-                  <div>
-                    <button className="btn btn-outline btn-sm" onClick={()=>fileRef.current.click()}>{logoPreview?'Logo aendern':'Logo hochladen'}</button>
-                    {logoPreview && <button style={{marginLeft:8,color:'var(--red)',background:'none',border:'none',cursor:'pointer',fontSize:14}} onClick={()=>{setLogoPreview(null);setLogoFile(null);setForm(f=>({...f,logo_url:null}))}}>Entfernen</button>}
-                    <p style={{fontSize:12,color:'var(--gray-400)',marginTop:6}}>PNG, JPG, SVG – max. 2 MB</p>
+              {/* ---- TAB: STAMMDATEN ---- */}
+              {modalTab==='stamm'&&(<>
+                <div className="form-group">
+                  <label>Firmenlogo</label>
+                  <div style={{display:'flex',alignItems:'center',gap:16}}>
+                    {logoPreview ? <img src={logoPreview} alt="Logo" className="logo-preview"/> : <div className="firma-logo-placeholder" style={{width:64,height:64,fontSize:24}}>{form.firma?.[0]||'?'}</div>}
+                    <div>
+                      <button className="btn btn-outline btn-sm" onClick={()=>fileRef.current.click()}>{logoPreview?'Logo aendern':'Logo hochladen'}</button>
+                      {logoPreview && <button style={{marginLeft:8,color:'var(--red)',background:'none',border:'none',cursor:'pointer',fontSize:14}} onClick={()=>{setLogoPreview(null);setLogoFile(null);setForm(f=>({...f,logo_url:null}))}}>Entfernen</button>}
+                      <p style={{fontSize:12,color:'var(--gray-400)',marginTop:6}}>PNG, JPG, SVG – max. 2 MB</p>
+                    </div>
+                    <input type="file" ref={fileRef} accept="image/*" style={{display:'none'}} onChange={handleLogoChange}/>
                   </div>
-                  <input type="file" ref={fileRef} accept="image/*" style={{display:'none'}} onChange={handleLogoChange}/>
                 </div>
-              </div>
 
-              <div className="form-row">
-                <div className="form-group"><label>Firma *</label><input value={form.firma} onChange={e=>setForm(f=>({...f,firma:e.target.value}))}/></div>
-                <div className="form-group"><label>Status</label>
-                  <select value={form.status} onChange={e=>setForm(f=>({...f,status:e.target.value}))}>
-                    {statusListe.map(s=><option key={s}>{s}</option>)}
-                  </select>
+                <div className="form-row">
+                  <div className="form-group"><label>Firma *</label><input value={form.firma} onChange={e=>setForm(f=>({...f,firma:e.target.value}))}/></div>
+                  <div className="form-group"><label>Status</label>
+                    <select value={form.status} onChange={e=>setForm(f=>({...f,status:e.target.value}))}>
+                      {statusListe.map(s=><option key={s}>{s}</option>)}
+                    </select>
+                  </div>
                 </div>
-              </div>
 
-              <div className="form-row">
-                <div className="form-group"><label>Kategorie</label>
-                  <select value={form.kategorie} onChange={e=>setForm(f=>({...f,kategorie:e.target.value}))}>
-                    {kategorienListe.map(k=><option key={k}>{k}</option>)}
-                  </select>
+                <div className="form-row">
+                  <div className="form-group"><label>Kategorie</label>
+                    <select value={form.kategorie} onChange={e=>setForm(f=>({...f,kategorie:e.target.value}))}>
+                      {kategorienListe.map(k=><option key={k}>{k}</option>)}
+                    </select>
+                  </div>
+                  <div className="form-group" style={{position:'relative'}}>
+                    <label>Branche</label>
+                    <input value={brancheInput} onChange={e=>handleBrancheInput(e.target.value)} placeholder="z.B. Gesundheit, IT, Handel..." autoComplete="off"/>
+                    {brancheSuggestions.length>0&&(
+                      <div style={{position:'absolute',top:'100%',left:0,right:0,background:'var(--white)',border:'1.5px solid var(--gray-200)',borderRadius:'var(--radius)',zIndex:10,boxShadow:'var(--shadow)'}}>
+                        {brancheSuggestions.map(b=>(
+                          <div key={b.id} onClick={()=>selectBranche(b.name)} style={{padding:'8px 14px',cursor:'pointer',fontSize:14}} onMouseEnter={e=>e.target.style.background='var(--gray-100)'} onMouseLeave={e=>e.target.style.background='transparent'}>{b.name}</div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div className="form-group" style={{position:'relative'}}>
-                  <label>Branche</label>
-                  <input value={brancheInput} onChange={e=>handleBrancheInput(e.target.value)} placeholder="z.B. Gesundheit, IT, Handel..." autoComplete="off"/>
-                  {brancheSuggestions.length>0&&(
-                    <div style={{position:'absolute',top:'100%',left:0,right:0,background:'var(--white)',border:'1.5px solid var(--gray-200)',borderRadius:'var(--radius)',zIndex:10,boxShadow:'var(--shadow)'}}>
-                      {brancheSuggestions.map(b=>(
-                        <div key={b.id} onClick={()=>selectBranche(b.name)} style={{padding:'8px 14px',cursor:'pointer',fontSize:14}} onMouseEnter={e=>e.target.style.background='var(--gray-100)'} onMouseLeave={e=>e.target.style.background='transparent'}>{b.name}</div>
-                      ))}
+
+                <div className="form-row">
+                  <div className="form-group"><label>E-Mail</label><input type="email" value={form.email||''} onChange={e=>setForm(f=>({...f,email:e.target.value}))}/></div>
+                  <div className="form-group"><label>Telefon</label><input value={form.telefon||''} onChange={e=>setForm(f=>({...f,telefon:e.target.value}))}/></div>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group"><label>Website</label><input type="url" placeholder="https://..." value={form.website||''} onChange={e=>setForm(f=>({...f,website:e.target.value}))}/></div>
+                  <div className="form-group"><label>Zustaendig (intern)</label>
+                    <select value={form.zustaendig||''} onChange={e=>setForm(f=>({...f,zustaendig:e.target.value}))}>
+                      <option value="">-- Bitte waehlen --</option>
+                      {personen.map(p=><option key={p.id} value={p.name}>{p.name}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Firmenadresse */}
+                <div style={{background:'var(--gray-100)',borderRadius:'var(--radius)',padding:16,marginBottom:16}}>
+                  <div style={{fontSize:12,fontWeight:600,color:'var(--gray-600)',textTransform:'uppercase',letterSpacing:'0.3px',marginBottom:12}}>Firmenadresse</div>
+                  <div className="form-group"><label>Strasse & Hausnummer</label><input value={form.adresse_strasse||''} onChange={e=>setForm(f=>({...f,adresse_strasse:e.target.value}))} placeholder="Musterstrasse 1"/></div>
+                  <div className="form-row">
+                    <div className="form-group"><label>PLZ</label><input value={form.adresse_plz||''} onChange={e=>setForm(f=>({...f,adresse_plz:e.target.value}))} placeholder="28195"/></div>
+                    <div className="form-group"><label>Stadt</label><input value={form.adresse_stadt||''} onChange={e=>setForm(f=>({...f,adresse_stadt:e.target.value}))} placeholder="Bremen"/></div>
+                  </div>
+                  {(form.adresse_strasse||form.adresse_stadt) && (
+                    <div style={{marginTop:8}}>
+                      <iframe
+                        src={`https://maps.google.com/maps?q=${encodeURIComponent([form.adresse_strasse,form.adresse_plz,form.adresse_stadt].filter(Boolean).join(', '))}&output=embed&zoom=15`}
+                        width="100%" height="180" style={{border:'none',borderRadius:'var(--radius)'}} title="Karte" loading="lazy"
+                      />
                     </div>
                   )}
                 </div>
-              </div>
 
-              <div className="form-row">
-                <div className="form-group"><label>E-Mail</label><input type="email" value={form.email||''} onChange={e=>setForm(f=>({...f,email:e.target.value}))}/></div>
-                <div className="form-group"><label>Telefon</label><input value={form.telefon||''} onChange={e=>setForm(f=>({...f,telefon:e.target.value}))}/></div>
-              </div>
-
-              <div className="form-row">
-                <div className="form-group"><label>Website</label><input type="url" placeholder="https://..." value={form.website||''} onChange={e=>setForm(f=>({...f,website:e.target.value}))}/></div>
-                <div className="form-group"><label>Zustaendig (intern)</label>
-                  <select value={form.zustaendig||''} onChange={e=>setForm(f=>({...f,zustaendig:e.target.value}))}>
-                    <option value="">-- Bitte waehlen --</option>
-                    {personen.map(p=><option key={p.id} value={p.name}>{p.name}</option>)}
-                  </select>
+                <div className="form-group">
+                  <label style={{display:'flex',alignItems:'center',gap:10,textTransform:'none',fontSize:14,cursor:'pointer',padding:'8px 0'}}>
+                    <input type="checkbox" style={{width:18,height:18,flexShrink:0}} checked={form.ist_ev||false} onChange={e=>setForm(f=>({...f,ist_ev:e.target.checked}))}/>
+                    <span style={{display:'flex',alignItems:'center',gap:8}}>
+                      <span style={{background:'#e07b30',color:'white',padding:'1px 8px',borderRadius:10,fontSize:12,fontWeight:700}}>e.V.</span>
+                      HC Bremen e.V. Kontakt (läuft nicht ins Sponsoring-Budget)
+                    </span>
+                  </label>
                 </div>
-              </div>
+                <div className="form-group"><label>Notiz</label><textarea value={form.notiz||''} onChange={e=>setForm(f=>({...f,notiz:e.target.value}))}/></div>
+              </>)}
 
-              {/* Adresse */}
-              <div style={{background:'var(--gray-100)',borderRadius:'var(--radius)',padding:16,marginBottom:16}}>
-                <div style={{fontSize:12,fontWeight:600,color:'var(--gray-600)',textTransform:'uppercase',letterSpacing:'0.3px',marginBottom:12}}>Adresse</div>
-                <div className="form-group"><label>Strasse & Hausnummer</label><input value={form.adresse_strasse||''} onChange={e=>setForm(f=>({...f,adresse_strasse:e.target.value}))} placeholder="Musterstrasse 1"/></div>
-                <div className="form-row">
-                  <div className="form-group"><label>PLZ</label><input value={form.adresse_plz||''} onChange={e=>setForm(f=>({...f,adresse_plz:e.target.value}))} placeholder="28195"/></div>
-                  <div className="form-group"><label>Stadt</label><input value={form.adresse_stadt||''} onChange={e=>setForm(f=>({...f,adresse_stadt:e.target.value}))} placeholder="Bremen"/></div>
-                </div>
-                {(form.adresse_strasse||form.adresse_stadt) && (
-                  <div style={{marginTop:8}}>
-                    <iframe
-                      src={`https://maps.google.com/maps?q=${encodeURIComponent([form.adresse_strasse,form.adresse_plz,form.adresse_stadt].filter(Boolean).join(', '))}&output=embed&zoom=15`}
-                      width="100%" height="180" style={{border:'none',borderRadius:'var(--radius)'}} title="Karte" loading="lazy"
-                    />
+              {/* ---- TAB: RECHNUNGSADRESSE & STEUER ---- */}
+              {modalTab==='rechnung'&&(<>
+                {/* Steuerfelder */}
+                <div style={{background:'var(--gray-100)',borderRadius:'var(--radius)',padding:16,marginBottom:20}}>
+                  <div style={{fontSize:12,fontWeight:600,color:'var(--gray-600)',textTransform:'uppercase',letterSpacing:'0.3px',marginBottom:12}}>Steuerliche Angaben</div>
+                  <div className="form-row">
+                    <div className="form-group"><label>USt-ID</label><input value={form.ust_id||''} onChange={e=>setForm(f=>({...f,ust_id:e.target.value}))} placeholder="DE123456789"/></div>
+                    <div className="form-group"><label>Steuernummer</label><input value={form.steuernummer||''} onChange={e=>setForm(f=>({...f,steuernummer:e.target.value}))} placeholder="12/345/67890"/></div>
                   </div>
-                )}
-              </div>
+                </div>
 
-              <div className="form-group">
-                <label style={{display:'flex',alignItems:'center',gap:10,textTransform:'none',fontSize:14,cursor:'pointer',padding:'8px 0'}}>
-                  <input type="checkbox" style={{width:18,height:18,flexShrink:0}} checked={form.ist_ev||false} onChange={e=>setForm(f=>({...f,ist_ev:e.target.checked}))}/>
-                  <span style={{display:'flex',alignItems:'center',gap:8}}>
-                    <span style={{background:'#e07b30',color:'white',padding:'1px 8px',borderRadius:10,fontSize:12,fontWeight:700}}>e.V.</span>
-                    HC Bremen e.V. Kontakt (läuft nicht ins Sponsoring-Budget)
-                  </span>
-                </label>
-              </div>
-              <div className="form-group"><label>Notiz</label><textarea value={form.notiz||''} onChange={e=>setForm(f=>({...f,notiz:e.target.value}))}/></div>
+                {/* Rechnungsadresse */}
+                <div style={{marginBottom:16}}>
+                  <label style={{display:'flex',alignItems:'center',gap:10,fontSize:14,cursor:'pointer',marginBottom:16}}>
+                    <input type="checkbox" style={{width:18,height:18,flexShrink:0}} checked={rechnungAbweichend} onChange={e=>setRechnungAbweichend(e.target.checked)}/>
+                    <span style={{fontWeight:600}}>Abweichende Rechnungsadresse</span>
+                  </label>
+
+                  {!rechnungAbweichend && (
+                    <div style={{padding:16,background:'#f8f5ef',borderRadius:'var(--radius)',border:'1.5px solid var(--gray-200)'}}>
+                      <p style={{fontSize:13,color:'var(--gray-500)',margin:0}}>Rechnungen werden an die Firmenadresse gestellt:</p>
+                      <p style={{fontSize:13,fontWeight:500,marginTop:6,color:'var(--navy)'}}>
+                        {form.firma}<br/>
+                        {form.adresse_strasse && <>{form.adresse_strasse}<br/></>}
+                        {(form.adresse_plz||form.adresse_stadt) && <>{[form.adresse_plz,form.adresse_stadt].filter(Boolean).join(' ')}<br/></>}
+                        {form.adresse_land||'Deutschland'}
+                      </p>
+                    </div>
+                  )}
+
+                  {rechnungAbweichend && (
+                    <div style={{background:'#fffbf0',borderRadius:'var(--radius)',padding:16,border:'1.5px solid #f0e8c8'}}>
+                      <div style={{fontSize:12,fontWeight:600,color:'#8a6a00',textTransform:'uppercase',letterSpacing:'0.3px',marginBottom:12}}>Abweichende Rechnungsadresse</div>
+                      <div className="form-group"><label>Firmenname (Rechnung)</label><input value={form.rechnung_firma||''} onChange={e=>setForm(f=>({...f,rechnung_firma:e.target.value}))} placeholder={form.firma}/></div>
+                      <div className="form-group"><label>Rechnungs-E-Mail</label><input type="email" value={form.rechnung_email||''} onChange={e=>setForm(f=>({...f,rechnung_email:e.target.value}))} placeholder="buchhaltung@firma.de"/></div>
+                      <div className="form-group"><label>Strasse & Hausnummer</label><input value={form.rechnung_strasse||''} onChange={e=>setForm(f=>({...f,rechnung_strasse:e.target.value}))} placeholder="Rechnungsstrasse 1"/></div>
+                      <div className="form-row">
+                        <div className="form-group"><label>PLZ</label><input value={form.rechnung_plz||''} onChange={e=>setForm(f=>({...f,rechnung_plz:e.target.value}))} placeholder="28195"/></div>
+                        <div className="form-group"><label>Stadt</label><input value={form.rechnung_stadt||''} onChange={e=>setForm(f=>({...f,rechnung_stadt:e.target.value}))} placeholder="Bremen"/></div>
+                      </div>
+                      <div className="form-group"><label>Land</label><input value={form.rechnung_land||'Deutschland'} onChange={e=>setForm(f=>({...f,rechnung_land:e.target.value}))}/></div>
+                    </div>
+                  )}
+                </div>
+              </>)}
             </div>
+
             <div className="modal-footer">
               <button className="btn btn-outline" onClick={()=>setModal(false)}>Abbrechen</button>
               <button className="btn btn-primary" onClick={save} disabled={saving}>{saving?'Speichern...':'Speichern'}</button>
@@ -320,7 +406,7 @@ export default function Kontakte() {
             </div>
             <div className="modal-body">
               {mitAdresse.length === 0
-                ? <div className="empty-state"><p>Noch keine Adressen hinterlegt. Trage bei Kontakten Adressen ein damit sie hier erscheinen.</p></div>
+                ? <div className="empty-state"><p>Noch keine Adressen hinterlegt.</p></div>
                 : <>
                     <iframe
                       src={`https://maps.google.com/maps?q=${encodeURIComponent('Bremen, Deutschland')}&output=embed&zoom=12`}
