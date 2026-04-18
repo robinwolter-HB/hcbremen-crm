@@ -637,10 +637,10 @@ export default function Sponsoring() {
                         <div style={{marginTop:8,padding:'6px 8px',background:'#fffbf0',borderRadius:6,border:'1px solid #f0e8c8'}}>
                           <div style={{fontSize:10,fontWeight:700,color:'#8a6a00',marginBottom:4,textTransform:'uppercase',letterSpacing:'0.3px'}}>Aufstiegspreise</div>
                           <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-                            {l.preis_regionalliga&&<span style={{fontSize:11,color:'#5a5650'}}>RL: <strong>{Number(l.preis_regionalliga).toLocaleString('de-DE')} €</strong></span>}
-                            {l.preis_3liga&&<span style={{fontSize:11,color:'#5a5650'}}>3L: <strong>{Number(l.preis_3liga).toLocaleString('de-DE')} €</strong></span>}
-                            {l.preis_2liga&&<span style={{fontSize:11,color:'#5a5650'}}>2L: <strong>{Number(l.preis_2liga).toLocaleString('de-DE')} €</strong></span>}
-                            {l.preis_1liga&&<span style={{fontSize:11,color:'#5a5650'}}>1L: <strong>{Number(l.preis_1liga).toLocaleString('de-DE')} €</strong></span>}
+                            {l.preis_regionalliga&&<span style={{fontSize:11,color:'#5a5650'}}>RL: <strong>{Number(l.preis_regionalliga).toLocaleString('de-DE')} EUR</strong></span>}
+                            {l.preis_3liga&&<span style={{fontSize:11,color:'#5a5650'}}>3L: <strong>{Number(l.preis_3liga).toLocaleString('de-DE')} EUR</strong></span>}
+                            {l.preis_2liga&&<span style={{fontSize:11,color:'#5a5650'}}>2L: <strong>{Number(l.preis_2liga).toLocaleString('de-DE')} EUR</strong></span>}
+                            {l.preis_1liga&&<span style={{fontSize:11,color:'#5a5650'}}>1L: <strong>{Number(l.preis_1liga).toLocaleString('de-DE')} EUR</strong></span>}
                           </div>
                         </div>
                       )}
@@ -674,7 +674,7 @@ export default function Sponsoring() {
                 {p.beschreibung&&<p style={{fontSize:13,color:'var(--gray-600)',marginBottom:12}}>{p.beschreibung}</p>}
                 {p.basispreis&&<div style={{fontSize:20,fontWeight:700,color:'var(--gold)',marginBottom:12}}>{Number(p.basispreis).toLocaleString('de-DE')} EUR</div>}
                 {(p.leistungen||[]).length>0&&<ul style={{listStyle:'none',padding:0,margin:'0 0 16px 0'}}>
-                  {p.leistungen.map((l,i)=><li key={i} style={{fontSize:13,padding:'3px 0',borderBottom:'1px solid var(--gray-100)',display:'flex',alignItems:'center',gap:6}}><span style={{color:'var(--green)'}}>✓</span>{l}</li>)}
+                  {p.leistungen.map((l,i)=><li key={i} style={{fontSize:13,padding:'3px 0',borderBottom:'1px solid var(--gray-100)',display:'flex',alignItems:'center',gap:6}}><span style={{color:'var(--green)'}}>OK</span>{l}</li>)}
                 </ul>}
                 <div style={{display:'flex',gap:8}}>
                   <button className="btn btn-sm btn-outline" onClick={()=>{setPaketForm({...p,leistungen:p.leistungen||[]});setPaketModal(true)}}>Bearbeiten</button>
@@ -759,7 +759,7 @@ export default function Sponsoring() {
                     const selected=(form.selected_saisons||[]).includes(s.id)
                     return <button key={s.id} type="button" onClick={()=>toggleSaison(s.id)}
                       style={{padding:'4px 12px',borderRadius:20,border:'1.5px solid',fontSize:13,cursor:'pointer',background:selected?'var(--navy)':'var(--white)',color:selected?'var(--white)':'var(--gray-600)',borderColor:selected?'var(--navy)':'var(--gray-200)'}}>
-                      {s.name}{s.aktiv?' ★':''} {s.liga&&s.liga!=='Oberliga'?s.liga:''}
+                      {s.name}{s.aktiv??' (aktiv)':''} {s.liga&&s.liga!=='Oberliga'?s.liga:''}
                     </button>
                   })}
                 </div>
@@ -783,7 +783,7 @@ export default function Sponsoring() {
               <div style={{border:'1.5px solid #f0e8c8',borderRadius:'var(--radius)',marginBottom:16,overflow:'hidden'}}>
                 <button type="button" onClick={()=>setAufstiegOpen(o=>!o)} style={{width:'100%',display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px 16px',background:'#fffbf0',border:'none',cursor:'pointer',fontSize:14,fontWeight:600,color:'#8a6a00'}}>
                   <span>Aufstiegs-Konditionen (optional)</span>
-                  <span style={{fontSize:12}}>{aufstiegOpen?'▲':'▼'}</span>
+                  <span style={{fontSize:12}}>{aufstiegOpen?'^':'v'}</span>
                 </button>
                 {aufstiegOpen&&(
                   <div style={{padding:'16px',background:'var(--white)'}}>
