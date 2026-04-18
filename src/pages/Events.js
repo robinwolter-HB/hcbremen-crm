@@ -444,6 +444,7 @@ ${[1,2,3].map(n=>selectedEvent[`dokument_link_${n}`]?`<tr><td>${selectedEvent[`d
           </div>
         </div>
 
+        </div>
       )} {/* END hauptTab===events */}
 
       {/* ===== KOSTEN DASHBOARD ===== */}
@@ -534,6 +535,8 @@ ${[1,2,3].map(n=>selectedEvent[`dokument_link_${n}`]?`<tr><td>${selectedEvent[`d
               </table></div>
             </div>
           </div>
+        </div>
+      </div>
         )
       })()}
 
