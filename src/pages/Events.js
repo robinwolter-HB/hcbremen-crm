@@ -447,6 +447,7 @@ ${[1,2,3].map(n=>selectedEvent[`dokument_link_${n}`]?`<tr><td>${selectedEvent[`d
         </div>
       )} {/* END hauptTab===events */}
 
+      <>
       {/* ===== KOSTEN DASHBOARD ===== */}
       {hauptTab==='dashboard' && (() => {
         const perKat = kostenKategorien.map(kat => {
@@ -635,6 +636,8 @@ ${[1,2,3].map(n=>selectedEvent[`dokument_link_${n}`]?`<tr><td>${selectedEvent[`d
           }
         </div>
       )}
+
+      </>
 
       {/* ===== MODALS ===== */}
 
