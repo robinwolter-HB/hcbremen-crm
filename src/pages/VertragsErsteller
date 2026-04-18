@@ -559,14 +559,14 @@ ${sonderklausel.trim() ? `
             {festgeschrieben && (
               <div style={{background:'#fff8f0',border:'2px solid #c8a84b',borderRadius:'var(--radius)',padding:'12px 16px',marginBottom:16,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                 <div style={{display:'flex',alignItems:'center',gap:10}}>
-                  <span style={{fontSize:20}}>🔒</span>
+                  <span style={{fontSize:20}}>[Gesperrt]</span>
                   <div>
                     <div style={{fontWeight:700,color:'#8a6a00',fontSize:14}}>Vertrag festgeschrieben</div>
                     <div style={{fontSize:12,color:'#a08040'}}>Dieser Vertrag ist gesperrt. Haken entfernen um zu bearbeiten.</div>
                   </div>
                 </div>
                 <button className="btn btn-outline btn-sm" onClick={toggleFestschreiben} disabled={saving} style={{borderColor:'#c8a84b',color:'#8a6a00'}}>
-                  🔓 Entsperren
+                  [Entsperren] Entsperren
                 </button>
               </div>
             )}
@@ -624,7 +624,7 @@ ${sonderklausel.trim() ? `
                 <div style={{marginTop:12,paddingTop:12,borderTop:'1px solid var(--gray-100)'}}>
                   <div style={{fontSize:12,fontWeight:600,color:'var(--gray-500)',marginBottom:8}}>Individuelle Leistungen aus dem Vertrag:</div>
                   {vertragsDaten.individuelle_leistungen.filter(Boolean).map((l,i) => (
-                    <div key={i} style={{fontSize:13,padding:'4px 0',color:'var(--navy)'}}>✓ {l}</div>
+                    <div key={i} style={{fontSize:13,padding:'4px 0',color:'var(--navy)'}}>[OK] {l}</div>
                   ))}
                 </div>
               )}
@@ -735,7 +735,7 @@ ${sonderklausel.trim() ? `
             {/* Aktionen */}
             <div className="card" style={{display:'grid',gap:10}}>
               <button className="btn btn-primary" onClick={exportPDF} style={{width:'100%',justifyContent:'center'}}>
-                📄 Vertrag als PDF exportieren
+                [PDF] Vertrag als PDF exportieren
               </button>
 
               <button
@@ -747,7 +747,7 @@ ${sonderklausel.trim() ? `
                   color:festgeschrieben?'#8a6a00':'#2d6b3a'
                 }}
               >
-                {festgeschrieben ? '🔓 Entsperren' : '🔒 Vertrag festschreiben'}
+                {festgeschrieben ? '[Entsperren] Entsperren' : '[Gesperrt] Vertrag festschreiben'}
               </button>
 
               {festgeschrieben && (
