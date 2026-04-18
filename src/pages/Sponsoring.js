@@ -522,6 +522,7 @@ export default function Sponsoring() {
           <div className="toolbar">
             <button className="btn btn-outline" onClick={()=>{setKatForm({name:'',farbe:'#2d6fa3',reihenfolge:kategorien.length});setKatModal(true)}}>+ Kategorie</button>
             <button className="btn btn-primary" onClick={()=>{setLeistungForm({name:'',beschreibung:'',preis:'',exklusiv:false,max_anzahl:1,abrechnung:'saison',aktiv:true,kategorie_id:kategorien[0]?.id||''});setLeistungModal(true)}}>+ Leistung</button>
+            <button className="btn btn-outline" onClick={exportLeistungsverzeichnisPDF} style={{marginLeft:'auto'}}>📄 PDF exportieren</button>
           </div>
 
           {kategorien.map(kat=>{
