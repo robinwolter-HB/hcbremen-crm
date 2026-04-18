@@ -55,6 +55,7 @@ export default function Sponsoring() {
   const [saisonModal, setSaisonModal] = useState(false)
   const [saisonForm, setSaisonForm] = useState({name:'',beginn:'',ende:'',aktiv:false,liga:'Oberliga'})
   const [aufstiegOpen, setAufstiegOpen] = useState(false)
+  const [vertragsErstellerVertragId, setVertragsErstellerVertragId] = useState('')
 
   useEffect(() => { loadAll() }, [])
 
@@ -288,7 +289,7 @@ export default function Sponsoring() {
   <div>
     <div class="cover-title">HC <strong>Bremen</strong><br>Leistungsverzeichnis</div>
     <div class="cover-sub">Sponsoring-Unterlagen · Vertraulich</div>
-    <div class="liga-badge">🏆 ${aktiveLiga}</div>
+    <div class="liga-badge">${aktiveLiga}</div>
   </div>
   <div class="cover-meta">
     <span class="season">${aktiveSaison?.name || new Date().getFullYear()}</span>
@@ -429,12 +430,12 @@ export default function Sponsoring() {
     <main className="main">
       <div className="page-title">Sponsoring</div>
       <p className="page-subtitle">Vertragsverwaltung, Leistungen & Auswertung
-        {aktiveLiga !== 'Oberliga' && <span style={{marginLeft:10,fontSize:13,background:'#fffbf0',border:'1px solid #c8a84b',color:'#8a6a00',padding:'2px 10px',borderRadius:20,fontWeight:600}}>🏆 {aktiveLiga}</span>}
+        {aktiveLiga !== 'Oberliga' && <span style={{marginLeft:10,fontSize:13,background:'#fffbf0',border:'1px solid #c8a84b',color:'#8a6a00',padding:'2px 10px',borderRadius:20,fontWeight:600}}>{aktiveLiga}</span>}
       </p>
-      {auslaufend.length>0&&<div className="alert alert-error" style={{marginBottom:20}}>⚠️ {auslaufend.length} Vertrag{auslaufend.length>1?'e laufen':' laeuft'} in weniger als 60 Tagen aus: {auslaufend.map(v=>v.kontakte?.firma).join(', ')}</div>}
+      {auslaufend.length>0&&<div className="alert alert-error" style={{marginBottom:20}}>Warnung: {auslaufend.length} Vertrag{auslaufend.length>1?'e laufen':' laeuft'} in weniger als 60 Tagen aus: {auslaufend.map(v=>v.kontakte?.firma).join(', ')}</div>}
 
       <div className="tabs">
-        {[['vertraege','Verträge'],['vertragsersteller','📄 Vertragsersteller'],['uebersicht','Saisonübersicht'],['leistungen','Leistungsübersicht'],['katalog','Leistungskatalog'],['pakete','Pakete'],['saisonverwaltung','Saisons'],['auswertung','Auswertung']].map(([key,label])=>(
+        {[['vertraege','Verträge'],['vertragsersteller','Vertragsersteller'],['uebersicht','Saisonübersicht'],['leistungen','Leistungsübersicht'],['katalog','Leistungskatalog'],['pakete','Pakete'],['saisonverwaltung','Saisons'],['auswertung','Auswertung']].map(([key,label])=>(
           <button key={key} className={'tab-btn'+(tab===key?' active':'')} onClick={()=>setTab(key)}>{label}</button>
         ))}
       </div>
@@ -445,7 +446,7 @@ export default function Sponsoring() {
           <div className="toolbar">
             <select value={saisonFilter} onChange={e=>setSaisonFilter(e.target.value)}>
               <option value="">Alle Saisons</option>
-              {saisons.map(s=><option key={s.id} value={s.id}>{s.name}{s.aktiv?' (aktuell)':''}{s.liga&&s.liga!=='Oberliga'?' · '+s.liga:''}</option>)}
+              {saisons.map(s=><option key={s.id} value={s.id}>{s.name}{s.aktiv?' (aktuell)':''} {s.liga&&s.liga!=='Oberliga'?s.liga:''}</option>)}
             </select>
             <button className="btn btn-primary" onClick={openNew}>+ Neuer Vertrag</button>
           </div>
@@ -458,13 +459,13 @@ export default function Sponsoring() {
                   const saisonNames = v.sponsoring_saisons?.length > 0 ? v.sponsoring_saisons.map(ss=>ss.saisons?.name).filter(Boolean).join(', ') : v.saisons?.name || '--'
                   const hatAufstieg = v.betrag_regionalliga || v.betrag_3liga || v.betrag_2liga || v.betrag_1liga
                   return <tr key={v.id} style={{background:aus?'#fff8f8':'inherit'}}>
-                    <td><strong>{v.kontakte?.firma}</strong>{hatAufstieg&&<span title="Aufstiegs-Konditionen hinterlegt" style={{marginLeft:6,fontSize:11,background:'#fffbf0',border:'1px solid #c8a84b',color:'#8a6a00',padding:'1px 6px',borderRadius:10}}>🏆</span>}</td>
+                    <td><strong>{v.kontakte?.firma}</strong>{hatAufstieg&&<span title="Aufstiegs-Konditionen hinterlegt" style={{marginLeft:6,fontSize:11,background:'#fffbf0',border:'1px solid #c8a84b',color:'#8a6a00',padding:'1px 6px',borderRadius:10}}></span>}</td>
                     <td style={{fontSize:13}}>{saisonNames}</td>
                     <td style={{fontSize:13}}>{v.sponsoring_pakete?.name||'--'}</td>
                     <td style={{fontWeight:600}}>{v.jahresbetrag?Number(v.jahresbetrag).toLocaleString('de-DE')+' EUR':'--'}</td>
                     <td style={{fontSize:13,color:aus?'var(--red)':'inherit',fontWeight:aus?600:400}}>{v.vertragsende?new Date(v.vertragsende).toLocaleDateString('de-DE'):'--'}</td>
                     <td><span style={{fontSize:12,padding:'2px 8px',borderRadius:20,fontWeight:600,background:v.status==='Aktiv'?'#e2efda':v.status==='In Verhandlung'?'#ddeaff':'#ececec',color:v.status==='Aktiv'?'#2d6b3a':'#555'}}>{v.status}</span></td>
-                    <td>{v.vertrag_unterzeichnet?'✅':'⬜'}</td>
+                    <td>{v.vertrag_unterzeichnet?'Ja':'Nein'}</td>
                     <td style={{whiteSpace:'nowrap'}}><button className="btn btn-sm btn-outline" onClick={()=>openEdit(v)}>Bearb.</button>{' '}<button className="btn btn-sm btn-danger" onClick={()=>deleteVertrag(v.id)}>X</button></td>
                   </tr>
                 })}
@@ -474,16 +475,16 @@ export default function Sponsoring() {
       )}
 
       {/* ====== VERTRAGSERSTELLER ====== */}
-      {tab==='vertragsersteller'&&<VertragsErsteller />}
+      {tab==='vertragsersteller'&&<VertragsErsteller vorgeladenerVertragId={vertragsErstellerVertragId} />}
 
       {/* ====== SAISONÜBERSICHT ====== */}
       {tab==='uebersicht'&&(
         <div>
           <div className="toolbar">
             <select value={selectedSaison} onChange={e=>setSelectedSaison(e.target.value)}>
-              {saisons.map(s=><option key={s.id} value={s.id}>{s.name}{s.aktiv?' (aktuell)':''}{s.liga&&s.liga!=='Oberliga'?' · '+s.liga:''}</option>)}
+              {saisons.map(s=><option key={s.id} value={s.id}>{s.name}{s.aktiv?' (aktuell)':''} {s.liga&&s.liga!=='Oberliga'?s.liga:''}</option>)}
             </select>
-            {selectedLiga !== 'Oberliga' && <span style={{fontSize:13,background:'#fffbf0',border:'1px solid #c8a84b',color:'#8a6a00',padding:'4px 12px',borderRadius:20,fontWeight:600}}>🏆 Beträge für {selectedLiga}</span>}
+            {selectedLiga !== 'Oberliga' && <span style={{fontSize:13,background:'#fffbf0',border:'1px solid #c8a84b',color:'#8a6a00',padding:'4px 12px',borderRadius:20,fontWeight:600}}>Beträge für {selectedLiga}</span>}
           </div>
           <div className="stats-row">
             <div className="stat-card green"><div className="stat-num">{filteredBySaison.filter(v=>v.status==='Aktiv').length}</div><div className="stat-label">Aktive Sponsoren</div></div>
@@ -522,13 +523,13 @@ export default function Sponsoring() {
           <div className="toolbar">
             <select value={uebersichtSaison} onChange={e=>setUebersichtSaison(e.target.value)}>
               <option value="">Alle Saisons</option>
-              {saisons.map(s=><option key={s.id} value={s.id}>{s.name}{s.aktiv?' (aktuell)':''}{s.liga&&s.liga!=='Oberliga'?' · '+s.liga:''}</option>)}
+              {saisons.map(s=><option key={s.id} value={s.id}>{s.name}{s.aktiv?' (aktuell)':''} {s.liga&&s.liga!=='Oberliga'?s.liga:''}</option>)}
             </select>
             <select value={uebersichtKat} onChange={e=>setUebersichtKat(e.target.value)}>
               <option value="">Alle Kategorien</option>
               {kategorien.map(k=><option key={k.id} value={k.name}>{k.name}</option>)}
             </select>
-            {uebersichtLiga !== 'Oberliga' && <span style={{fontSize:13,background:'#fffbf0',border:'1px solid #c8a84b',color:'#8a6a00',padding:'4px 12px',borderRadius:20,fontWeight:600}}>🏆 Preise für {uebersichtLiga}</span>}
+            {uebersichtLiga !== 'Oberliga' && <span style={{fontSize:13,background:'#fffbf0',border:'1px solid #c8a84b',color:'#8a6a00',padding:'4px 12px',borderRadius:20,fontWeight:600}}>Preise für {uebersichtLiga}</span>}
           </div>
 
           <div className="card">
@@ -555,7 +556,7 @@ export default function Sponsoring() {
                         <strong style={{fontSize:13}}>{l.name}</strong>
                         <span style={{fontSize:11,fontWeight:700,color:statusColor,background:statusColor+'22',padding:'2px 8px',borderRadius:20,whiteSpace:'nowrap',marginLeft:8}}>{status}</span>
                       </div>
-                      {preis&&<div style={{fontSize:12,color:'var(--gray-600)',marginBottom:4}}>{Number(preis).toLocaleString('de-DE')} EUR · {l.abrechnung==='saison'?'pro Saison':'pro Vertrag'}{uebersichtLiga!=='Oberliga'?' · '+uebersichtLiga:''}</div>}
+                      {preis&&<div style={{fontSize:12,color:'var(--gray-600)',marginBottom:4}}>{Number(preis).toLocaleString('de-DE')} EUR | {l.abrechnung==='saison'?'pro Saison':'pro Vertrag'} {uebersichtLiga!=='Oberliga'?uebersichtLiga:''}</div>}
                       {l.exklusiv&&<div style={{fontSize:11,color:'var(--gray-400)'}}>Exklusiv</div>}
                       {buchungen.length>0&&<div style={{marginTop:8,borderTop:'1px solid var(--gray-100)',paddingTop:8}}>
                         {buchungen.map(b=><div key={b.id} style={{fontSize:12,color:'var(--gray-600)'}}>{b.kontakte?.firma}{b.anzahl>1?' ('+b.anzahl+'x)':''}</div>)}
@@ -598,7 +599,7 @@ export default function Sponsoring() {
           <div className="toolbar">
             <button className="btn btn-outline" onClick={()=>{setKatForm({name:'',farbe:'#2d6fa3',reihenfolge:kategorien.length});setKatModal(true)}}>+ Kategorie</button>
             <button className="btn btn-primary" onClick={()=>{setLeistungForm({name:'',beschreibung:'',preis:'',preis_regionalliga:'',preis_3liga:'',preis_2liga:'',preis_1liga:'',exklusiv:false,max_anzahl:1,abrechnung:'saison',aktiv:true,kategorie_id:kategorien[0]?.id||''});setLeistungModal(true)}}>+ Leistung</button>
-            <button className="btn btn-outline" onClick={exportLeistungsverzeichnisPDF} style={{marginLeft:'auto'}}>📄 PDF exportieren</button>
+            <button className="btn btn-outline" onClick={exportLeistungsverzeichnisPDF} style={{marginLeft:'auto'}}>PDF exportieren</button>
           </div>
 
           {kategorien.map(kat=>{
@@ -637,10 +638,10 @@ export default function Sponsoring() {
                         <div style={{marginTop:8,padding:'6px 8px',background:'#fffbf0',borderRadius:6,border:'1px solid #f0e8c8'}}>
                           <div style={{fontSize:10,fontWeight:700,color:'#8a6a00',marginBottom:4,textTransform:'uppercase',letterSpacing:'0.3px'}}>Aufstiegspreise</div>
                           <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-                            {l.preis_regionalliga&&<span style={{fontSize:11,color:'#5a5650'}}>RL: <strong>{Number(l.preis_regionalliga).toLocaleString('de-DE')} €</strong></span>}
-                            {l.preis_3liga&&<span style={{fontSize:11,color:'#5a5650'}}>3L: <strong>{Number(l.preis_3liga).toLocaleString('de-DE')} €</strong></span>}
-                            {l.preis_2liga&&<span style={{fontSize:11,color:'#5a5650'}}>2L: <strong>{Number(l.preis_2liga).toLocaleString('de-DE')} €</strong></span>}
-                            {l.preis_1liga&&<span style={{fontSize:11,color:'#5a5650'}}>1L: <strong>{Number(l.preis_1liga).toLocaleString('de-DE')} €</strong></span>}
+                            {l.preis_regionalliga&&<span style={{fontSize:11,color:'#5a5650'}}>RL: <strong>{Number(l.preis_regionalliga).toLocaleString('de-DE')} EUR</strong></span>}
+                            {l.preis_3liga&&<span style={{fontSize:11,color:'#5a5650'}}>3L: <strong>{Number(l.preis_3liga).toLocaleString('de-DE')} EUR</strong></span>}
+                            {l.preis_2liga&&<span style={{fontSize:11,color:'#5a5650'}}>2L: <strong>{Number(l.preis_2liga).toLocaleString('de-DE')} EUR</strong></span>}
+                            {l.preis_1liga&&<span style={{fontSize:11,color:'#5a5650'}}>1L: <strong>{Number(l.preis_1liga).toLocaleString('de-DE')} EUR</strong></span>}
                           </div>
                         </div>
                       )}
@@ -674,7 +675,7 @@ export default function Sponsoring() {
                 {p.beschreibung&&<p style={{fontSize:13,color:'var(--gray-600)',marginBottom:12}}>{p.beschreibung}</p>}
                 {p.basispreis&&<div style={{fontSize:20,fontWeight:700,color:'var(--gold)',marginBottom:12}}>{Number(p.basispreis).toLocaleString('de-DE')} EUR</div>}
                 {(p.leistungen||[]).length>0&&<ul style={{listStyle:'none',padding:0,margin:'0 0 16px 0'}}>
-                  {p.leistungen.map((l,i)=><li key={i} style={{fontSize:13,padding:'3px 0',borderBottom:'1px solid var(--gray-100)',display:'flex',alignItems:'center',gap:6}}><span style={{color:'var(--green)'}}>✓</span>{l}</li>)}
+                  {p.leistungen.map((l,i)=><li key={i} style={{fontSize:13,padding:'3px 0',borderBottom:'1px solid var(--gray-100)',display:'flex',alignItems:'center',gap:6}}><span style={{color:'var(--green)'}}>OK</span>{l}</li>)}
                 </ul>}
                 <div style={{display:'flex',gap:8}}>
                   <button className="btn btn-sm btn-outline" onClick={()=>{setPaketForm({...p,leistungen:p.leistungen||[]});setPaketModal(true)}}>Bearbeiten</button>
@@ -698,7 +699,7 @@ export default function Sponsoring() {
               <div key={s.id} style={{border:'2px solid '+(s.aktiv?'var(--gold)':'var(--gray-200)'),borderRadius:'var(--radius)',padding:20,position:'relative'}}>
                 {s.aktiv&&<span style={{position:'absolute',top:12,right:12,fontSize:11,background:'var(--gold)',color:'var(--navy)',padding:'2px 8px',borderRadius:20,fontWeight:700}}>AKTUELL</span>}
                 <div style={{fontFamily:'"DM Serif Display",serif',fontSize:24,color:'var(--navy)',marginBottom:4}}>{s.name}</div>
-                {s.liga&&<div style={{fontSize:12,fontWeight:600,color:'#8a6a00',background:'#fffbf0',border:'1px solid #c8a84b',padding:'2px 8px',borderRadius:20,display:'inline-block',marginBottom:12}}>🏆 {s.liga}</div>}
+                {s.liga&&<div style={{fontSize:12,fontWeight:600,color:'#8a6a00',background:'#fffbf0',border:'1px solid #c8a84b',padding:'2px 8px',borderRadius:20,display:'inline-block',marginBottom:12}}>{s.liga}</div>}
                 <div style={{display:'grid',gap:6,fontSize:13,color:'var(--gray-600)',marginBottom:16}}>
                   {s.beginn&&<div><span style={{color:'var(--gray-400)',fontSize:11,textTransform:'uppercase',letterSpacing:'0.3px',display:'block'}}>Beginn</span>{new Date(s.beginn).toLocaleDateString('de-DE')}</div>}
                   {s.ende&&<div><span style={{color:'var(--gray-400)',fontSize:11,textTransform:'uppercase',letterSpacing:'0.3px',display:'block'}}>Ende</span>{new Date(s.ende).toLocaleDateString('de-DE')}</div>}
@@ -759,7 +760,7 @@ export default function Sponsoring() {
                     const selected=(form.selected_saisons||[]).includes(s.id)
                     return <button key={s.id} type="button" onClick={()=>toggleSaison(s.id)}
                       style={{padding:'4px 12px',borderRadius:20,border:'1.5px solid',fontSize:13,cursor:'pointer',background:selected?'var(--navy)':'var(--white)',color:selected?'var(--white)':'var(--gray-600)',borderColor:selected?'var(--navy)':'var(--gray-200)'}}>
-                      {s.name}{s.aktiv?' ★':''}{s.liga&&s.liga!=='Oberliga'?' · '+s.liga:''}
+                      {s.name}{s.aktiv?' (aktiv)':''} {s.liga&&s.liga!=='Oberliga'?s.liga:''}
                     </button>
                   })}
                 </div>
@@ -782,8 +783,8 @@ export default function Sponsoring() {
               {/* AUFSTIEGS-KONDITIONEN */}
               <div style={{border:'1.5px solid #f0e8c8',borderRadius:'var(--radius)',marginBottom:16,overflow:'hidden'}}>
                 <button type="button" onClick={()=>setAufstiegOpen(o=>!o)} style={{width:'100%',display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px 16px',background:'#fffbf0',border:'none',cursor:'pointer',fontSize:14,fontWeight:600,color:'#8a6a00'}}>
-                  <span>🏆 Aufstiegs-Konditionen (optional)</span>
-                  <span style={{fontSize:12}}>{aufstiegOpen?'▲':'▼'}</span>
+                  <span>Aufstiegs-Konditionen (optional)</span>
+                  <span style={{fontSize:12}}>{aufstiegOpen?'^':'v'}</span>
                 </button>
                 {aufstiegOpen&&(
                   <div style={{padding:'16px',background:'var(--white)'}}>
@@ -829,6 +830,7 @@ export default function Sponsoring() {
             </div>
             <div className="modal-footer">
               <button className="btn btn-outline" onClick={()=>setModal(false)}>Abbrechen</button>
+              {form.id&&<button className="btn btn-outline" style={{borderColor:'var(--navy)',color:'var(--navy)'}} onClick={()=>{setModal(false);setVertragsErstellerVertragId(form.id);setTab('vertragsersteller')}}>Vertrag erstellen</button>}
               <button className="btn btn-primary" onClick={save} disabled={saving}>{saving?'Speichern...':'Speichern'}</button>
             </div>
           </div>
