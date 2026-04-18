@@ -306,10 +306,25 @@ export default function Sponsoring() {
       </html>
     `
 
+    // Direkt als druckbare HTML öffnen - Nutzer kann Drucken → Als PDF speichern
     const blob = new Blob([html], { type: 'text/html' })
     const url = URL.createObjectURL(blob)
     const win = window.open(url, '_blank')
-    win.onload = () => { win.print(); URL.revokeObjectURL(url) }
+    if (win) {
+      win.onload = () => {
+        setTimeout(() => {
+          win.print()
+          setTimeout(() => URL.revokeObjectURL(url), 1000)
+        }, 500)
+      }
+    } else {
+      // Fallback: direkt als Datei herunterladen
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `HC-Bremen-Leistungsverzeichnis-${new Date().toISOString().slice(0,10)}.html`
+      a.click()
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+    }
   }
 
   async function saveLeistung() {
