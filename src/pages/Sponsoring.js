@@ -759,7 +759,7 @@ export default function Sponsoring() {
                     const selected=(form.selected_saisons||[]).includes(s.id)
                     return <button key={s.id} type="button" onClick={()=>toggleSaison(s.id)}
                       style={{padding:'4px 12px',borderRadius:20,border:'1.5px solid',fontSize:13,cursor:'pointer',background:selected?'var(--navy)':'var(--white)',color:selected?'var(--white)':'var(--gray-600)',borderColor:selected?'var(--navy)':'var(--gray-200)'}}>
-                      {s.name}{s.aktiv??' (aktiv)':''} {s.liga&&s.liga!=='Oberliga'?s.liga:''}
+                      {s.name}{s.aktiv?' (aktiv)':''} {s.liga&&s.liga!=='Oberliga'?s.liga:''}
                     </button>
                   })}
                 </div>
