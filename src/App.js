@@ -17,7 +17,6 @@ import EmailModal from './components/EmailModal'
 import Einstellungen from './pages/Einstellungen'
 import Inbox from './pages/Inbox'
 import EV from './pages/EV'
-import Dienstleister from './pages/Dienstleister'
 
 function PrivateRoute({ children, bereich }) {
   const { user, loading, canAccess } = useAuth()
@@ -120,7 +119,6 @@ function Header() {
           <NavLink to="/" className={({isActive})=>'nav-link'+(isActive?' active':'')} end onClick={()=>setNavOpen(false)}>Dashboard</NavLink>
           {canAccess('kontakte') && <NavLink to="/kontakte" className={({isActive})=>'nav-link'+(isActive?' active':'')} onClick={()=>setNavOpen(false)}>Kontakte</NavLink>}
           {canAccess('events') && <NavLink to="/events" className={({isActive})=>'nav-link'+(isActive?' active':'')} onClick={()=>setNavOpen(false)}>Events</NavLink>}
-          {(isAdmin()||canAccess('events')) && <NavLink to="/dienstleister" className={({isActive})=>'nav-link'+(isActive?' active':'')} onClick={()=>setNavOpen(false)}>Dienstleister</NavLink>}
           {canAccess('sponsoring') && <NavLink to="/sponsoring" className={({isActive})=>'nav-link'+(isActive?' active':'')} onClick={()=>setNavOpen(false)}>Sponsoring</NavLink>}
           {isAdmin() && <NavLink to="/ev" className={({isActive})=>'nav-link'+(isActive?' active':'')} onClick={()=>setNavOpen(false)}>e.V.</NavLink>}
           <DropdownMenu label="Aktivitaeten" onClose={()=>setNavOpen(false)} items={[
@@ -160,7 +158,6 @@ function App() {
             <Route path="/einstellungen" element={<PrivateRoute><Einstellungen /></PrivateRoute>} />
             <Route path="/inbox" element={<PrivateRoute><Inbox /></PrivateRoute>} />
             <Route path="/ev" element={<PrivateRoute><EV /></PrivateRoute>} />
-            <Route path="/dienstleister" element={<PrivateRoute bereich="events"><Dienstleister /></PrivateRoute>} />
           </Routes>
         </div>
       </BrowserRouter>
