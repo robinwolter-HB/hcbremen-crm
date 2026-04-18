@@ -178,6 +178,140 @@ export default function Sponsoring() {
   }
 
   // ---- LEISTUNGEN KATALOG ----
+  async function exportLeistungsverzeichnisPDF() {
+    // Alle Daten sammeln
+    const { data: kategorien } = await supabase.from('leistungen_kategorien').select('*').order('reihenfolge')
+    const { data: leistungen } = await supabase.from('leistungen_katalog').select('*,leistungen_kategorien(name,farbe)').order('erstellt_am')
+    const { data: vergaben } = await supabase.from('sponsoring_leistungen')
+      .select('*,leistungen_katalog(id,name),kontakte(firma),saisons(name,aktiv)')
+      .order('erstellt_am')
+    const { data: saisons } = await supabase.from('saisons').select('*').order('beginn', { ascending: false })
+
+    const aktiveSaison = saisons?.find(s => s.aktiv)
+    const zukuenftigeSaisons = saisons?.filter(s => !s.aktiv && new Date(s.beginn) > new Date()) || []
+
+    function getVergaben(leistungId, saisonId) {
+      return (vergaben || []).filter(v =>
+        v.leistung_id === leistungId && (!saisonId || v.saison_id === saisonId)
+      )
+    }
+
+    function getStatusColor(frei, max) {
+      if (!max) return '#e2efda'
+      const pct = (max - frei) / max
+      if (pct >= 1) return '#fce4d6'
+      if (pct >= 0.5) return '#fff3cd'
+      return '#e2efda'
+    }
+
+    const katFarben = {}
+    ;(kategorien || []).forEach(k => { katFarben[k.id] = k.farbe || '#0f2240' })
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Leistungsverzeichnis HC Bremen</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 0; padding: 32px; color: #1a1816; }
+          h1 { color: #0f2240; font-size: 28px; margin-bottom: 4px; }
+          .subtitle { color: #9a9590; font-size: 14px; margin-bottom: 32px; }
+          h2 { font-size: 16px; padding: 8px 14px; border-radius: 6px; margin: 28px 0 12px 0; color: white; }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 13px; }
+          th { background: #0f2240; color: white; padding: 8px 12px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+          td { padding: 8px 12px; border-bottom: 1px solid #e0ddd6; vertical-align: middle; }
+          .saison-header { background: #f8f5ef; font-weight: 700; font-size: 12px; color: #5a5650; padding: 4px 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+          .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 700; }
+          .badge-frei { background: #e2efda; color: #2d6b3a; }
+          .badge-teilweise { background: #fff3cd; color: #8a6a00; }
+          .badge-voll { background: #fce4d6; color: #8a3a1a; }
+          .badge-exklusiv { background: #ddeaff; color: #1a4a8a; }
+          .sponsor { font-size: 12px; color: #5a5650; }
+          .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e0ddd6; font-size: 11px; color: #9a9590; display: flex; justify-content: space-between; }
+          @media print { body { padding: 16px; } }
+        </style>
+      </head>
+      <body>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;">
+          <div>
+            <h1>HC Bremen – Leistungsverzeichnis</h1>
+            <div class="subtitle">
+              ${aktiveSaison ? 'Aktuelle Saison: ' + aktiveSaison.name : ''} · 
+              Stand: ${new Date().toLocaleDateString('de-DE')}
+            </div>
+          </div>
+          <div style="text-align:right;font-size:13px;color:#9a9590;">
+            <div style="font-size:22px;font-weight:700;color:#0f2240;">HC Bremen</div>
+            <div>Sponsoring-Unterlagen</div>
+          </div>
+        </div>
+
+        ${(kategorien || []).map(kat => {
+          const katLeistungen = (leistungen || []).filter(l => l.kategorie_id === kat.id)
+          if (katLeistungen.length === 0) return ''
+
+          return `
+            <h2 style="background:${kat.farbe || '#0f2240'}">${kat.name}</h2>
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:28%">Leistung</th>
+                  <th style="width:8%">Max.</th>
+                  <th style="width:22%">Aktuelle Saison${aktiveSaison?' ('+aktiveSaison.name+')':''}</th>
+                  ${zukuenftigeSaisons.slice(0,2).map(s => `<th style="width:20%">${s.name}</th>`).join('')}
+                  <th>Preis</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${katLeistungen.map(l => {
+                  const aktivVergaben = getVergaben(l.id, aktiveSaison?.id)
+                  const belegt = aktivVergaben.length
+                  const max = l.max_anzahl
+                  const frei = max ? max - belegt : null
+                  const statusClass = !max ? 'badge-exklusiv' : frei === 0 ? 'badge-voll' : frei <= max * 0.3 ? 'badge-teilweise' : 'badge-frei'
+                  const statusText = l.exklusiv ? 'Exklusiv' : !max ? '∞' : frei === 0 ? 'Ausgebucht' : `${frei} frei`
+
+                  return `<tr style="background:${getStatusColor(frei||0, max)}10">
+                    <td>
+                      <strong>${l.name}</strong>
+                      ${l.beschreibung ? '<div style="font-size:11px;color:#9a9590;margin-top:2px">'+l.beschreibung+'</div>' : ''}
+                      ${l.exklusiv ? '<span class="badge badge-exklusiv" style="margin-top:4px">Exklusiv</span>' : ''}
+                    </td>
+                    <td style="text-align:center">${max || '∞'}</td>
+                    <td>
+                      <span class="badge ${statusClass}">${statusText}</span>
+                      ${aktivVergaben.length > 0 ? '<div class="sponsor">' + aktivVergaben.map(v=>v.kontakte?.firma||'').filter(Boolean).join(', ') + '</div>' : ''}
+                    </td>
+                    ${zukuenftigeSaisons.slice(0,2).map(s => {
+                      const sv = getVergaben(l.id, s.id)
+                      const sf = max ? max - sv.length : null
+                      const sc = !max ? 'badge-exklusiv' : sf === 0 ? 'badge-voll' : sf <= (max * 0.3) ? 'badge-teilweise' : 'badge-frei'
+                      const st = !max ? '∞' : sf === 0 ? 'Ausgebucht' : `${sf} frei`
+                      return `<td><span class="badge ${sc}">${st}</span>${sv.length>0?'<div class="sponsor">'+sv.map(v=>v.kontakte?.firma||'').filter(Boolean).join(', ')+'</div>':''}</td>`
+                    }).join('')}
+                    <td style="font-weight:600;white-space:nowrap">${l.preis ? Number(l.preis).toLocaleString('de-DE') + ' EUR' : '--'}</td>
+                  </tr>`
+                }).join('')}
+              </tbody>
+            </table>
+          `
+        }).join('')}
+
+        <div class="footer">
+          <div>HC Bremen Handballclub · Leistungsverzeichnis ${new Date().getFullYear()}</div>
+          <div>Erstellt am ${new Date().toLocaleDateString('de-DE')} ${new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})}</div>
+        </div>
+      </body>
+      </html>
+    `
+
+    const blob = new Blob([html], { type: 'text/html' })
+    const url = URL.createObjectURL(blob)
+    const win = window.open(url, '_blank')
+    win.onload = () => { win.print(); URL.revokeObjectURL(url) }
+  }
+
   async function saveLeistung() {
     setSaving(true)
     const payload = { name:leistungForm.name, beschreibung:leistungForm.beschreibung||null, preis:leistungForm.preis||null, exklusiv:leistungForm.exklusiv, max_anzahl:leistungForm.max_anzahl||1, abrechnung:leistungForm.abrechnung, aktiv:leistungForm.aktiv, kategorie_id:leistungForm.kategorie_id||null }
