@@ -8,7 +8,7 @@ import Dashboard from './pages/Dashboard'
 import Kontakte from './pages/Kontakte'
 import KontaktDetail from './pages/KontaktDetail'
 import Historie from './pages/Historie'
-import Veranstaltungen from './pages/Veranstaltungen'
+import Events from './pages/Events'
 import Sponsoring from './pages/Sponsoring'
 import Benutzer from './pages/Benutzer'
 import MeineAufgaben from './pages/MeineAufgaben'
@@ -37,7 +37,7 @@ function DropdownMenu({ label, items, onEmail, onLogout, onClose }) {
     <div style={{position:'relative'}}>
       <button className="nav-link" style={{display:'flex',alignItems:'center',gap:4}}
         onClick={()=>setOpen(o=>!o)}>
-        {label} <span style={{fontSize:10,opacity:0.7}}>{open?'▲':'▼'}</span>
+        {label} <span style={{fontSize:10,opacity:0.7}}>{open?'v':'^'}</span>
       </button>
       {open && (
         <>
@@ -61,7 +61,7 @@ function DropdownMenu({ label, items, onEmail, onLogout, onClose }) {
               <button onClick={()=>{close();onEmail()}} style={{display:'flex',alignItems:'center',gap:8,
                 padding:'10px 16px',fontSize:14,fontWeight:500,color:'rgba(255,255,255,0.85)',
                 background:'transparent',border:'none',cursor:'pointer',width:'100%',textAlign:'left'}}>
-                ✉️ E-Mail senden
+                E-Mail senden
               </button>
             )}
             {onLogout && (
@@ -69,7 +69,7 @@ function DropdownMenu({ label, items, onEmail, onLogout, onClose }) {
                 padding:'10px 16px',fontSize:14,fontWeight:500,color:'rgba(255,100,100,0.9)',
                 background:'transparent',border:'none',borderTop:'1px solid rgba(255,255,255,0.1)',
                 cursor:'pointer',width:'100%',textAlign:'left',marginTop:4}}>
-                🚪 Abmelden
+                Abmelden
               </button>
             )}
           </div>
@@ -80,13 +80,13 @@ function DropdownMenu({ label, items, onEmail, onLogout, onClose }) {
 }
 
 function Header() {
-  const { user, profile, isAdmin } = useAuth()
+  const { user, profile, isAdmin, canAccess } = useAuth()
   const [emailModal, setEmailModal] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
   const [navOpen, setNavOpen] = useState(false)
+
   useEffect(() => {
     if (user) loadUnread()
-    // Alle 60 Sekunden aktualisieren
     const interval = setInterval(() => { if(user) loadUnread() }, 60000)
     return () => clearInterval(interval)
   }, [user])
@@ -103,30 +103,32 @@ function Header() {
     const { supabase } = await import('./lib/supabase')
     await supabase.auth.signOut()
   }
+
   if (!user) return null
+
   return (
     <>
     <header className="header">
       <NavLink to="/" className="logo" onClick={() => setNavOpen(false)}>HC <span>Bremen</span> CRM</NavLink>
       <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
-        <button className="hamburger" onClick={() => setNavOpen(o => !o)} aria-label="Menü">
+        <button className="hamburger" onClick={() => setNavOpen(o => !o)} aria-label="Menue">
           <span/><span/><span/>
         </button>
-        <span className="user-badge">👤 {profile?.name || user.email}</span>
+        <span className="user-badge">{profile?.name || user.email}</span>
         <nav className={`nav${navOpen ? ' open' : ''}`} onClick={e => { if(e.target===e.currentTarget) setNavOpen(false) }}>
           <NavLink to="/" className={({isActive})=>'nav-link'+(isActive?' active':'')} end onClick={()=>setNavOpen(false)}>Dashboard</NavLink>
-          <NavLink to="/kontakte" className={({isActive})=>'nav-link'+(isActive?' active':'')} onClick={()=>setNavOpen(false)}>Kontakte</NavLink>
-          <NavLink to="/veranstaltungen" className={({isActive})=>'nav-link'+(isActive?' active':'')} onClick={()=>setNavOpen(false)}>Events</NavLink>
-          <NavLink to="/sponsoring" className={({isActive})=>'nav-link'+(isActive?' active':'')} onClick={()=>setNavOpen(false)}>Sponsoring</NavLink>
-          <NavLink to="/ev" className={({isActive})=>'nav-link'+(isActive?' active':'')} onClick={()=>setNavOpen(false)}>🏛️ e.V.</NavLink>
-          <DropdownMenu label="Aktivitäten" onClose={()=>setNavOpen(false)} items={[
-            { to:'/historie', label:'📋 Historie' },
-            { to:'/aufgaben', label:'✓ Aufgaben' },
-            { to:'/kalender', label:'📅 Kalender' },
-            { to:'/inbox', label:'📬 Inbox', badge: unreadCount },
+          {canAccess('kontakte') && <NavLink to="/kontakte" className={({isActive})=>'nav-link'+(isActive?' active':'')} onClick={()=>setNavOpen(false)}>Kontakte</NavLink>}
+          {canAccess('events') && <NavLink to="/events" className={({isActive})=>'nav-link'+(isActive?' active':'')} onClick={()=>setNavOpen(false)}>Events</NavLink>}
+          {canAccess('sponsoring') && <NavLink to="/sponsoring" className={({isActive})=>'nav-link'+(isActive?' active':'')} onClick={()=>setNavOpen(false)}>Sponsoring</NavLink>}
+          {isAdmin() && <NavLink to="/ev" className={({isActive})=>'nav-link'+(isActive?' active':'')} onClick={()=>setNavOpen(false)}>e.V.</NavLink>}
+          <DropdownMenu label="Aktivitaeten" onClose={()=>setNavOpen(false)} items={[
+            ...(canAccess('historie') ? [{ to:'/historie', label:'Historie' }] : []),
+            { to:'/aufgaben', label:'Aufgaben' },
+            { to:'/kalender', label:'Kalender' },
+            { to:'/inbox', label:'Inbox', badge: unreadCount },
           ]} onEmail={()=>setEmailModal(true)}/>
-          <DropdownMenu label="⚙️ Verwaltung" onClose={()=>setNavOpen(false)} items={[
-            ...(isAdmin() ? [{ to:'/benutzer', label:'👥 Nutzer' }, { to:'/einstellungen', label:'⚙️ Einstellungen' }] : []),
+          <DropdownMenu label="Verwaltung" onClose={()=>setNavOpen(false)} items={[
+            ...(isAdmin() ? [{ to:'/benutzer', label:'Nutzer' }, { to:'/einstellungen', label:'Einstellungen' }] : []),
           ]} onLogout={handleLogout}/>
         </nav>
       </div>
@@ -148,7 +150,7 @@ function App() {
             <Route path="/kontakte" element={<PrivateRoute bereich="kontakte"><Kontakte /></PrivateRoute>} />
             <Route path="/kontakte/:id" element={<PrivateRoute bereich="kontakte"><KontaktDetail /></PrivateRoute>} />
             <Route path="/historie" element={<PrivateRoute bereich="historie"><Historie /></PrivateRoute>} />
-            <Route path="/veranstaltungen" element={<PrivateRoute bereich="veranstaltungen"><Veranstaltungen /></PrivateRoute>} />
+            <Route path="/events" element={<PrivateRoute bereich="events"><Events /></PrivateRoute>} />
             <Route path="/sponsoring" element={<PrivateRoute bereich="sponsoring"><Sponsoring /></PrivateRoute>} />
             <Route path="/benutzer" element={<PrivateRoute><Benutzer /></PrivateRoute>} />
             <Route path="/aufgaben" element={<PrivateRoute><MeineAufgaben /></PrivateRoute>} />
