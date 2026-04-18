@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import VertragsErsteller from './VertragsErsteller'
 
 const STATUS_LIST = ['Anfrage','In Verhandlung','Aktiv','Ausgelaufen','Gekuendigt']
 const ABRECHNUNG_LIST = ['saison','vertrag']
@@ -433,7 +434,7 @@ export default function Sponsoring() {
       {auslaufend.length>0&&<div className="alert alert-error" style={{marginBottom:20}}>⚠️ {auslaufend.length} Vertrag{auslaufend.length>1?'e laufen':' laeuft'} in weniger als 60 Tagen aus: {auslaufend.map(v=>v.kontakte?.firma).join(', ')}</div>}
 
       <div className="tabs">
-        {[['vertraege','Verträge'],['uebersicht','Saisonübersicht'],['leistungen','Leistungsübersicht'],['katalog','Leistungskatalog'],['pakete','Pakete'],['saisonverwaltung','Saisons'],['auswertung','Auswertung']].map(([key,label])=>(
+        {[['vertraege','Verträge'],['vertragsersteller','📄 Vertragsersteller'],['uebersicht','Saisonübersicht'],['leistungen','Leistungsübersicht'],['katalog','Leistungskatalog'],['pakete','Pakete'],['saisonverwaltung','Saisons'],['auswertung','Auswertung']].map(([key,label])=>(
           <button key={key} className={'tab-btn'+(tab===key?' active':'')} onClick={()=>setTab(key)}>{label}</button>
         ))}
       </div>
@@ -471,6 +472,9 @@ export default function Sponsoring() {
           </table></div>
         </div>
       )}
+
+      {/* ====== VERTRAGSERSTELLER ====== */}
+      {tab==='vertragsersteller'&&<VertragsErsteller />}
 
       {/* ====== SAISONÜBERSICHT ====== */}
       {tab==='uebersicht'&&(
