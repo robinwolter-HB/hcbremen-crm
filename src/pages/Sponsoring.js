@@ -350,7 +350,17 @@ export default function Sponsoring() {
                 return `<td><span class="status ${sc}">${st2}</span>${sv.length>0?'<div class="sponsor-name">'+sv.map(v=>v.kontakte?.firma||'').filter(Boolean).join(', ')+'</div>':''}</td>`
               }).join('')}
               <td style="text-align:right">
-                ${preisFuerLiga ? '<div class="preis">' + Number(preisFuerLiga).toLocaleString('de-DE') + ' EUR</div><div class="preis-sub">pro Saison</div>' : '<span style="color:#9a9590">–</span>'}
+                ${l.preis ? `
+                  <div class="preis">${Number(preisFuerLiga || l.preis).toLocaleString('de-DE')} EUR</div>
+                  <div class="preis-sub">${aktiveLiga !== 'Oberliga' ? aktiveLiga : 'Oberliga'}</div>
+                  ${(l.preis_regionalliga || l.preis_3liga || l.preis_2liga || l.preis_1liga) ? `
+                  <div style="margin-top:6px;padding-top:6px;border-top:1px solid #f0ede8">
+                    ${l.preis_regionalliga ? '<div style="font-size:10px;color:#9a9590;white-space:nowrap">RL: ' + Number(l.preis_regionalliga).toLocaleString('de-DE') + ' €</div>' : ''}
+                    ${l.preis_3liga ? '<div style="font-size:10px;color:#9a9590;white-space:nowrap">3L: ' + Number(l.preis_3liga).toLocaleString('de-DE') + ' €</div>' : ''}
+                    ${l.preis_2liga ? '<div style="font-size:10px;color:#9a9590;white-space:nowrap">2L: ' + Number(l.preis_2liga).toLocaleString('de-DE') + ' €</div>' : ''}
+                    ${l.preis_1liga ? '<div style="font-size:10px;color:#9a9590;white-space:nowrap">1L: ' + Number(l.preis_1liga).toLocaleString('de-DE') + ' €</div>' : ''}
+                  </div>` : ''}
+                ` : '<span style="color:#9a9590">–</span>'}
               </td>
             </tr>`
           }).join('')}
