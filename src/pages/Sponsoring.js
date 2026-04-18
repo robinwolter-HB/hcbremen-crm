@@ -377,14 +377,21 @@ export default function Sponsoring() {
 </body>
 </html>`
 
-    const blob = new Blob([html], { type: 'text/html' })
-    const url = URL.createObjectURL(blob)
-    const win = window.open(url, '_blank')
-    if (win) {
-      win.onload = () => { setTimeout(() => { win.print(); setTimeout(() => URL.revokeObjectURL(url), 1000) }, 500) }
+    // PDF in neuem Tab öffnen mit Drucken-Dialog
+    const druckFenster = window.open('', '_blank', 'width=900,height=700')
+    if (druckFenster) {
+      druckFenster.document.write(html)
+      druckFenster.document.close()
+      druckFenster.focus()
+      setTimeout(() => druckFenster.print(), 800)
     } else {
+      // Fallback: als HTML herunterladen
+      const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
-      a.href = url; a.download = `HC-Bremen-Leistungsverzeichnis-${new Date().toISOString().slice(0,10)}.html`; a.click()
+      a.href = url
+      a.download = 'HC-Bremen-Leistungsverzeichnis-' + new Date().toISOString().slice(0,10) + '.html'
+      a.click()
       setTimeout(() => URL.revokeObjectURL(url), 1000)
     }
   }
