@@ -1130,8 +1130,6 @@ ${[1,2,3].map(n=>selectedEvent[`dokument_link_${n}`]?`<tr><td>${selectedEvent[`d
           </div>
         </div>
       )}
-    </div>
-    </div>
     </main>
   )
 }
@@ -1220,9 +1218,6 @@ function KostenDashboard({ events, alleKosten, kostenKategorien, dienstleister }
           <tfoot><tr style={{background:'var(--gray-100)',fontWeight:700}}><td colSpan="4">Gesamt</td><td style={{textAlign:'right'}}>{gesamtGeplant.toLocaleString('de-DE')} EUR</td><td style={{textAlign:'right',color:gesamtTats>gesamtGeplant?'var(--red)':'var(--green)'}}>{gesamtTats.toLocaleString('de-DE')} EUR</td><td>{alleKosten.filter(k=>k.bezahlt).length}/{alleKosten.length} bezahlt</td></tr></tfoot>
         </table></div>
       </div>
-    </div>
-    </div>
-    </div>
   )
 }
 
