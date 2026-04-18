@@ -445,7 +445,7 @@ export default function Sponsoring() {
           <div className="toolbar">
             <select value={saisonFilter} onChange={e=>setSaisonFilter(e.target.value)}>
               <option value="">Alle Saisons</option>
-              {saisons.map(s=><option key={s.id} value={s.id}>{s.name}{s.aktiv?' (aktuell)':''}{s.liga&&s.liga!=='Oberliga'?' · '+s.liga:''}</option>)}
+              {saisons.map(s=><option key={s.id} value={s.id}>{s.name}{s.aktiv?' (aktuell)':''}{s.liga&&s.liga!=='Oberliga'?' (' + s.liga + ')':''}</option>)}
             </select>
             <button className="btn btn-primary" onClick={openNew}>+ Neuer Vertrag</button>
           </div>
@@ -481,7 +481,7 @@ export default function Sponsoring() {
         <div>
           <div className="toolbar">
             <select value={selectedSaison} onChange={e=>setSelectedSaison(e.target.value)}>
-              {saisons.map(s=><option key={s.id} value={s.id}>{s.name}{s.aktiv?' (aktuell)':''}{s.liga&&s.liga!=='Oberliga'?' · '+s.liga:''}</option>)}
+              {saisons.map(s=><option key={s.id} value={s.id}>{s.name}{s.aktiv?' (aktuell)':''}{s.liga&&s.liga!=='Oberliga'?' (' + s.liga + ')':''}</option>)}
             </select>
             {selectedLiga !== 'Oberliga' && <span style={{fontSize:13,background:'#fffbf0',border:'1px solid #c8a84b',color:'#8a6a00',padding:'4px 12px',borderRadius:20,fontWeight:600}}>Beträge für {selectedLiga}</span>}
           </div>
@@ -522,7 +522,7 @@ export default function Sponsoring() {
           <div className="toolbar">
             <select value={uebersichtSaison} onChange={e=>setUebersichtSaison(e.target.value)}>
               <option value="">Alle Saisons</option>
-              {saisons.map(s=><option key={s.id} value={s.id}>{s.name}{s.aktiv?' (aktuell)':''}{s.liga&&s.liga!=='Oberliga'?' · '+s.liga:''}</option>)}
+              {saisons.map(s=><option key={s.id} value={s.id}>{s.name}{s.aktiv?' (aktuell)':''}{s.liga&&s.liga!=='Oberliga'?' (' + s.liga + ')':''}</option>)}
             </select>
             <select value={uebersichtKat} onChange={e=>setUebersichtKat(e.target.value)}>
               <option value="">Alle Kategorien</option>
@@ -555,7 +555,7 @@ export default function Sponsoring() {
                         <strong style={{fontSize:13}}>{l.name}</strong>
                         <span style={{fontSize:11,fontWeight:700,color:statusColor,background:statusColor+'22',padding:'2px 8px',borderRadius:20,whiteSpace:'nowrap',marginLeft:8}}>{status}</span>
                       </div>
-                      {preis&&<div style={{fontSize:12,color:'var(--gray-600)',marginBottom:4}}>{Number(preis).toLocaleString('de-DE')} EUR · {l.abrechnung==='saison'?'pro Saison':'pro Vertrag'}{uebersichtLiga!=='Oberliga'?' · '+uebersichtLiga:''}</div>}
+                      {preis&&<div style={{fontSize:12,color:'var(--gray-600)',marginBottom:4}}>{Number(preis).toLocaleString('de-DE')} EUR | {l.abrechnung==='saison'?'pro Saison':'pro Vertrag'}{uebersichtLiga!=='Oberliga'?' (' + uebersichtLiga + ')':''}</div>}
                       {l.exklusiv&&<div style={{fontSize:11,color:'var(--gray-400)'}}>Exklusiv</div>}
                       {buchungen.length>0&&<div style={{marginTop:8,borderTop:'1px solid var(--gray-100)',paddingTop:8}}>
                         {buchungen.map(b=><div key={b.id} style={{fontSize:12,color:'var(--gray-600)'}}>{b.kontakte?.firma}{b.anzahl>1?' ('+b.anzahl+'x)':''}</div>)}
@@ -759,7 +759,7 @@ export default function Sponsoring() {
                     const selected=(form.selected_saisons||[]).includes(s.id)
                     return <button key={s.id} type="button" onClick={()=>toggleSaison(s.id)}
                       style={{padding:'4px 12px',borderRadius:20,border:'1.5px solid',fontSize:13,cursor:'pointer',background:selected?'var(--navy)':'var(--white)',color:selected?'var(--white)':'var(--gray-600)',borderColor:selected?'var(--navy)':'var(--gray-200)'}}>
-                      {s.name}{s.aktiv?' ★':''}{s.liga&&s.liga!=='Oberliga'?' · '+s.liga:''}
+                      {s.name}{s.aktiv?' ★':''}{s.liga&&s.liga!=='Oberliga'?' (' + s.liga + ')':''}
                     </button>
                   })}
                 </div>
