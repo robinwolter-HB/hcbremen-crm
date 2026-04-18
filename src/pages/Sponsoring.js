@@ -288,7 +288,7 @@ export default function Sponsoring() {
   <div>
     <div class="cover-title">HC <strong>Bremen</strong><br>Leistungsverzeichnis</div>
     <div class="cover-sub">Sponsoring-Unterlagen · Vertraulich</div>
-    <div class="liga-badge">🏆 ${aktiveLiga}</div>
+    <div class="liga-badge">${aktiveLiga}</div>
   </div>
   <div class="cover-meta">
     <span class="season">${aktiveSaison?.name || new Date().getFullYear()}</span>
@@ -429,12 +429,12 @@ export default function Sponsoring() {
     <main className="main">
       <div className="page-title">Sponsoring</div>
       <p className="page-subtitle">Vertragsverwaltung, Leistungen & Auswertung
-        {aktiveLiga !== 'Oberliga' && <span style={{marginLeft:10,fontSize:13,background:'#fffbf0',border:'1px solid #c8a84b',color:'#8a6a00',padding:'2px 10px',borderRadius:20,fontWeight:600}}>🏆 {aktiveLiga}</span>}
+        {aktiveLiga !== 'Oberliga' && <span style={{marginLeft:10,fontSize:13,background:'#fffbf0',border:'1px solid #c8a84b',color:'#8a6a00',padding:'2px 10px',borderRadius:20,fontWeight:600}}>{aktiveLiga}</span>}
       </p>
-      {auslaufend.length>0&&<div className="alert alert-error" style={{marginBottom:20}}>⚠️ {auslaufend.length} Vertrag{auslaufend.length>1?'e laufen':' laeuft'} in weniger als 60 Tagen aus: {auslaufend.map(v=>v.kontakte?.firma).join(', ')}</div>}
+      {auslaufend.length>0&&<div className="alert alert-error" style={{marginBottom:20}}>Warnung: {auslaufend.length} Vertrag{auslaufend.length>1?'e laufen':' laeuft'} in weniger als 60 Tagen aus: {auslaufend.map(v=>v.kontakte?.firma).join(', ')}</div>}
 
       <div className="tabs">
-        {[['vertraege','Verträge'],['vertragsersteller','📄 Vertragsersteller'],['uebersicht','Saisonübersicht'],['leistungen','Leistungsübersicht'],['katalog','Leistungskatalog'],['pakete','Pakete'],['saisonverwaltung','Saisons'],['auswertung','Auswertung']].map(([key,label])=>(
+        {[['vertraege','Verträge'],['vertragsersteller','Vertragsersteller'],['uebersicht','Saisonübersicht'],['leistungen','Leistungsübersicht'],['katalog','Leistungskatalog'],['pakete','Pakete'],['saisonverwaltung','Saisons'],['auswertung','Auswertung']].map(([key,label])=>(
           <button key={key} className={'tab-btn'+(tab===key?' active':'')} onClick={()=>setTab(key)}>{label}</button>
         ))}
       </div>
@@ -458,13 +458,13 @@ export default function Sponsoring() {
                   const saisonNames = v.sponsoring_saisons?.length > 0 ? v.sponsoring_saisons.map(ss=>ss.saisons?.name).filter(Boolean).join(', ') : v.saisons?.name || '--'
                   const hatAufstieg = v.betrag_regionalliga || v.betrag_3liga || v.betrag_2liga || v.betrag_1liga
                   return <tr key={v.id} style={{background:aus?'#fff8f8':'inherit'}}>
-                    <td><strong>{v.kontakte?.firma}</strong>{hatAufstieg&&<span title="Aufstiegs-Konditionen hinterlegt" style={{marginLeft:6,fontSize:11,background:'#fffbf0',border:'1px solid #c8a84b',color:'#8a6a00',padding:'1px 6px',borderRadius:10}}>🏆</span>}</td>
+                    <td><strong>{v.kontakte?.firma}</strong>{hatAufstieg&&<span title="Aufstiegs-Konditionen hinterlegt" style={{marginLeft:6,fontSize:11,background:'#fffbf0',border:'1px solid #c8a84b',color:'#8a6a00',padding:'1px 6px',borderRadius:10}}></span>}</td>
                     <td style={{fontSize:13}}>{saisonNames}</td>
                     <td style={{fontSize:13}}>{v.sponsoring_pakete?.name||'--'}</td>
                     <td style={{fontWeight:600}}>{v.jahresbetrag?Number(v.jahresbetrag).toLocaleString('de-DE')+' EUR':'--'}</td>
                     <td style={{fontSize:13,color:aus?'var(--red)':'inherit',fontWeight:aus?600:400}}>{v.vertragsende?new Date(v.vertragsende).toLocaleDateString('de-DE'):'--'}</td>
                     <td><span style={{fontSize:12,padding:'2px 8px',borderRadius:20,fontWeight:600,background:v.status==='Aktiv'?'#e2efda':v.status==='In Verhandlung'?'#ddeaff':'#ececec',color:v.status==='Aktiv'?'#2d6b3a':'#555'}}>{v.status}</span></td>
-                    <td>{v.vertrag_unterzeichnet?'✅':'⬜'}</td>
+                    <td>{v.vertrag_unterzeichnet?'Ja':'Nein'}</td>
                     <td style={{whiteSpace:'nowrap'}}><button className="btn btn-sm btn-outline" onClick={()=>openEdit(v)}>Bearb.</button>{' '}<button className="btn btn-sm btn-danger" onClick={()=>deleteVertrag(v.id)}>X</button></td>
                   </tr>
                 })}
@@ -483,7 +483,7 @@ export default function Sponsoring() {
             <select value={selectedSaison} onChange={e=>setSelectedSaison(e.target.value)}>
               {saisons.map(s=><option key={s.id} value={s.id}>{s.name}{s.aktiv?' (aktuell)':''}{s.liga&&s.liga!=='Oberliga'?' · '+s.liga:''}</option>)}
             </select>
-            {selectedLiga !== 'Oberliga' && <span style={{fontSize:13,background:'#fffbf0',border:'1px solid #c8a84b',color:'#8a6a00',padding:'4px 12px',borderRadius:20,fontWeight:600}}>🏆 Beträge für {selectedLiga}</span>}
+            {selectedLiga !== 'Oberliga' && <span style={{fontSize:13,background:'#fffbf0',border:'1px solid #c8a84b',color:'#8a6a00',padding:'4px 12px',borderRadius:20,fontWeight:600}}>Beträge für {selectedLiga}</span>}
           </div>
           <div className="stats-row">
             <div className="stat-card green"><div className="stat-num">{filteredBySaison.filter(v=>v.status==='Aktiv').length}</div><div className="stat-label">Aktive Sponsoren</div></div>
@@ -528,7 +528,7 @@ export default function Sponsoring() {
               <option value="">Alle Kategorien</option>
               {kategorien.map(k=><option key={k.id} value={k.name}>{k.name}</option>)}
             </select>
-            {uebersichtLiga !== 'Oberliga' && <span style={{fontSize:13,background:'#fffbf0',border:'1px solid #c8a84b',color:'#8a6a00',padding:'4px 12px',borderRadius:20,fontWeight:600}}>🏆 Preise für {uebersichtLiga}</span>}
+            {uebersichtLiga !== 'Oberliga' && <span style={{fontSize:13,background:'#fffbf0',border:'1px solid #c8a84b',color:'#8a6a00',padding:'4px 12px',borderRadius:20,fontWeight:600}}>Preise für {uebersichtLiga}</span>}
           </div>
 
           <div className="card">
@@ -598,7 +598,7 @@ export default function Sponsoring() {
           <div className="toolbar">
             <button className="btn btn-outline" onClick={()=>{setKatForm({name:'',farbe:'#2d6fa3',reihenfolge:kategorien.length});setKatModal(true)}}>+ Kategorie</button>
             <button className="btn btn-primary" onClick={()=>{setLeistungForm({name:'',beschreibung:'',preis:'',preis_regionalliga:'',preis_3liga:'',preis_2liga:'',preis_1liga:'',exklusiv:false,max_anzahl:1,abrechnung:'saison',aktiv:true,kategorie_id:kategorien[0]?.id||''});setLeistungModal(true)}}>+ Leistung</button>
-            <button className="btn btn-outline" onClick={exportLeistungsverzeichnisPDF} style={{marginLeft:'auto'}}>📄 PDF exportieren</button>
+            <button className="btn btn-outline" onClick={exportLeistungsverzeichnisPDF} style={{marginLeft:'auto'}}>PDF exportieren</button>
           </div>
 
           {kategorien.map(kat=>{
@@ -698,7 +698,7 @@ export default function Sponsoring() {
               <div key={s.id} style={{border:'2px solid '+(s.aktiv?'var(--gold)':'var(--gray-200)'),borderRadius:'var(--radius)',padding:20,position:'relative'}}>
                 {s.aktiv&&<span style={{position:'absolute',top:12,right:12,fontSize:11,background:'var(--gold)',color:'var(--navy)',padding:'2px 8px',borderRadius:20,fontWeight:700}}>AKTUELL</span>}
                 <div style={{fontFamily:'"DM Serif Display",serif',fontSize:24,color:'var(--navy)',marginBottom:4}}>{s.name}</div>
-                {s.liga&&<div style={{fontSize:12,fontWeight:600,color:'#8a6a00',background:'#fffbf0',border:'1px solid #c8a84b',padding:'2px 8px',borderRadius:20,display:'inline-block',marginBottom:12}}>🏆 {s.liga}</div>}
+                {s.liga&&<div style={{fontSize:12,fontWeight:600,color:'#8a6a00',background:'#fffbf0',border:'1px solid #c8a84b',padding:'2px 8px',borderRadius:20,display:'inline-block',marginBottom:12}}>{s.liga}</div>}
                 <div style={{display:'grid',gap:6,fontSize:13,color:'var(--gray-600)',marginBottom:16}}>
                   {s.beginn&&<div><span style={{color:'var(--gray-400)',fontSize:11,textTransform:'uppercase',letterSpacing:'0.3px',display:'block'}}>Beginn</span>{new Date(s.beginn).toLocaleDateString('de-DE')}</div>}
                   {s.ende&&<div><span style={{color:'var(--gray-400)',fontSize:11,textTransform:'uppercase',letterSpacing:'0.3px',display:'block'}}>Ende</span>{new Date(s.ende).toLocaleDateString('de-DE')}</div>}
@@ -782,7 +782,7 @@ export default function Sponsoring() {
               {/* AUFSTIEGS-KONDITIONEN */}
               <div style={{border:'1.5px solid #f0e8c8',borderRadius:'var(--radius)',marginBottom:16,overflow:'hidden'}}>
                 <button type="button" onClick={()=>setAufstiegOpen(o=>!o)} style={{width:'100%',display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px 16px',background:'#fffbf0',border:'none',cursor:'pointer',fontSize:14,fontWeight:600,color:'#8a6a00'}}>
-                  <span>🏆 Aufstiegs-Konditionen (optional)</span>
+                  <span>Aufstiegs-Konditionen (optional)</span>
                   <span style={{fontSize:12}}>{aufstiegOpen?'▲':'▼'}</span>
                 </button>
                 {aufstiegOpen&&(
