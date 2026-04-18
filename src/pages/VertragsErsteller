@@ -94,26 +94,23 @@ export default function VertragsErsteller() {
   const [ansprechpartnerSponsor, setAnsprechpartnerSponsor] = useState('')
 
   // Gespeicherte Vertragsvorlagen
-  const [gespeicherteVertraege, setGespeicherteVertraege] = useState([])
-  const [gewaehltesGespeichertes, setGewaehltesGespeichertes] = useState('')
 
   useEffect(() => { loadAll() }, [])
 
   async function loadAll() {
-    const [{ data: v },{ data: s },{ data: k },{ data: kat },{ data: ko },{ data: gv }] = await Promise.all([
+    const [{ data: v },{ data: s },{ data: k },{ data: kat },{ data: ko }] = await Promise.all([
       supabase.from('sponsoring').select('*,kontakte(*),saisons(*),sponsoring_pakete(name),sponsoring_leistungen(*,leistungen_katalog(*,leistungen_kategorien(name,farbe)))').order('erstellt_am', { ascending: false }),
       supabase.from('saisons').select('*').order('beginn', { ascending: false }),
       supabase.from('leistungen_katalog').select('*,leistungen_kategorien(name,farbe)').order('erstellt_am'),
       supabase.from('leistungen_kategorien').select('*').order('reihenfolge'),
       supabase.from('kontakte').select('id,firma,rechnung_firma,rechnung_strasse,rechnung_plz,rechnung_stadt,rechnung_land,rechnung_email,adresse_strasse,adresse_plz,adresse_stadt,ust_id').order('firma'),
-      supabase.from('sponsoring_vertragsvorlagen').select('*').order('erstellt_am', { ascending: false }),
     ])
     setVertraege(v || [])
     setSaisons(s || [])
     setKatalog(k || [])
     setKategorien(kat || [])
     const km = {}; (ko || []).forEach(k => { km[k.id] = k }); setKontakteMap(km)
-    setGespeicherteVertraege(gv || [])
+
     setLoading(false)
   }
 
