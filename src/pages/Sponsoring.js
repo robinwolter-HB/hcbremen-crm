@@ -207,104 +207,167 @@ export default function Sponsoring() {
     const katFarben = {}
     ;(kategorien || []).forEach(k => { katFarben[k.id] = k.farbe || '#0f2240' })
 
-    const html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <title>Leistungsverzeichnis HC Bremen</title>
-        <style>
-          body { font-family: Arial, sans-serif; margin: 0; padding: 32px; color: #1a1816; }
-          h1 { color: #0f2240; font-size: 28px; margin-bottom: 4px; }
-          .subtitle { color: #9a9590; font-size: 14px; margin-bottom: 32px; }
-          h2 { font-size: 16px; padding: 8px 14px; border-radius: 6px; margin: 28px 0 12px 0; color: white; }
-          table { width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 13px; }
-          th { background: #0f2240; color: white; padding: 8px 12px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
-          td { padding: 8px 12px; border-bottom: 1px solid #e0ddd6; vertical-align: middle; }
-          .saison-header { background: #f8f5ef; font-weight: 700; font-size: 12px; color: #5a5650; padding: 4px 12px; text-transform: uppercase; letter-spacing: 0.5px; }
-          .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 700; }
-          .badge-frei { background: #e2efda; color: #2d6b3a; }
-          .badge-teilweise { background: #fff3cd; color: #8a6a00; }
-          .badge-voll { background: #fce4d6; color: #8a3a1a; }
-          .badge-exklusiv { background: #ddeaff; color: #1a4a8a; }
-          .sponsor { font-size: 12px; color: #5a5650; }
-          .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e0ddd6; font-size: 11px; color: #9a9590; display: flex; justify-content: space-between; }
-          @media print { body { padding: 16px; } }
-        </style>
-      </head>
-      <body>
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;">
-          <div>
-            <h1>HC Bremen – Leistungsverzeichnis</h1>
-            <div class="subtitle">
-              ${aktiveSaison ? 'Aktuelle Saison: ' + aktiveSaison.name : ''} · 
-              Stand: ${new Date().toLocaleDateString('de-DE')}
-            </div>
-          </div>
-          <div style="text-align:right;font-size:13px;color:#9a9590;">
-            <div style="font-size:22px;font-weight:700;color:#0f2240;">HC Bremen</div>
-            <div>Sponsoring-Unterlagen</div>
-          </div>
-        </div>
+    // Saisons chronologisch sortieren (nächste zuerst)
+    const sortierteSaisons = [...zukuenftigeSaisons].sort((a,b) => new Date(a.beginn) - new Date(b.beginn))
 
-        ${(kategorien || []).map(kat => {
-          const katLeistungen = (leistungen || []).filter(l => l.kategorie_id === kat.id)
-          if (katLeistungen.length === 0) return ''
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>HC Bremen – Leistungsverzeichnis</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: 'Helvetica Neue', Arial, sans-serif; background: white; color: #1a1816; }
+  @page { margin: 15mm 12mm; size: A4; }
+  @media print { 
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .page-break { page-break-before: always; }
+    header { display: none !important; }
+  }
 
-          return `
-            <h2 style="background:${kat.farbe || '#0f2240'}">${kat.name}</h2>
-            <table>
-              <thead>
-                <tr>
-                  <th style="width:28%">Leistung</th>
-                  <th style="width:8%">Max.</th>
-                  <th style="width:22%">Aktuelle Saison${aktiveSaison?' ('+aktiveSaison.name+')':''}</th>
-                  ${zukuenftigeSaisons.slice(0,2).map(s => `<th style="width:20%">${s.name}</th>`).join('')}
-                  <th>Preis</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${katLeistungen.map(l => {
-                  const aktivVergaben = getVergaben(l.id, aktiveSaison?.id)
-                  const belegt = aktivVergaben.length
-                  const max = l.max_anzahl
-                  const frei = max ? max - belegt : null
-                  const statusClass = !max ? 'badge-exklusiv' : frei === 0 ? 'badge-voll' : frei <= max * 0.3 ? 'badge-teilweise' : 'badge-frei'
-                  const statusText = l.exklusiv ? 'Exklusiv' : !max ? '∞' : frei === 0 ? 'Ausgebucht' : `${frei} frei`
+  /* Cover */
+  .cover { background: #0f2240; color: white; padding: 60px 48px; min-height: 220px; display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 0; }
+  .cover-title { font-size: 36px; font-weight: 300; letter-spacing: -0.5px; margin-bottom: 8px; }
+  .cover-title strong { font-weight: 700; color: #c8a84b; }
+  .cover-sub { font-size: 14px; color: rgba(255,255,255,0.6); }
+  .cover-meta { text-align: right; font-size: 13px; color: rgba(255,255,255,0.5); }
+  .cover-meta .season { font-size: 22px; font-weight: 700; color: #c8a84b; display: block; margin-bottom: 4px; }
 
-                  return `<tr style="background:${getStatusColor(frei||0, max)}10">
-                    <td>
-                      <strong>${l.name}</strong>
-                      ${l.beschreibung ? '<div style="font-size:11px;color:#9a9590;margin-top:2px">'+l.beschreibung+'</div>' : ''}
-                      ${l.exklusiv ? '<span class="badge badge-exklusiv" style="margin-top:4px">Exklusiv</span>' : ''}
-                    </td>
-                    <td style="text-align:center">${max || '∞'}</td>
-                    <td>
-                      <span class="badge ${statusClass}">${statusText}</span>
-                      ${aktivVergaben.length > 0 ? '<div class="sponsor">' + aktivVergaben.map(v=>v.kontakte?.firma||'').filter(Boolean).join(', ') + '</div>' : ''}
-                    </td>
-                    ${zukuenftigeSaisons.slice(0,2).map(s => {
-                      const sv = getVergaben(l.id, s.id)
-                      const sf = max ? max - sv.length : null
-                      const sc = !max ? 'badge-exklusiv' : sf === 0 ? 'badge-voll' : sf <= (max * 0.3) ? 'badge-teilweise' : 'badge-frei'
-                      const st = !max ? '∞' : sf === 0 ? 'Ausgebucht' : `${sf} frei`
-                      return `<td><span class="badge ${sc}">${st}</span>${sv.length>0?'<div class="sponsor">'+sv.map(v=>v.kontakte?.firma||'').filter(Boolean).join(', ')+'</div>':''}</td>`
-                    }).join('')}
-                    <td style="font-weight:600;white-space:nowrap">${l.preis ? Number(l.preis).toLocaleString('de-DE') + ' EUR' : '--'}</td>
-                  </tr>`
-                }).join('')}
-              </tbody>
-            </table>
-          `
-        }).join('')}
+  /* Legende */
+  .legende { background: #f8f5ef; padding: 14px 48px; display: flex; gap: 24px; align-items: center; border-bottom: 2px solid #e0ddd6; flex-wrap: wrap; }
+  .legende-item { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
 
-        <div class="footer">
-          <div>HC Bremen Handballclub · Leistungsverzeichnis ${new Date().getFullYear()}</div>
-          <div>Erstellt am ${new Date().toLocaleDateString('de-DE')} ${new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})}</div>
-        </div>
-      </body>
-      </html>
+  /* Content */
+  .content { padding: 32px 48px; }
+
+  /* Kategorie */
+  .kat-header { display: flex; align-items: center; gap: 12px; margin: 32px 0 14px 0; }
+  .kat-dot { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; }
+  .kat-title { font-size: 18px; font-weight: 700; color: #0f2240; }
+  .kat-count { font-size: 12px; color: #9a9590; }
+
+  /* Tabelle */
+  table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+  thead tr { background: #0f2240; }
+  thead th { color: white; padding: 9px 12px; text-align: left; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; white-space: nowrap; }
+  tbody tr { border-bottom: 1px solid #f0ede8; }
+  tbody tr:hover { background: #fafaf8; }
+  tbody tr.frei { border-left: 3px solid #3a8a5a; }
+  tbody tr.teilweise { border-left: 3px solid #e07b30; }
+  tbody tr.voll { border-left: 3px solid #d94f4f; }
+  tbody tr.exklusiv { border-left: 3px solid #2d6fa3; }
+  td { padding: 10px 12px; font-size: 13px; vertical-align: top; }
+  .leistung-name { font-weight: 600; font-size: 13px; color: #1a1816; }
+  .leistung-desc { font-size: 11px; color: #9a9590; margin-top: 3px; line-height: 1.4; }
+  .exklusiv-badge { display: inline-block; background: #ddeaff; color: #1a4a8a; font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 10px; margin-top: 4px; }
+  .preis { font-weight: 700; font-size: 13px; color: #0f2240; white-space: nowrap; }
+  .preis-sub { font-size: 10px; color: #9a9590; font-weight: 400; }
+
+  /* Status Badges */
+  .status { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 12px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+  .status-frei { background: #e2efda; color: #2d6b3a; }
+  .status-teilweise { background: #fff3cd; color: #8a6a00; }
+  .status-voll { background: #fce4d6; color: #8a3a1a; }
+  .status-exklusiv { background: #ddeaff; color: #1a4a8a; }
+  .sponsor-name { font-size: 11px; color: #5a5650; margin-top: 4px; font-style: italic; }
+
+  /* Footer */
+  .footer { margin-top: 40px; padding: 16px 48px; border-top: 2px solid #e0ddd6; display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #9a9590; }
+  .footer-brand { font-weight: 700; color: #0f2240; }
+</style>
+</head>
+<body>
+
+<!-- Cover -->
+<div class="cover">
+  <div>
+    <div class="cover-title">HC <strong>Bremen</strong><br>Leistungsverzeichnis</div>
+    <div class="cover-sub">Sponsoring-Unterlagen · Vertraulich</div>
+  </div>
+  <div class="cover-meta">
+    <span class="season">${aktiveSaison?.name || new Date().getFullYear()}</span>
+    <span>Stand: ${new Date().toLocaleDateString('de-DE', {day:'2-digit',month:'long',year:'numeric'})}</span>
+  </div>
+</div>
+
+<!-- Legende -->
+<div class="legende">
+  <strong style="font-size:12px;color:#5a5650;margin-right:8px;">Verfügbarkeit:</strong>
+  <div class="legende-item"><div class="dot" style="background:#3a8a5a"></div> Verfügbar</div>
+  <div class="legende-item"><div class="dot" style="background:#e07b30"></div> Fast ausgebucht (≤30% frei)</div>
+  <div class="legende-item"><div class="dot" style="background:#d94f4f"></div> Ausgebucht</div>
+  <div class="legende-item"><div class="dot" style="background:#2d6fa3"></div> Exklusiv</div>
+</div>
+
+<!-- Inhalt -->
+<div class="content">
+  ${(kategorien || []).map(kat => {
+    const katLeistungen = (leistungen || []).filter(l => l.kategorie_id === kat.id && l.aktiv !== false)
+    if (katLeistungen.length === 0) return ''
+
+    return `
+      <div class="kat-header">
+        <div class="kat-dot" style="background:${kat.farbe || '#0f2240'}"></div>
+        <span class="kat-title">${kat.name}</span>
+        <span class="kat-count">${katLeistungen.length} Leistung${katLeistungen.length !== 1 ? 'en' : ''}</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width:32%">Leistung</th>
+            <th style="width:7%;text-align:center">Max.</th>
+            <th style="width:20%">${aktiveSaison ? aktiveSaison.name + ' (Aktuell)' : 'Aktuelle Saison'}</th>
+            ${sortierteSaisons.slice(0,2).map(s => `<th style="width:18%">${s.name}</th>`).join('')}
+            <th style="width:13%;text-align:right">Preis</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${katLeistungen.map(l => {
+            const aktivVergaben = getVergaben(l.id, aktiveSaison?.id)
+            const belegt = aktivVergaben.length
+            const max = l.max_anzahl
+            const frei = max ? max - belegt : null
+            const rowClass = l.exklusiv ? 'exklusiv' : !max ? 'frei' : frei === 0 ? 'voll' : frei <= max * 0.3 ? 'teilweise' : 'frei'
+            const statusClass = l.exklusiv ? 'status-exklusiv' : !max ? 'status-frei' : frei === 0 ? 'status-voll' : frei <= max * 0.3 ? 'status-teilweise' : 'status-frei'
+            const statusText = l.exklusiv ? 'Exklusiv' : !max ? 'Unbegrenzt' : frei === 0 ? 'Ausgebucht' : frei + ' verfügbar'
+
+            return `<tr class="${rowClass}">
+              <td>
+                <div class="leistung-name">${l.name}${l.exklusiv ? '<span class="exklusiv-badge">EXKLUSIV</span>' : ''}</div>
+                ${l.beschreibung ? '<div class="leistung-desc">' + l.beschreibung + '</div>' : ''}
+              </td>
+              <td style="text-align:center;color:#9a9590;font-size:13px">${max || '∞'}</td>
+              <td>
+                <span class="status ${statusClass}">${statusText}</span>
+                ${aktivVergaben.length > 0 ? '<div class="sponsor-name">' + aktivVergaben.map(v=>v.kontakte?.firma||'').filter(Boolean).join(', ') + '</div>' : ''}
+              </td>
+              ${sortierteSaisons.slice(0,2).map(s => {
+                const sv = getVergaben(l.id, s.id)
+                const sf = max ? max - sv.length : null
+                const sc = l.exklusiv ? 'status-exklusiv' : !max ? 'status-frei' : sf === 0 ? 'status-voll' : sf <= (max * 0.3) ? 'status-teilweise' : 'status-frei'
+                const st = l.exklusiv ? 'Exklusiv' : !max ? 'Unbegrenzt' : sf === 0 ? 'Ausgebucht' : sf + ' verfügbar'
+                return `<td><span class="status ${sc}">${st}</span>${sv.length>0?'<div class="sponsor-name">'+sv.map(v=>v.kontakte?.firma||'').filter(Boolean).join(', ')+'</div>':''}</td>`
+              }).join('')}
+              <td style="text-align:right">
+                ${l.preis ? '<div class="preis">' + Number(l.preis).toLocaleString('de-DE') + ' EUR</div><div class="preis-sub">pro Saison</div>' : '<span style="color:#9a9590">–</span>'}
+              </td>
+            </tr>`
+          }).join('')}
+        </tbody>
+      </table>
     `
+  }).join('')}
+</div>
+
+<!-- Footer -->
+<div class="footer">
+  <div><span class="footer-brand">HC Bremen Handballclub</span> · Leistungsverzeichnis ${new Date().getFullYear()}</div>
+  <div>Erstellt am ${new Date().toLocaleDateString('de-DE')} · Vertraulich</div>
+</div>
+
+</body>
+</html>`
 
     // Direkt als druckbare HTML öffnen - Nutzer kann Drucken → Als PDF speichern
     const blob = new Blob([html], { type: 'text/html' })
