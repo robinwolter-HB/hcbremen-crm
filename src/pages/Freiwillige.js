@@ -28,6 +28,8 @@ export default function Freiwillige() {
   const [detailTab, setDetailTab] = useState('profil')
   const [search, setSearch] = useState('')
   const [faehigkeitFilter, setFaehigkeitFilter] = useState('')
+  const [artFilter, setArtFilter] = useState('')
+  const [fkKategorien, setFkKategorien] = useState([])
   const [saving, setSaving] = useState(false)
 
   // Modals
@@ -48,6 +50,10 @@ export default function Freiwillige() {
       const { data: fk, error: e2 } = await supabase.from('freiwillige_faehigkeiten').select('*').eq('aktiv', true).order('reihenfolge')
       if (!e2) setFaehigkeiten(fk || [])
     } catch(e) { console.error('faehigkeiten load error:', e) }
+    try {
+      const { data: kk } = await supabase.from('freiwillige_faehigkeit_kategorien').select('*').eq('aktiv', true).order('reihenfolge')
+      setFkKategorien(kk || [])
+    } catch(e) { setFkKategorien([]) }
     setLoading(false)
   }
 
@@ -68,7 +74,7 @@ export default function Freiwillige() {
   async function save() {
     if (!form.vorname?.trim() || !form.nachname?.trim()) return
     setSaving(true)
-    const p = { vorname:form.vorname, nachname:form.nachname, email:form.email||null, telefon:form.telefon||null, geburtsdatum:form.geburtsdatum||null, t_shirt_groesse:form.t_shirt_groesse||null, jacken_groesse:form.jacken_groesse||null, hosen_groesse:form.hosen_groesse||null, schuh_groesse:form.schuh_groesse||null, notizen:form.notizen||null, aktiv:form.aktiv!==false }
+    const p = { vorname:form.vorname, nachname:form.nachname, email:form.email||null, telefon:form.telefon||null, geburtsdatum:form.geburtsdatum||null, t_shirt_groesse:form.t_shirt_groesse||null, jacken_groesse:form.jacken_groesse||null, hosen_groesse:form.hosen_groesse||null, schuh_groesse:form.schuh_groesse||null, notizen:form.notizen||null, aktiv:form.aktiv!==false, art_unterstuetzung:form.art_unterstuetzung||'Events', funktionen:form.funktionen||null, qualifikationen:form.qualifikationen||null }
     if (form.id) {
       await supabase.from('freiwillige').update(p).eq('id', form.id)
       if (selected?.id === form.id) setSelected(s => ({ ...s, ...p }))
@@ -105,13 +111,14 @@ export default function Freiwillige() {
     setFaehigkeitModal(false); setSaving(false); load()
   }
 
-  const kategorien = [...new Set(faehigkeiten.map(f => f.kategorie).filter(Boolean))]
+  const kategorien = fkKategorien.length > 0 ? fkKategorien.map(k => k.name) : [...new Set(faehigkeiten.map(f => f.kategorie).filter(Boolean))]
 
   const filtered = liste.filter(f => {
     const name = (f.vorname + ' ' + f.nachname).toLowerCase()
     const matchSearch = !search || name.includes(search.toLowerCase()) || (f.email||'').toLowerCase().includes(search.toLowerCase())
     const matchFk = !faehigkeitFilter
-    return matchSearch && matchFk
+    const matchArt = !artFilter || (f.art_unterstuetzung||'Events') === artFilter
+    return matchSearch && matchFk && matchArt
   })
 
   if (loading) return <div className="loading-center"><div className="spinner"/></div>
@@ -135,6 +142,12 @@ export default function Freiwillige() {
               <option value="">Alle Fähigkeiten</option>
               {faehigkeiten.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
             </select>
+            <select value={artFilter||''} onChange={e=>setArtFilter(e.target.value)} style={{ padding:'8px 12px', border:'1.5px solid var(--gray-200)', borderRadius:'var(--radius)', fontSize:13 }}>
+              <option value="">Alle Arten</option>
+              <option value="Events">Nur Events</option>
+              <option value="Dauerhaft">Dauerhaft</option>
+              <option value="Beides">Beides</option>
+            </select>
           </div>
           <div style={{ display:'grid', gap:8 }}>
             {filtered.length === 0 && <div className="card" style={{ textAlign:'center', color:'var(--gray-400)', fontSize:13, padding:32 }}>Keine Personen gefunden.</div>}
@@ -148,6 +161,9 @@ export default function Freiwillige() {
                     {!f.aktiv && <span style={{ fontSize:10, background:'var(--gray-200)', color:'var(--gray-600)', padding:'1px 6px', borderRadius:10 }}>Inaktiv</span>}
                   </div>
                   {f.email && <div style={{ fontSize:11, color:'var(--gray-500)' }}>{f.email}</div>}
+                  {f.art_unterstuetzung && f.art_unterstuetzung !== 'Events' && (
+                    <span style={{ fontSize:10, background:'#e2efda', color:'#2d6b3a', padding:'1px 6px', borderRadius:10, marginTop:2, display:'inline-block' }}>{f.art_unterstuetzung}</span>
+                  )}
 
                 </div>
               )
@@ -226,6 +242,30 @@ export default function Freiwillige() {
                       {selected.jacken_groesse && <div style={{ padding:'10px 20px', background:'var(--gray-100)', borderRadius:'var(--radius)', textAlign:'center' }}><div style={{ fontSize:11, color:'var(--gray-400)', marginBottom:4 }}>Jacke</div><strong style={{ fontSize:18 }}>{selected.jacken_groesse}</strong></div>}
                       {selected.hosen_groesse && <div style={{ padding:'10px 20px', background:'var(--gray-100)', borderRadius:'var(--radius)', textAlign:'center' }}><div style={{ fontSize:11, color:'var(--gray-400)', marginBottom:4 }}>Hose</div><strong style={{ fontSize:18 }}>{selected.hosen_groesse}</strong></div>}
                       {selected.schuh_groesse && <div style={{ padding:'10px 20px', background:'var(--gray-100)', borderRadius:'var(--radius)', textAlign:'center' }}><div style={{ fontSize:11, color:'var(--gray-400)', marginBottom:4 }}>Schuhe</div><strong style={{ fontSize:18 }}>{selected.schuh_groesse}</strong></div>}
+                    </div>
+                  </div>
+                )}
+
+                {(selected.funktionen || selected.qualifikationen || selected.art_unterstuetzung) && (
+                  <div style={{ marginTop:16 }}>
+                    <div className="section-title" style={{ marginBottom:12 }}>Vereinsrolle & Qualifikationen</div>
+                    <div style={{ display:'grid', gap:12 }}>
+                      <div style={{ padding:'10px 0', borderBottom:'1px solid var(--gray-100)' }}>
+                        <div style={{ fontSize:11, color:'var(--gray-400)', textTransform:'uppercase', letterSpacing:'0.3px', marginBottom:3 }}>Art der Unterstützung</div>
+                        <span style={{ fontSize:13, fontWeight:600, padding:'2px 12px', borderRadius:20, background:selected.art_unterstuetzung==='Dauerhaft'?'#0f2240':selected.art_unterstuetzung==='Beides'?'#c8a84b22':'#ddeaff', color:selected.art_unterstuetzung==='Dauerhaft'?'white':selected.art_unterstuetzung==='Beides'?'#8a6a00':'#1a4a8a' }}>{selected.art_unterstuetzung||'Events'}</span>
+                      </div>
+                      {selected.funktionen && (
+                        <div style={{ padding:'10px 0', borderBottom:'1px solid var(--gray-100)' }}>
+                          <div style={{ fontSize:11, color:'var(--gray-400)', textTransform:'uppercase', letterSpacing:'0.3px', marginBottom:3 }}>Funktionen im Verein</div>
+                          <div style={{ fontSize:13, lineHeight:1.6 }}>{selected.funktionen}</div>
+                        </div>
+                      )}
+                      {selected.qualifikationen && (
+                        <div style={{ padding:'10px 0', borderBottom:'1px solid var(--gray-100)' }}>
+                          <div style={{ fontSize:11, color:'var(--gray-400)', textTransform:'uppercase', letterSpacing:'0.3px', marginBottom:3 }}>Qualifikationen & Ausbildungen</div>
+                          <div style={{ fontSize:13, lineHeight:1.6 }}>{selected.qualifikationen}</div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -319,6 +359,28 @@ export default function Freiwillige() {
               </div>
               <div className="form-group"><label>Geburtsdatum</label><input type="date" value={form.geburtsdatum||''} onChange={e=>setForm(f=>({...f,geburtsdatum:e.target.value}))}/></div>
 
+              <div className="form-group">
+                <label>Art der Unterstützung</label>
+                <div style={{display:'flex',gap:12,flexWrap:'wrap',marginTop:4}}>
+                  {['Events','Dauerhaft','Beides'].map(art=>(
+                    <label key={art} style={{display:'flex',alignItems:'center',gap:6,fontSize:14,cursor:'pointer',fontWeight:'normal',textTransform:'none',letterSpacing:'normal'}}>
+                      <input type="radio" name="art_unterstuetzung" value={art} checked={(form.art_unterstuetzung||'Events')===art} onChange={()=>setForm(f=>({...f,art_unterstuetzung:art}))} style={{width:16,height:16}}/>
+                      {art}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label>Funktionen im Verein</label>
+                <textarea value={form.funktionen||''} onChange={e=>setForm(f=>({...f,funktionen:e.target.value}))} placeholder="z.B. Kassenwart, Jugendtrainer, Pressebeauftragter..." style={{minHeight:60}}/>
+              </div>
+
+              <div className="form-group">
+                <label>Qualifikationen & Ausbildungen</label>
+                <textarea value={form.qualifikationen||''} onChange={e=>setForm(f=>({...f,qualifikationen:e.target.value}))} placeholder="z.B. Erste-Hilfe-Schein, Schiedsrichterlizenz, Trainer C-Lizenz..." style={{minHeight:60}}/>
+              </div>
+
               <div style={{ background:'var(--gray-100)', borderRadius:'var(--radius)', padding:14, marginBottom:16 }}>
                 <div style={{ fontSize:12, fontWeight:600, color:'var(--gray-600)', textTransform:'uppercase', letterSpacing:'0.3px', marginBottom:12 }}>Kleidungsgrößen</div>
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
@@ -354,8 +416,8 @@ export default function Freiwillige() {
               </div>
               <div className="form-group"><label>Notizen</label><textarea value={form.notizen||''} onChange={e=>setForm(f=>({...f,notizen:e.target.value}))}/></div>
               <div className="form-group">
-                <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:14, cursor:'pointer', textTransform:'none' }}>
-                  <input type="checkbox" checked={form.aktiv!==false} onChange={e=>setForm(f=>({...f,aktiv:e.target.checked}))}/>Aktiv
+                <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:14, cursor:'pointer', textTransform:'none', fontWeight:'normal', letterSpacing:'normal' }}>
+                  <input type="checkbox" style={{width:18,height:18,flexShrink:0}} checked={form.aktiv!==false} onChange={e=>setForm(f=>({...f,aktiv:e.target.checked}))}/>Aktiv
                 </label>
               </div>
             </div>
@@ -378,7 +440,13 @@ export default function Freiwillige() {
             <div className="modal-body">
               <div className="form-group"><label>Name *</label><input value={faehigkeitForm.name||''} onChange={e=>setFaehigkeitForm(f=>({...f,name:e.target.value}))} autoFocus/></div>
               <div className="form-row">
-                <div className="form-group"><label>Kategorie</label><input value={faehigkeitForm.kategorie||''} onChange={e=>setFaehigkeitForm(f=>({...f,kategorie:e.target.value}))} placeholder="z.B. Technik, Service..."/></div>
+                <div className="form-group">
+                  <label>Kategorie</label>
+                  <select value={faehigkeitForm.kategorie||''} onChange={e=>setFaehigkeitForm(f=>({...f,kategorie:e.target.value}))}>
+                    <option value="">-- Keine --</option>
+                    {fkKategorien.length>0 ? fkKategorien.map(k=><option key={k.id} value={k.name}>{k.name}</option>) : ['Technik','Organisation','Service','Medien','Sicherheit','Logistik'].map(k=><option key={k}>{k}</option>)}
+                  </select>
+                </div>
                 <div className="form-group"><label>Reihenfolge</label><input type="number" value={faehigkeitForm.reihenfolge||0} onChange={e=>setFaehigkeitForm(f=>({...f,reihenfolge:parseInt(e.target.value)||0}))}/></div>
               </div>
             </div>
