@@ -126,7 +126,100 @@ function DLPreisEditor({ dlId, artikel, onSave }) {
   )
 }
 
-function EventDetail({ ev, teilnahmen, todos, ablauf, dateien, kosten, dienstleister, kostenKategorien, personen, kontakte, onEdit, onDelete, onReload, loadDetails }) {
+const RAENGE = ['Helfer','Teamleiter','Schichtleiter','Koordinator','Verantwortlicher']
+const EF_STATUS = ['Angefragt','Zugesagt','Abgesagt','Erschienen','Nicht erschienen']
+const EF_STATUS_COLORS = {
+  'Angefragt':{ bg:'#fff3cd',color:'#8a6a00' },
+  'Zugesagt':{ bg:'#e2efda',color:'#2d6b3a' },
+  'Abgesagt':{ bg:'#fce4d6',color:'#8a3a1a' },
+  'Erschienen':{ bg:'#c6efce',color:'#1a5a2a' },
+  'Nicht erschienen':{ bg:'#ececec',color:'#555' },
+}
+
+function PositionenTab({ ev, positionen, eventFreiwillige, freiwillige, faehigkeiten, onNewPosition, onEditPosition, onDeletePosition, onOpenPosition, onUpdateFreiwilligerStatus, onRemoveFreiwilliger }) {
+  const gesamtBenoetigt = positionen.reduce((s,p)=>s+(p.anzahl_benoetigt||1),0)
+  const gesamtZugeordnet = eventFreiwillige.filter(ef=>ef.status!=='Abgesagt').length
+
+  return (
+    <div>
+      <div className="toolbar">
+        <div style={{display:'flex',gap:16,fontSize:13,color:'var(--gray-500)'}}>
+          <span>Positionen: <strong style={{color:'var(--navy)'}}>{positionen.length}</strong></span>
+          <span>Plätze: <strong style={{color:gesamtZugeordnet>=gesamtBenoetigt?'var(--green)':'var(--red)'}}>{gesamtZugeordnet}/{gesamtBenoetigt}</strong></span>
+        </div>
+        <button className="btn btn-primary" onClick={onNewPosition}>+ Position</button>
+      </div>
+
+      {positionen.length===0 ? (
+        <div className="empty-state card"><p>Noch keine Positionen angelegt. Füge Positionen hinzu die besetzt werden müssen.</p></div>
+      ) : (
+        <div style={{display:'grid',gap:12}}>
+          {positionen.map(pos=>{
+            const zugeordnet = eventFreiwillige.filter(ef=>ef.position_id===pos.id)
+            const aktive = zugeordnet.filter(ef=>ef.status!=='Abgesagt')
+            const offen = (pos.anzahl_benoetigt||1) - aktive.length
+            const fk = faehigkeiten.find(f=>f.id===pos.faehigkeit_id)
+            return (
+              <div key={pos.id} style={{border:'1.5px solid var(--gray-200)',borderRadius:'var(--radius)',overflow:'hidden'}}>
+                <div style={{padding:'12px 16px',background:offen>0?'#fff8f0':'#f0f9f4',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                  <div>
+                    <div style={{display:'flex',alignItems:'center',gap:10}}>
+                      <strong style={{fontSize:15,color:'var(--navy)'}}>{pos.titel}</strong>
+                      <span style={{fontSize:11,background:offen>0?'#fce4d6':'#e2efda',color:offen>0?'#8a3a1a':'#2d6b3a',padding:'1px 8px',borderRadius:10,fontWeight:700}}>
+                        {aktive.length}/{pos.anzahl_benoetigt||1} besetzt
+                      </span>
+                      <span style={{fontSize:11,background:'#ddeaff',color:'#1a4a8a',padding:'1px 8px',borderRadius:10,fontWeight:600}}>{pos.rang||'Helfer'}</span>
+                      {fk&&<span style={{fontSize:11,background:'var(--gray-100)',color:'var(--gray-600)',padding:'1px 8px',borderRadius:10}}>{fk.name}</span>}
+                    </div>
+                    {pos.beschreibung&&<div style={{fontSize:12,color:'var(--gray-500)',marginTop:3}}>{pos.beschreibung}</div>}
+                  </div>
+                  <div style={{display:'flex',gap:6}}>
+                    <button className="btn btn-primary btn-sm" onClick={()=>onOpenPosition(pos)}>+ Zuordnen</button>
+                    <button className="btn btn-sm btn-outline" onClick={()=>onEditPosition(pos)}>Bearb.</button>
+                    <button className="btn btn-sm btn-danger" onClick={()=>onDeletePosition(pos.id)}>X</button>
+                  </div>
+                </div>
+                {zugeordnet.length>0&&(
+                  <div style={{padding:'8px 16px',display:'grid',gap:6}}>
+                    {zugeordnet.sort((a,b)=>{
+                      const r=['Verantwortlicher','Koordinator','Schichtleiter','Teamleiter','Helfer']
+                      return r.indexOf(a.rang)-r.indexOf(b.rang)
+                    }).map(ef=>{
+                      const fw=freiwillige.find(f=>f.id===ef.freiwilliger_id)
+                      const sc=EF_STATUS_COLORS[ef.status]||{bg:'#ececec',color:'#555'}
+                      return (
+                        <div key={ef.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 10px',background:'var(--white)',borderRadius:'var(--radius)',border:'1px solid var(--gray-100)'}}>
+                          <div style={{display:'flex',alignItems:'center',gap:10}}>
+                            <div style={{width:28,height:28,borderRadius:'50%',background:'var(--navy)',color:'white',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:700,flexShrink:0}}>
+                              {(fw?.vorname?.[0]||'?')+(fw?.nachname?.[0]||'')}
+                            </div>
+                            <div>
+                              <div style={{fontSize:13,fontWeight:600}}>{fw?fw.vorname+' '+fw.nachname:ef.freiwilliger_id}</div>
+                              <div style={{fontSize:11,color:'var(--gray-400)'}}>{ef.rang}</div>
+                            </div>
+                          </div>
+                          <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                            <select value={ef.status} onChange={e=>onUpdateFreiwilligerStatus(ef.id,e.target.value)}
+                              style={{fontSize:11,padding:'3px 8px',border:'1.5px solid var(--gray-200)',borderRadius:20,background:sc.bg,color:sc.color,fontWeight:600,cursor:'pointer'}}>
+                              {EF_STATUS.map(s=><option key={s}>{s}</option>)}
+                            </select>
+                            <button onClick={()=>onRemoveFreiwilliger(ef.id)} style={{background:'none',border:'none',cursor:'pointer',color:'var(--red)',fontSize:16,lineHeight:1}}>×</button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function EventDetail({ ev, teilnahmen, todos, ablauf, dateien, kosten, dienstleister, kostenKategorien, personen, kontakte, positionen, eventFreiwillige, freiwillige, faehigkeiten, onOpenPosition, onNewPosition, onEditPosition, onDeletePosition, onUpdateFreiwilligerStatus, onRemoveFreiwilliger, onEdit, onDelete, onReload, loadDetails }) {
   const [tab, setTab] = useState('teilnehmer')
   const [statusFilter, setStatusFilter] = useState('')
   const [saving, setSaving] = useState(false)
@@ -282,7 +375,7 @@ ${ev.notizen?`<h2>Notizen</h2><div style="background:#f8f5ef;padding:14px;border
       </div>
 
       <div className="tabs" style={{marginBottom:16}}>
-        {[['teilnehmer','Teilnehmer ('+teilnahmen.length+')'],['todos','ToDos ('+todos.length+')'],['ablauf','Ablaufplan'],['agenda','Agenda'],['notizen','Notizen'],['dateien','Dateien ('+dateien.length+')'],['kosten','Kosten']].map(([k,l])=>(
+        {[['teilnehmer','Teilnehmer ('+teilnahmen.length+')'],['positionen','👥 Positionen'],['todos','ToDos ('+todos.length+')'],['ablauf','Ablaufplan'],['agenda','Agenda'],['notizen','Notizen'],['dateien','Dateien ('+dateien.length+')'],['kosten','Kosten']].map(([k,l])=>(
           <button key={k} className={'tab-btn'+(tab===k?' active':'')} onClick={()=>setTab(k)}>{l}</button>
         ))}
       </div>
@@ -323,6 +416,22 @@ ${ev.notizen?`<h2>Notizen</h2><div style="background:#f8f5ef;padding:14px;border
             </div>
           )}
         </div>
+      )}
+
+      {tab==='positionen'&&(
+        <PositionenTab
+          ev={ev}
+          positionen={positionen}
+          eventFreiwillige={eventFreiwillige}
+          freiwillige={freiwillige}
+          faehigkeiten={faehigkeiten}
+          onNewPosition={onNewPosition}
+          onEditPosition={onEditPosition}
+          onDeletePosition={onDeletePosition}
+          onOpenPosition={onOpenPosition}
+          onUpdateFreiwilligerStatus={onUpdateFreiwilligerStatus}
+          onRemoveFreiwilliger={onRemoveFreiwilliger}
+        />
       )}
 
       {tab==='todos'&&(
@@ -597,6 +706,15 @@ export default function Events() {
   const [neuerPreisModal, setNeuerPreisModal] = useState(false)
   const [neuerPreisForm, setNeuerPreisForm] = useState({})
   const [selectedDLArtikel, setSelectedDLArtikel] = useState(null)
+  const [freiwillige, setFreiwillige] = useState([])
+  const [faehigkeiten, setFaehigkeiten] = useState([])
+  const [positionen, setPositionen] = useState([])
+  const [eventFreiwillige, setEventFreiwillige] = useState([])
+  const [positionModal, setPositionModal] = useState(false)
+  const [positionForm, setPositionForm] = useState({})
+  const [freiwilligerModal, setFreiwilligerModal] = useState(false)
+  const [freiwilligerForm, setFreiwilligerForm] = useState({})
+  const [selectedPosition, setSelectedPosition] = useState(null)
   const [dlTyp, setDlTyp] = useState('')
   const [eventArten, setEventArten] = useState([])
   const [eventStatus, setEventStatus] = useState([])
@@ -613,7 +731,7 @@ export default function Events() {
   useEffect(() => { if (selectedEvent) loadDetails(selectedEvent.id) }, [selectedEvent])
 
   async function loadAll() {
-    const [{ data:e },{ data:k },{ data:o },{ data:p },{ data:dl },{ data:kk },{ data:ak },{ data:ea },{ data:es },{ data:dlt },{ data:dla }] = await Promise.all([
+    const [{ data:e },{ data:k },{ data:o },{ data:p },{ data:dl },{ data:kk },{ data:ak },{ data:ea },{ data:es },{ data:dlt },{ data:dla },{ data:fw },{ data:fwfk }] = await Promise.all([
       supabase.from('veranstaltungen').select('*').order('datum', { ascending: false }),
       supabase.from('kontakte').select('id,firma,ist_ev,logo_url').order('firma'),
       supabase.from('veranstaltungsorte').select('*').order('name'),
@@ -625,6 +743,8 @@ export default function Events() {
       supabase.from('event_status_liste').select('*').eq('aktiv', true).order('reihenfolge'),
       supabase.from('dienstleister_typen').select('*').eq('aktiv', true).order('reihenfolge'),
       supabase.from('dienstleistungsartikel').select('*').eq('aktiv', true).order('reihenfolge'),
+      supabase.from('freiwillige').select('id,vorname,nachname,email,freiwillige_zu_faehigkeiten(faehigkeit_id)').eq('aktiv', true).order('nachname'),
+      supabase.from('freiwillige_faehigkeiten').select('*').eq('aktiv', true).order('reihenfolge'),
     ])
     setEvents(e||[])
     setKontakte(k||[])
@@ -655,6 +775,7 @@ export default function Events() {
       const { data:td } = await supabase.from('event_todos').select('*').eq('event_id', id).order('erstellt_am')
       setTodos(td||[])
     } catch { setTodos([]) }
+    loadPositionen(id)
   }
 
   function openNewEvent() {
@@ -703,6 +824,33 @@ export default function Events() {
     if (dlForm.id) { await supabase.from('dienstleister').update(p).eq('id', dlForm.id); if (selectedDL?.id===dlForm.id) setSelectedDL(d=>({...d,...p})) }
     else { const { data } = await supabase.from('dienstleister').insert(p).select().single(); if (data) { setSelectedDL(data); loadDLHistorie(data.id) } }
     setDlModal(false); setSaving(false); loadAll()
+  }
+
+  async function loadPositionen(eventId) {
+    const [{ data:pos },{ data:efw }] = await Promise.all([
+      supabase.from('event_positionen').select('*,freiwillige_faehigkeiten(name)').eq('event_id', eventId).order('reihenfolge'),
+      supabase.from('event_freiwillige').select('*,freiwillige(vorname,nachname)').eq('event_id', eventId),
+    ])
+    setPositionen(pos||[])
+    setEventFreiwillige(efw||[])
+  }
+
+  async function savePosition() {
+    if (!positionForm.titel?.trim() || !selectedEvent) return
+    setSaving(true)
+    const p = { event_id:selectedEvent.id, titel:positionForm.titel, beschreibung:positionForm.beschreibung||null, anzahl_benoetigt:positionForm.anzahl_benoetigt||1, faehigkeit_id:positionForm.faehigkeit_id||null, rang:positionForm.rang||'Helfer', reihenfolge:positionForm.reihenfolge||positionen.length }
+    if (positionForm.id) await supabase.from('event_positionen').update(p).eq('id', positionForm.id)
+    else await supabase.from('event_positionen').insert(p)
+    setPositionModal(false); setSaving(false); loadPositionen(selectedEvent.id)
+  }
+
+  async function saveFreiwilligerZuordnung() {
+    if (!freiwilligerForm.freiwilliger_id || !selectedPosition || !selectedEvent) return
+    setSaving(true)
+    const p = { event_id:selectedEvent.id, position_id:selectedPosition.id, freiwilliger_id:freiwilligerForm.freiwilliger_id, rang:freiwilligerForm.rang||'Helfer', status:freiwilligerForm.status||'Angefragt', notiz:freiwilligerForm.notiz||null }
+    if (freiwilligerForm.id) await supabase.from('event_freiwillige').update(p).eq('id', freiwilligerForm.id)
+    else await supabase.from('event_freiwillige').upsert(p, { onConflict:'event_id,position_id,freiwilliger_id' })
+    setFreiwilligerModal(false); setSaving(false); loadPositionen(selectedEvent.id)
   }
 
   async function loadDLArtikelZuordnung(dlId) {
@@ -1201,6 +1349,90 @@ export default function Events() {
               )}
             </div>
             <div className="modal-footer"><button className="btn btn-outline" onClick={()=>setPreisModal(false)}>Schliessen</button></div>
+          </div>
+        </div>
+      )}
+
+      {positionModal&&(
+        <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setPositionModal(false)}>
+          <div className="modal">
+            <div className="modal-header">
+              <span className="modal-title">{positionForm.id?'Position bearbeiten':'Neue Position'}</span>
+              <button className="close-btn" onClick={()=>setPositionModal(false)}>x</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-row">
+                <div className="form-group"><label>Titel *</label><input value={positionForm.titel||''} onChange={e=>setPositionForm(f=>({...f,titel:e.target.value}))} autoFocus placeholder="z.B. Einlass, Catering, Ordner..."/></div>
+                <div className="form-group"><label>Anzahl benötigt</label><input type="number" min="1" value={positionForm.anzahl_benoetigt||1} onChange={e=>setPositionForm(f=>({...f,anzahl_benoetigt:parseInt(e.target.value)||1}))}/></div>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Rang</label>
+                  <select value={positionForm.rang||'Helfer'} onChange={e=>setPositionForm(f=>({...f,rang:e.target.value}))}>
+                    {RAENGE.map(r=><option key={r}>{r}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Erforderliche Fähigkeit</label>
+                  <select value={positionForm.faehigkeit_id||''} onChange={e=>setPositionForm(f=>({...f,faehigkeit_id:e.target.value||null}))}>
+                    <option value="">-- Keine --</option>
+                    {faehigkeiten.map(fk=><option key={fk.id} value={fk.id}>{fk.name}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="form-group"><label>Beschreibung</label><textarea value={positionForm.beschreibung||''} onChange={e=>setPositionForm(f=>({...f,beschreibung:e.target.value}))} style={{minHeight:60}}/></div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={()=>setPositionModal(false)}>Abbrechen</button>
+              <button className="btn btn-primary" onClick={savePosition} disabled={saving}>{saving?'Speichern...':'Speichern'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {freiwilligerModal&&selectedPosition&&(
+        <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setFreiwilligerModal(false)}>
+          <div className="modal" style={{maxWidth:560}}>
+            <div className="modal-header">
+              <span className="modal-title">Freiwilligen zuordnen: {selectedPosition.titel}</span>
+              <button className="close-btn" onClick={()=>setFreiwilligerModal(false)}>x</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-group">
+                <label>Person *</label>
+                <select value={freiwilligerForm.freiwilliger_id||''} onChange={e=>setFreiwilligerForm(f=>({...f,freiwilliger_id:e.target.value}))}>
+                  <option value="">-- Person wählen --</option>
+                  {freiwillige
+                    .filter(fw => {
+                      if (!selectedPosition.faehigkeit_id) return true
+                      return (fw.freiwillige_zu_faehigkeiten||[]).some(z=>z.faehigkeit_id===selectedPosition.faehigkeit_id)
+                    })
+                    .map(fw=>(
+                      <option key={fw.id} value={fw.id}>{fw.vorname} {fw.nachname}</option>
+                    ))}
+                </select>
+                {selectedPosition.faehigkeit_id&&<p style={{fontSize:11,color:'var(--gray-400)',marginTop:4}}>Gefiltert nach Fähigkeit: {faehigkeiten.find(f=>f.id===selectedPosition.faehigkeit_id)?.name}</p>}
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Rang</label>
+                  <select value={freiwilligerForm.rang||'Helfer'} onChange={e=>setFreiwilligerForm(f=>({...f,rang:e.target.value}))}>
+                    {RAENGE.map(r=><option key={r}>{r}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Status</label>
+                  <select value={freiwilligerForm.status||'Angefragt'} onChange={e=>setFreiwilligerForm(f=>({...f,status:e.target.value}))}>
+                    {EF_STATUS.map(s=><option key={s}>{s}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="form-group"><label>Notiz</label><textarea value={freiwilligerForm.notiz||''} onChange={e=>setFreiwilligerForm(f=>({...f,notiz:e.target.value}))} style={{minHeight:60}} placeholder="z.B. braucht Einweisung, kommt erst ab 18 Uhr..."/></div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={()=>setFreiwilligerModal(false)}>Abbrechen</button>
+              <button className="btn btn-primary" onClick={saveFreiwilligerZuordnung} disabled={saving}>{saving?'Speichern...':'Zuordnen'}</button>
+            </div>
           </div>
         </div>
       )}
