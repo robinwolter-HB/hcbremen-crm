@@ -731,7 +731,7 @@ export default function Events() {
   useEffect(() => { if (selectedEvent) loadDetails(selectedEvent.id) }, [selectedEvent])
 
   async function loadAll() {
-    const [{ data:e },{ data:k },{ data:o },{ data:p },{ data:dl },{ data:kk },{ data:ak },{ data:ea },{ data:es },{ data:dlt },{ data:dla },{ data:fw },{ data:fwfk }] = await Promise.all([
+    const [{ data:e },{ data:k },{ data:o },{ data:p },{ data:dl },{ data:kk },{ data:ak },{ data:ea },{ data:es },{ data:dlt },{ data:dla }] = await Promise.all([
       supabase.from('veranstaltungen').select('*').order('datum', { ascending: false }),
       supabase.from('kontakte').select('id,firma,ist_ev,logo_url').order('firma'),
       supabase.from('veranstaltungsorte').select('*').order('name'),
@@ -743,8 +743,6 @@ export default function Events() {
       supabase.from('event_status_liste').select('*').eq('aktiv', true).order('reihenfolge'),
       supabase.from('dienstleister_typen').select('*').eq('aktiv', true).order('reihenfolge'),
       supabase.from('dienstleistungsartikel').select('*').eq('aktiv', true).order('reihenfolge'),
-      supabase.from('freiwillige').select('id,vorname,nachname,email,freiwillige_zu_faehigkeiten(faehigkeit_id)').eq('aktiv', true).order('nachname'),
-      supabase.from('freiwillige_faehigkeiten').select('*').eq('aktiv', true).order('reihenfolge'),
     ])
     setEvents(e||[])
     setKontakte(k||[])
