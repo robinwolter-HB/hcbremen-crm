@@ -41,7 +41,7 @@ export default function Freiwillige() {
 
   async function load() {
     const [{ data: f }, { data: fk }] = await Promise.all([
-      supabase.from('freiwillige').select('*,freiwillige_zu_faehigkeiten(faehigkeit_id,erfahrung,freiwillige_faehigkeiten(name,kategorie))').order('nachname'),
+      supabase.from('freiwillige').select('*').order('nachname'),
       supabase.from('freiwillige_faehigkeiten').select('*').eq('aktiv', true).order('reihenfolge'),
     ])
     setListe(f || [])
@@ -106,7 +106,7 @@ export default function Freiwillige() {
   const filtered = liste.filter(f => {
     const name = (f.vorname + ' ' + f.nachname).toLowerCase()
     const matchSearch = !search || name.includes(search.toLowerCase()) || (f.email||'').toLowerCase().includes(search.toLowerCase())
-    const matchFk = !faehigkeitFilter || (f.freiwillige_zu_faehigkeiten||[]).some(z => z.faehigkeit_id === faehigkeitFilter)
+    const matchFk = !faehigkeitFilter
     return matchSearch && matchFk
   })
 
@@ -135,7 +135,7 @@ export default function Freiwillige() {
           <div style={{ display:'grid', gap:8 }}>
             {filtered.length === 0 && <div className="card" style={{ textAlign:'center', color:'var(--gray-400)', fontSize:13, padding:32 }}>Keine Personen gefunden.</div>}
             {filtered.map(f => {
-              const fks = (f.freiwillige_zu_faehigkeiten || [])
+
               return (
                 <div key={f.id} onClick={() => { setSelected(f); setDetailTab('profil') }}
                   style={{ padding:14, border:'1.5px solid '+(selected?.id===f.id?'var(--navy)':'var(--gray-200)'), borderRadius:'var(--radius)', cursor:'pointer', background:selected?.id===f.id?'rgba(15,34,64,0.04)':'var(--white)', opacity:f.aktiv?1:0.6 }}>
@@ -144,14 +144,7 @@ export default function Freiwillige() {
                     {!f.aktiv && <span style={{ fontSize:10, background:'var(--gray-200)', color:'var(--gray-600)', padding:'1px 6px', borderRadius:10 }}>Inaktiv</span>}
                   </div>
                   {f.email && <div style={{ fontSize:11, color:'var(--gray-500)' }}>{f.email}</div>}
-                  {fks.length > 0 && (
-                    <div style={{ display:'flex', gap:4, flexWrap:'wrap', marginTop:6 }}>
-                      {fks.slice(0,3).map(z => (
-                        <span key={z.faehigkeit_id} style={{ fontSize:10, background:'#ddeaff', color:'#1a4a8a', padding:'1px 6px', borderRadius:10 }}>{z.freiwillige_faehigkeiten?.name}</span>
-                      ))}
-                      {fks.length > 3 && <span style={{ fontSize:10, color:'var(--gray-400)' }}>+{fks.length-3}</span>}
-                    </div>
-                  )}
+
                 </div>
               )
             })}
