@@ -18,6 +18,7 @@ import Einstellungen from './pages/Einstellungen'
 import Freiwillige from './pages/Freiwillige'
 import Inbox from './pages/Inbox'
 import EV from './pages/EV'
+import MediaHub from './pages/MediaHub'
 
 function PrivateRoute({ children, bereich }) {
   const { user, loading, canAccess } = useAuth()
@@ -105,6 +106,12 @@ function Header() {
     await supabase.auth.signOut()
   }
 
+  // Zugriff auf Media: admin, rolle=media, oder 'media' im bereiche-Array
+  const canAccessMedia = () => {
+    if (!profile) return false
+    return profile.rolle === 'admin' || profile.rolle === 'media' || (profile.bereiche || []).includes('media')
+  }
+
   if (!user) return null
 
   return (
@@ -123,6 +130,9 @@ function Header() {
           {canAccess('sponsoring') && <NavLink to="/sponsoring" className={({isActive})=>'nav-link'+(isActive?' active':'')} onClick={()=>setNavOpen(false)}>🤝 Sponsoring</NavLink>}
           {isAdmin() && <NavLink to="/ev" className={({isActive})=>'nav-link'+(isActive?' active':'')} onClick={()=>setNavOpen(false)}>🏛️ e.V.</NavLink>}
           {canAccess('events') && <NavLink to="/freiwillige" className={({isActive})=>'nav-link'+(isActive?' active':'')} onClick={()=>setNavOpen(false)}>👥 Freiwillige</NavLink>}
+          {canAccessMedia() && (
+            <NavLink to="/media" className={({isActive})=>'nav-link'+(isActive?' active':'')} onClick={()=>setNavOpen(false)}>📸 Media</NavLink>
+          )}
           <DropdownMenu label="📋 Aktivitäten" onClose={()=>setNavOpen(false)} items={[
             ...(canAccess('historie') ? [{ to:'/historie', label:'📋 Historie' }] : []),
             { to:'/aufgaben', label:'✓ Aufgaben' },
@@ -161,6 +171,7 @@ function App() {
             <Route path="/inbox" element={<PrivateRoute><Inbox /></PrivateRoute>} />
             <Route path="/ev" element={<PrivateRoute><EV /></PrivateRoute>} />
             <Route path="/freiwillige" element={<PrivateRoute bereich="events"><Freiwillige /></PrivateRoute>} />
+            <Route path="/media/*" element={<PrivateRoute bereich="media"><MediaHub /></PrivateRoute>} />
           </Routes>
         </div>
       </BrowserRouter>
