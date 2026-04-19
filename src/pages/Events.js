@@ -1007,6 +1007,13 @@ export default function Events() {
                 ev={selectedEvent}
                 teilnahmen={teilnahmen} todos={todos} ablauf={ablauf} dateien={dateien} kosten={kosten}
                 dienstleister={dienstleister} kostenKategorien={kostenKategorien} personen={personen} kontakte={kontakte}
+                positionen={positionen} eventFreiwillige={eventFreiwillige} freiwillige={freiwillige} faehigkeiten={faehigkeiten}
+                onNewPosition={()=>{ setPositionForm({anzahl_benoetigt:1,rang:'Helfer',reihenfolge:positionen.length}); setPositionModal(true) }}
+                onEditPosition={(pos)=>{ setPositionForm(pos); setPositionModal(true) }}
+                onDeletePosition={async(id)=>{ if(!window.confirm('Position loeschen?'))return; await supabase.from('event_positionen').delete().eq('id',id); loadPositionen(selectedEvent.id) }}
+                onOpenPosition={(pos)=>{ setSelectedPosition(pos); setFreiwilligerForm({status:'Angefragt',rang:'Helfer'}); setFreiwilligerModal(true) }}
+                onUpdateFreiwilligerStatus={async(id,status)=>{ await supabase.from('event_freiwillige').update({status}).eq('id',id); loadPositionen(selectedEvent.id) }}
+                onRemoveFreiwilliger={async(id)=>{ await supabase.from('event_freiwillige').delete().eq('id',id); loadPositionen(selectedEvent.id) }}
                 onEdit={()=>{ setEventForm(selectedEvent); setEventModal(true) }}
                 onDelete={()=>deleteEvent(selectedEvent.id)}
                 onReload={loadAll}
