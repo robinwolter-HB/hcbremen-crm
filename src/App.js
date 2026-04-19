@@ -116,19 +116,19 @@ function Header() {
         </button>
         <span className="user-badge">{profile?.name || user.email}</span>
         <nav className={`nav${navOpen ? ' open' : ''}`} onClick={e => { if(e.target===e.currentTarget) setNavOpen(false) }}>
-          <NavLink to="/" className={({isActive})=>'nav-link'+(isActive?' active':'')} end onClick={()=>setNavOpen(false)}>Dashboard</NavLink>
-          {canAccess('kontakte') && <NavLink to="/kontakte" className={({isActive})=>'nav-link'+(isActive?' active':'')} onClick={()=>setNavOpen(false)}>Kontakte</NavLink>}
-          {canAccess('events') && <NavLink to="/events" className={({isActive})=>'nav-link'+(isActive?' active':'')} onClick={()=>setNavOpen(false)}>Events</NavLink>}
-          {canAccess('sponsoring') && <NavLink to="/sponsoring" className={({isActive})=>'nav-link'+(isActive?' active':'')} onClick={()=>setNavOpen(false)}>Sponsoring</NavLink>}
-          {isAdmin() && <NavLink to="/ev" className={({isActive})=>'nav-link'+(isActive?' active':'')} onClick={()=>setNavOpen(false)}>e.V.</NavLink>}
-          <DropdownMenu label="Aktivitaeten" onClose={()=>setNavOpen(false)} items={[
-            ...(canAccess('historie') ? [{ to:'/historie', label:'Historie' }] : []),
-            { to:'/aufgaben', label:'Aufgaben' },
-            { to:'/kalender', label:'Kalender' },
-            { to:'/inbox', label:'Inbox', badge: unreadCount },
+          <NavLink to="/" className={({isActive})=>'nav-link'+(isActive?' active':'')} end onClick={()=>setNavOpen(false)}>🏠 Dashboard</NavLink>
+          {canAccess('kontakte') && <NavLink to="/kontakte" className={({isActive})=>'nav-link'+(isActive?' active':'')} onClick={()=>setNavOpen(false)}>👥 Kontakte</NavLink>}
+          {canAccess('events') && <NavLink to="/events" className={({isActive})=>'nav-link'+(isActive?' active':'')} onClick={()=>setNavOpen(false)}>📅 Events</NavLink>}
+          {canAccess('sponsoring') && <NavLink to="/sponsoring" className={({isActive})=>'nav-link'+(isActive?' active':'')} onClick={()=>setNavOpen(false)}>🤝 Sponsoring</NavLink>}
+          {isAdmin() && <NavLink to="/ev" className={({isActive})=>'nav-link'+(isActive?' active':'')} onClick={()=>setNavOpen(false)}>🏛️ e.V.</NavLink>}
+          <DropdownMenu label="📋 Aktivitäten" onClose={()=>setNavOpen(false)} items={[
+            ...(canAccess('historie') ? [{ to:'/historie', label:'📋 Historie' }] : []),
+            { to:'/aufgaben', label:'✓ Aufgaben' },
+            { to:'/kalender', label:'📅 Kalender' },
+            { to:'/inbox', label:'📬 Inbox', badge: unreadCount },
           ]} onEmail={()=>setEmailModal(true)}/>
-          <DropdownMenu label="Verwaltung" onClose={()=>setNavOpen(false)} items={[
-            ...(isAdmin() ? [{ to:'/benutzer', label:'Nutzer' }, { to:'/einstellungen', label:'Einstellungen' }] : []),
+          <DropdownMenu label="⚙️ Verwaltung" onClose={()=>setNavOpen(false)} items={[
+            ...(isAdmin() ? [{ to:'/benutzer', label:'👥 Nutzer' }, { to:'/einstellungen', label:'⚙️ Einstellungen' }] : []),
           ]} onLogout={handleLogout}/>
         </nav>
       </div>
