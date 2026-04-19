@@ -222,17 +222,21 @@ export default function Einstellungen() {
   const [eventStatus, setEventStatus] = useState([])
   const [dlTypen, setDlTypen] = useState([])
   const [dlArtikel, setDlArtikel] = useState([])
+  const [fkKategorien, setFkKategorien] = useState([])
+  const [posKategorien, setPosKategorien] = useState([])
 
   useEffect(() => { load() }, [])
 
   async function load() {
-    const [{ data:k },{ data:s },{ data:ea },{ data:es },{ data:dt },{ data:da }] = await Promise.all([
+    const [{ data:k },{ data:s },{ data:ea },{ data:es },{ data:dt },{ data:da },{ data:fkk },{ data:pk }] = await Promise.all([
       supabase.from('kontakt_kategorien').select('*').order('reihenfolge'),
       supabase.from('crm_status').select('*').order('reihenfolge'),
       supabase.from('event_arten').select('*').order('reihenfolge'),
       supabase.from('event_status_liste').select('*').order('reihenfolge'),
       supabase.from('dienstleister_typen').select('*').order('reihenfolge'),
       supabase.from('dienstleistungsartikel').select('*').order('reihenfolge'),
+      supabase.from('freiwillige_faehigkeit_kategorien').select('*').order('reihenfolge'),
+      supabase.from('event_position_kategorien').select('*').order('reihenfolge'),
     ])
     setKategorien(k||[])
     setStatus(s||[])
@@ -240,6 +244,8 @@ export default function Einstellungen() {
     setEventStatus(es||[])
     setDlTypen(dt||[])
     setDlArtikel(da||[])
+    setFkKategorien(fkk||[])
+    setPosKategorien(pk||[])
     setLoading(false)
   }
 
@@ -267,6 +273,8 @@ export default function Einstellungen() {
   const eStatusCRUD = makeCRUD('event_status_liste', setEventStatus)
   const dlTypenCRUD = makeCRUD('dienstleister_typen', setDlTypen)
   const dlArtikelCRUD = makeCRUD('dienstleistungsartikel', setDlArtikel)
+  const fkKatCRUD = makeCRUD('freiwillige_faehigkeit_kategorien', setFkKategorien)
+  const posKatCRUD = makeCRUD('event_position_kategorien', setPosKategorien)
 
   if (!isAdmin()) return (
     <main className="main">
@@ -283,6 +291,8 @@ export default function Einstellungen() {
     ['event-status','🔄 Event-Status'],
     ['dl-typen','🏢 Dienstleister-Typen'],
     ['dl-artikel','📦 Dienstleistungsartikel'],
+    ['fk-kategorien','🏷️ Fähigkeits-Kategorien'],
+    ['pos-kategorien','📍 Positions-Kategorien'],
     ['klauseln','📋 Vertragsklauseln'],
     ['info','ℹ️ Info'],
   ]
@@ -331,6 +341,30 @@ export default function Einstellungen() {
           <div className="card" style={{marginTop:16,background:'#f8f5ef',border:'1.5px solid #e0ddd6'}}>
             <div style={{fontSize:13,color:'var(--gray-600)'}}>
               <strong>Hinweis:</strong> Preise pro Dienstleister werden im Dienstleister-Tab unter Events eingetragen. Dort kannst du fuer jeden Artikel den Preis pro Dienstleister vergleichen.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {tab==='fk-kategorien' && (
+        <div>
+          <VerwaltungsBlock titel="Fähigkeits-Kategorien (Freiwillige)" items={fkKategorien}
+            onSave={fkKatCRUD.save} onDelete={fkKatCRUD.delete} onToggle={fkKatCRUD.toggle} felder={[]}/>
+          <div className="card" style={{marginTop:16,background:'#f8f5ef',border:'1.5px solid #e0ddd6'}}>
+            <div style={{fontSize:13,color:'var(--gray-600)'}}>
+              <strong>Hinweis:</strong> Diese Kategorien werden in der Freiwilligen-Verwaltung zur Gruppierung der Fähigkeiten verwendet. Fähigkeiten selbst werden direkt in der Freiwilligen-Seite angelegt.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {tab==='pos-kategorien' && (
+        <div>
+          <VerwaltungsBlock titel="Positions-Kategorien (Events)" items={posKategorien}
+            onSave={posKatCRUD.save} onDelete={posKatCRUD.delete} onToggle={posKatCRUD.toggle} felder={[]}/>
+          <div className="card" style={{marginTop:16,background:'#f8f5ef',border:'1.5px solid #e0ddd6'}}>
+            <div style={{fontSize:13,color:'var(--gray-600)'}}>
+              <strong>Hinweis:</strong> Diese Kategorien können bei Event-Positionen als Typ verwendet werden um Positionen zu gruppieren (z.B. Einlass, Catering, Technik).
             </div>
           </div>
         </div>
