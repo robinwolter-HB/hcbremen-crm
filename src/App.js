@@ -15,6 +15,7 @@ import MeineAufgaben from './pages/MeineAufgaben'
 import Kalender from './pages/Kalender'
 import EmailModal from './components/EmailModal'
 import Einstellungen from './pages/Einstellungen'
+import Freiwillige from './pages/Freiwillige'
 import Inbox from './pages/Inbox'
 import EV from './pages/EV'
 
@@ -121,6 +122,7 @@ function Header() {
           {canAccess('events') && <NavLink to="/events" className={({isActive})=>'nav-link'+(isActive?' active':'')} onClick={()=>setNavOpen(false)}>📅 Events</NavLink>}
           {canAccess('sponsoring') && <NavLink to="/sponsoring" className={({isActive})=>'nav-link'+(isActive?' active':'')} onClick={()=>setNavOpen(false)}>🤝 Sponsoring</NavLink>}
           {isAdmin() && <NavLink to="/ev" className={({isActive})=>'nav-link'+(isActive?' active':'')} onClick={()=>setNavOpen(false)}>🏛️ e.V.</NavLink>}
+          {canAccess('events') && <NavLink to="/freiwillige" className={({isActive})=>'nav-link'+(isActive?' active':'')} onClick={()=>setNavOpen(false)}>👥 Freiwillige</NavLink>}
           <DropdownMenu label="📋 Aktivitäten" onClose={()=>setNavOpen(false)} items={[
             ...(canAccess('historie') ? [{ to:'/historie', label:'📋 Historie' }] : []),
             { to:'/aufgaben', label:'✓ Aufgaben' },
