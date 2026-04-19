@@ -1013,7 +1013,7 @@ export default function Events() {
   useEffect(() => { if (selectedEvent) loadDetails(selectedEvent.id) }, [selectedEvent])
 
   async function loadAll() {
-    const [{ data:e },{ data:k },{ data:o },{ data:p },{ data:dl },{ data:kk },{ data:ak },{ data:ea },{ data:es },{ data:dlt },{ data:dla }] = await Promise.all([
+    const [{ data:e },{ data:k },{ data:o },{ data:p },{ data:dl },{ data:kk },{ data:ak },{ data:ea },{ data:es },{ data:dlt },{ data:dla },{ data:inv },{ data:vl }] = await Promise.all([
       supabase.from('veranstaltungen').select('*').order('datum', { ascending: false }),
       supabase.from('kontakte').select('id,firma,ist_ev,logo_url').order('firma'),
       supabase.from('veranstaltungsorte').select('*').order('name'),
@@ -1025,6 +1025,8 @@ export default function Events() {
       supabase.from('event_status_liste').select('*').eq('aktiv', true).order('reihenfolge'),
       supabase.from('dienstleister_typen').select('*').eq('aktiv', true).order('reihenfolge'),
       supabase.from('dienstleistungsartikel').select('*').eq('aktiv', true).order('reihenfolge'),
+      supabase.from('inventar').select('*').order('name'),
+      supabase.from('inventar_vorlagen').select('*,inventar_vorlagen_positionen(*,inventar(name,einheit))').eq('aktiv', true).order('name'),
     ])
     setEvents(e||[])
     setKontakte(k||[])
@@ -1037,6 +1039,8 @@ export default function Events() {
     setEventStatus(es||[])
     setDlTypen(dlt||[])
     setDlArtikel(dla||[])
+    setInventar(inv||[])
+    setVorlagen(vl||[])
     setLoading(false)
   }
 
