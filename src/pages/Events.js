@@ -43,6 +43,45 @@ function Modal({ open, onClose, title, children, footer }) {
   )
 }
 
+function DLPreisEditor({ dlId, artikel, onSave }) {
+  const [preis, setPreis] = useState('')
+  const [kommentar, setKommentar] = useState('')
+  const [loaded, setLoaded] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    supabase.from('dienstleister_preise').select('*').eq('dienstleister_id', dlId).eq('artikel_id', artikel.id).single()
+      .then(({ data }) => {
+        if (data) { setPreis(data.preis||''); setKommentar(data.kommentar||'') }
+        setLoaded(true)
+      })
+  }, [dlId, artikel.id])
+
+  async function save() {
+    setSaving(true)
+    await onSave(dlId, artikel.id, preis, kommentar)
+    setSaving(false)
+  }
+
+  if (!loaded) return <div style={{fontSize:12,color:'var(--gray-400)'}}>...</div>
+
+  return (
+    <div style={{display:'flex',gap:8,alignItems:'center'}}>
+      <div style={{display:'flex',alignItems:'center',gap:4}}>
+        <input type="number" value={preis} onChange={e=>setPreis(e.target.value)} placeholder="Preis"
+          style={{width:90,padding:'6px 10px',border:'1.5px solid var(--gray-200)',borderRadius:'var(--radius)',fontSize:13}}/>
+        <span style={{fontSize:12,color:'var(--gray-400)'}}>EUR/{artikel.einheit}</span>
+      </div>
+      <input value={kommentar} onChange={e=>setKommentar(e.target.value)} placeholder="Kommentar"
+        style={{flex:1,padding:'6px 10px',border:'1.5px solid var(--gray-200)',borderRadius:'var(--radius)',fontSize:13}}/>
+      <button onClick={save} disabled={saving} className="btn btn-sm btn-outline"
+        style={{flexShrink:0,color:'var(--green)',borderColor:'var(--green)'}}>
+        {saving?'...':'Speichern'}
+      </button>
+    </div>
+  )
+}
+
 function EventDetail({ ev, teilnahmen, todos, ablauf, dateien, kosten, dienstleister, kostenKategorien, personen, kontakte, onEdit, onDelete, onReload, loadDetails }) {
   const [tab, setTab] = useState('teilnehmer')
   const [statusFilter, setStatusFilter] = useState('')
@@ -505,13 +544,24 @@ export default function Events() {
   const [selectedDL, setSelectedDL] = useState(null)
   const [dlHistorie, setDlHistorie] = useState([])
   const [dlSearch, setDlSearch] = useState('')
+  const [dlDetailTab, setDlDetailTab] = useState('historie')
   const [dlTyp, setDlTyp] = useState('')
+  const [eventArten, setEventArten] = useState([])
+  const [eventStatus, setEventStatus] = useState([])
+  const [dlArtikel, setDlArtikel] = useState([])
+  const [dlTypen, setDlTypen] = useState([])
+  const [preisModal, setPreisModal] = useState(false)
+  const [preisVergleich, setPreisVergleich] = useState([])
+  const [selectedArtikel, setSelectedArtikel] = useState(null)
+  const [dlDokModal, setDlDokModal] = useState(false)
+  const [dlDokForm, setDlDokForm] = useState({})
+  const [dlDokumente, setDlDokumente] = useState([])
 
   useEffect(() => { loadAll() }, [])
   useEffect(() => { if (selectedEvent) loadDetails(selectedEvent.id) }, [selectedEvent])
 
   async function loadAll() {
-    const [{ data:e },{ data:k },{ data:o },{ data:p },{ data:dl },{ data:kk },{ data:ak }] = await Promise.all([
+    const [{ data:e },{ data:k },{ data:o },{ data:p },{ data:dl },{ data:kk },{ data:ak },{ data:ea },{ data:es },{ data:dlt },{ data:dla }] = await Promise.all([
       supabase.from('veranstaltungen').select('*').order('datum', { ascending: false }),
       supabase.from('kontakte').select('id,firma,ist_ev,logo_url').order('firma'),
       supabase.from('veranstaltungsorte').select('*').order('name'),
@@ -519,6 +569,10 @@ export default function Events() {
       supabase.from('dienstleister').select('id,firma,typ,ansprechpartner,telefon,email,adresse,zahlungsbedingungen,zahlungsziel_tage,iban,notizen,aktiv').order('firma'),
       supabase.from('kosten_kategorien').select('*').eq('aktiv', true).order('reihenfolge'),
       supabase.from('event_kosten').select('*').order('erstellt_am'),
+      supabase.from('event_arten').select('*').eq('aktiv', true).order('reihenfolge'),
+      supabase.from('event_status_liste').select('*').eq('aktiv', true).order('reihenfolge'),
+      supabase.from('dienstleister_typen').select('*').eq('aktiv', true).order('reihenfolge'),
+      supabase.from('dienstleistungsartikel').select('*').eq('aktiv', true).order('reihenfolge'),
     ])
     setEvents(e||[])
     setKontakte(k||[])
@@ -527,6 +581,10 @@ export default function Events() {
     setDienstleister(dl||[])
     setKostenKategorien(kk||[])
     setAlleKosten(ak||[])
+    setEventArten(ea||[])
+    setEventStatus(es||[])
+    setDlTypen(dlt||[])
+    setDlArtikel(dla||[])
     setLoading(false)
   }
 
@@ -595,9 +653,34 @@ export default function Events() {
     setDlModal(false); setSaving(false); loadAll()
   }
 
+  async function loadDLDokumente(id) {
+    const { data } = await supabase.from('dienstleister_dokumente').select('*').eq('dienstleister_id', id).order('erstellt_am')
+    setDlDokumente(data||[])
+  }
+
+  async function loadPreisVergleich(artikelId) {
+    const { data } = await supabase.from('dienstleister_preise').select('*,dienstleister(id,firma,typ)').eq('artikel_id', artikelId).order('preis')
+    setPreisVergleich(data||[])
+  }
+
+  async function savePreis(dlId, artikelId, preis, kommentar) {
+    await supabase.from('dienstleister_preise').upsert({ dienstleister_id:dlId, artikel_id:artikelId, preis:preis||null, kommentar:kommentar||null, zuletzt_aktualisiert:new Date().toISOString().slice(0,10) }, { onConflict:'dienstleister_id,artikel_id' })
+    if (selectedArtikel) loadPreisVergleich(selectedArtikel.id)
+  }
+
+  async function saveDLDok() {
+    if (!dlDokForm.name?.trim() || !dlDokForm.url?.trim() || !selectedDL) return
+    setSaving(true)
+    const p = { dienstleister_id:selectedDL.id, name:dlDokForm.name, url:dlDokForm.url, typ:dlDokForm.typ||'Dokument', kommentar:dlDokForm.kommentar||null }
+    if (dlDokForm.id) await supabase.from('dienstleister_dokumente').update(p).eq('id', dlDokForm.id)
+    else await supabase.from('dienstleister_dokumente').insert(p)
+    setDlDokModal(false); setSaving(false); loadDLDokumente(selectedDL.id)
+  }
+
   async function loadDLHistorie(id) {
     const { data } = await supabase.from('dienstleister_historie').select('*').eq('dienstleister_id', id).order('datum', { ascending:false })
     setDlHistorie(data||[])
+    loadDLDokumente(id)
   }
 
   async function saveDLHistorie() {
@@ -689,7 +772,7 @@ export default function Events() {
               <input value={dlSearch} onChange={e=>setDlSearch(e.target.value)} placeholder="Suche..." style={{padding:'8px 12px',border:'1.5px solid var(--gray-200)',borderRadius:'var(--radius)',fontSize:13}}/>
               <select value={dlTyp} onChange={e=>setDlTyp(e.target.value)} style={{padding:'8px 12px',border:'1.5px solid var(--gray-200)',borderRadius:'var(--radius)',fontSize:13}}>
                 <option value="">Alle Typen</option>
-                {DL_TYPEN.map(t=><option key={t}>{t}</option>)}
+                {(dlTypen.length>0?dlTypen.map(d=>d.name):DL_TYPEN).map(t=><option key={t}>{t}</option>)}
               </select>
             </div>
             <div style={{display:'grid',gap:8}}>
@@ -737,11 +820,19 @@ export default function Events() {
                     </div>
                   )}
                 </div>
+                <div className="tabs" style={{marginBottom:12}}>
+                  {[['historie','📋 Historie'],['preise','💶 Preisvergleich'],['dokumente','📎 Dokumente']].map(([k,l])=>(
+                    <button key={k} className={'tab-btn'+((dlDetailTab||'historie')===k?' active':'')} onClick={()=>setDlDetailTab(k)}>{l}</button>
+                  ))}
+                </div>
+
+                {(dlDetailTab||'historie')==='historie'&&(
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
                   <strong style={{fontSize:14,color:'var(--navy)'}}>Historie ({dlHistorie.length})</strong>
                   <button className="btn btn-primary btn-sm" onClick={()=>{ setDlHForm({bezahlt:false,datum:new Date().toISOString().slice(0,10)}); setDlHModal(true) }}>+ Eintrag</button>
-                </div>
-                {dlHistorie.length===0 ? <div className="empty-state card"><p>Noch keine Eintraege.</p></div> : (
+                </div>)}
+                {(dlDetailTab||'historie')==='historie'&&dlHistorie.length===0 && <div className="empty-state card"><p>Noch keine Eintraege.</p></div>}
+                {(dlDetailTab||'historie')==='historie'&&dlHistorie.length>0&&(
                   <div style={{display:'grid',gap:8}}>
                     {dlHistorie.map(h=>(
                       <div key={h.id} style={{padding:14,border:'1.5px solid var(--gray-200)',borderRadius:'var(--radius)',display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12}}>
@@ -760,6 +851,63 @@ export default function Events() {
                         </div>
                       </div>
                     ))}
+                  </div>
+                )}
+
+                {(dlDetailTab||'historie')==='preise'&&(
+                  <div>
+                    <p style={{fontSize:13,color:'var(--gray-500)',marginBottom:12}}>Trage Preise pro Dienstleistungsartikel ein um Dienstleister zu vergleichen.</p>
+                    <div style={{display:'grid',gap:8}}>
+                      {dlArtikel.map(artikel=>{
+                        const existingPreis = null
+                        return (
+                          <div key={artikel.id} style={{padding:'12px 16px',border:'1.5px solid var(--gray-200)',borderRadius:'var(--radius)',background:'var(--white)'}}>
+                            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12}}>
+                              <div style={{flex:1}}>
+                                <div style={{fontWeight:600,fontSize:14}}>{artikel.name}</div>
+                                <div style={{fontSize:12,color:'var(--gray-400)'}}>{artikel.einheit} · {artikel.kategorie}</div>
+                              </div>
+                              <DLPreisEditor dlId={selectedDL.id} artikel={artikel} onSave={savePreis}/>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                    {dlArtikel.length===0&&<div className="empty-state card"><p>Keine Artikel. In Einstellungen anlegen.</p></div>}
+                    <div style={{marginTop:16}}>
+                      <button className="btn btn-outline" onClick={()=>{setSelectedArtikel(null);setPreisModal(true)}}>
+                        Preisvergleich aller Dienstleister anzeigen
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {(dlDetailTab||'historie')==='dokumente'&&(
+                  <div>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+                      <strong style={{fontSize:14,color:'var(--navy)'}}>Dokumente & Links ({dlDokumente.length})</strong>
+                      <button className="btn btn-primary btn-sm" onClick={()=>{ setDlDokForm({typ:'Dokument'}); setDlDokModal(true) }}>+ Dokument</button>
+                    </div>
+                    {dlDokumente.length===0 ? <div className="empty-state card"><p>Noch keine Dokumente.</p></div> : (
+                      <div style={{display:'grid',gap:8}}>
+                        {dlDokumente.map(d=>(
+                          <div key={d.id} style={{padding:14,border:'1.5px solid var(--gray-200)',borderRadius:'var(--radius)',background:'var(--white)'}}>
+                            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
+                              <div>
+                                <div style={{fontWeight:600,fontSize:14}}>{d.name}</div>
+                                <span style={{fontSize:11,background:'var(--gray-100)',color:'var(--gray-600)',padding:'1px 8px',borderRadius:10}}>{d.typ}</span>
+                                {d.kommentar&&<div style={{fontSize:12,color:'var(--gray-500)',marginTop:4,fontStyle:'italic'}}>{d.kommentar}</div>}
+                              </div>
+                              <div style={{display:'flex',gap:6}}>
+                                <button className="btn btn-sm btn-outline" onClick={()=>{ setDlDokForm(d); setDlDokModal(true) }}>Bearb.</button>
+                                <button className="btn btn-sm btn-danger" onClick={async()=>{ await supabase.from('dienstleister_dokumente').delete().eq('id',d.id); loadDLDokumente(selectedDL.id) }}>X</button>
+                              </div>
+                            </div>
+                            <a href={d.url} target="_blank" rel="noreferrer" style={{fontSize:12,color:'var(--navy)',wordBreak:'break-all',textDecoration:'none',display:'block',padding:'6px 10px',background:'#f0f7ff',borderRadius:4,border:'1px solid #ddeaff'}}>{d.url.length>60?d.url.slice(0,60)+'...':d.url}</a>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -795,8 +943,8 @@ export default function Events() {
           </div>
         </div>
         <div className="form-row">
-          <div className="form-group"><label>Art</label><select value={eventForm.art||'Networking-Event'} onChange={e=>setEventForm(f=>({...f,art:e.target.value}))}>{EVENT_TYPEN.map(t=><option key={t}>{t}</option>)}</select></div>
-          <div className="form-group"><label>Status</label><select value={eventForm.status||'Planung'} onChange={e=>setEventForm(f=>({...f,status:e.target.value}))}>{EVENT_STATUS.map(s=><option key={s}>{s}</option>)}</select></div>
+          <div className="form-group"><label>Art</label><select value={eventForm.art||'Networking-Event'} onChange={e=>setEventForm(f=>({...f,art:e.target.value}))}>{(eventArten.length>0?eventArten.map(e=>e.name):EVENT_TYPEN).map(t=><option key={t}>{t}</option>)}</select></div>
+          <div className="form-group"><label>Status</label><select value={eventForm.status||'Planung'} onChange={e=>setEventForm(f=>({...f,status:e.target.value}))}>{(eventStatus.length>0?eventStatus.map(e=>e.name):EVENT_STATUS).map(s=><option key={s}>{s}</option>)}</select></div>
         </div>
         <div className="form-row">
           <div className="form-group"><label>Zustaendig</label><input value={eventForm.zustaendig||''} onChange={e=>setEventForm(f=>({...f,zustaendig:e.target.value}))}/></div>
@@ -824,13 +972,61 @@ export default function Events() {
 
       <Modal open={dlModal} onClose={()=>setDlModal(false)} title={dlForm.id?'Dienstleister bearbeiten':'Neuer Dienstleister'}
         footer={<><button className="btn btn-outline" onClick={()=>setDlModal(false)}>Abbrechen</button><button className="btn btn-primary" onClick={saveDL} disabled={saving}>{saving?'Speichern...':'Speichern'}</button></>}>
-        <div className="form-row"><div className="form-group"><label>Firma *</label><input value={dlForm.firma||''} onChange={e=>setDlForm(f=>({...f,firma:e.target.value}))} autoFocus/></div><div className="form-group"><label>Typ</label><select value={dlForm.typ||'Sonstiges'} onChange={e=>setDlForm(f=>({...f,typ:e.target.value}))}>{DL_TYPEN.map(t=><option key={t}>{t}</option>)}</select></div></div>
+        <div className="form-row"><div className="form-group"><label>Firma *</label><input value={dlForm.firma||''} onChange={e=>setDlForm(f=>({...f,firma:e.target.value}))} autoFocus/></div><div className="form-group"><label>Typ</label><select value={dlForm.typ||'Sonstiges'} onChange={e=>setDlForm(f=>({...f,typ:e.target.value}))}>{(dlTypen.length>0?dlTypen.map(d=>d.name):DL_TYPEN).map(t=><option key={t}>{t}</option>)}</select></div></div>
         <div className="form-row"><div className="form-group"><label>Ansprechpartner</label><input value={dlForm.ansprechpartner||''} onChange={e=>setDlForm(f=>({...f,ansprechpartner:e.target.value}))}/></div><div className="form-group"><label>Telefon</label><input value={dlForm.telefon||''} onChange={e=>setDlForm(f=>({...f,telefon:e.target.value}))}/></div></div>
         <div className="form-row"><div className="form-group"><label>E-Mail</label><input type="email" value={dlForm.email||''} onChange={e=>setDlForm(f=>({...f,email:e.target.value}))}/></div><div className="form-group"><label>Adresse</label><input value={dlForm.adresse||''} onChange={e=>setDlForm(f=>({...f,adresse:e.target.value}))}/></div></div>
         <div className="form-row"><div className="form-group"><label>Zahlungsbedingungen</label><input value={dlForm.zahlungsbedingungen||''} onChange={e=>setDlForm(f=>({...f,zahlungsbedingungen:e.target.value}))}/></div><div className="form-group"><label>Zahlungsziel (Tage)</label><select value={dlForm.zahlungsziel_tage||30} onChange={e=>setDlForm(f=>({...f,zahlungsziel_tage:parseInt(e.target.value)}))}>{[7,14,30,45,60].map(z=><option key={z} value={z}>{z} Tage</option>)}</select></div></div>
         <div className="form-group"><label>IBAN</label><input value={dlForm.iban||''} onChange={e=>setDlForm(f=>({...f,iban:e.target.value}))}/></div>
         <div className="form-group"><label>Notizen</label><textarea value={dlForm.notizen||''} onChange={e=>setDlForm(f=>({...f,notizen:e.target.value}))}/></div>
         <div className="form-group"><label style={{display:'flex',alignItems:'center',gap:8,fontSize:14,cursor:'pointer',textTransform:'none'}}><input type="checkbox" checked={dlForm.aktiv!==false} onChange={e=>setDlForm(f=>({...f,aktiv:e.target.checked}))}/>Aktiv</label></div>
+      </Modal>
+
+      {preisModal&&(
+        <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setPreisModal(false)}>
+          <div className="modal" style={{maxWidth:700}}>
+            <div className="modal-header">
+              <span className="modal-title">Preisvergleich - {selectedArtikel?.name||'Alle Artikel'}</span>
+              <button className="close-btn" onClick={()=>setPreisModal(false)}>x</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-group">
+                <label>Artikel auswaehlen</label>
+                <select value={selectedArtikel?.id||''} onChange={e=>{ const a=dlArtikel.find(x=>x.id===e.target.value); setSelectedArtikel(a||null); if(a) loadPreisVergleich(a.id) }}>
+                  <option value="">-- Artikel waehlen --</option>
+                  {dlArtikel.map(a=><option key={a.id} value={a.id}>{a.name} ({a.einheit})</option>)}
+                </select>
+              </div>
+              {selectedArtikel&&(
+                <div>
+                  {preisVergleich.length===0 ? <p style={{color:'var(--gray-400)',fontSize:13}}>Noch keine Preise fuer diesen Artikel.</p> : (
+                    <div className="table-wrap"><table>
+                      <thead><tr><th>Dienstleister</th><th>Typ</th><th style={{textAlign:'right'}}>Preis/{selectedArtikel.einheit}</th><th>Kommentar</th><th>Stand</th></tr></thead>
+                      <tbody>
+                        {[...preisVergleich].sort((a,b)=>(a.preis||999999)-(b.preis||999999)).map((p,i)=>(
+                          <tr key={p.id} style={{background:i===0&&p.preis?'#e2efda':'inherit'}}>
+                            <td><strong style={{fontSize:13}}>{p.dienstleister?.firma}</strong></td>
+                            <td style={{fontSize:12,color:'var(--gray-500)'}}>{p.dienstleister?.typ}</td>
+                            <td style={{textAlign:'right',fontWeight:700,color:i===0&&p.preis?'#2d6b3a':'inherit'}}>{p.preis?Number(p.preis).toLocaleString('de-DE')+' EUR':'–'}{i===0&&p.preis&&<span style={{marginLeft:6,fontSize:10,background:'#2d6b3a',color:'white',padding:'1px 6px',borderRadius:10}}>Guenstigster</span>}</td>
+                            <td style={{fontSize:12,color:'var(--gray-500)'}}>{p.kommentar||'–'}</td>
+                            <td style={{fontSize:11,color:'var(--gray-400)'}}>{p.zuletzt_aktualisiert?new Date(p.zuletzt_aktualisiert).toLocaleDateString('de-DE'):'–'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table></div>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="modal-footer"><button className="btn btn-outline" onClick={()=>setPreisModal(false)}>Schliessen</button></div>
+          </div>
+        </div>
+      )}
+
+      <Modal open={dlDokModal} onClose={()=>setDlDokModal(false)} title={dlDokForm.id?'Dokument bearbeiten':'Neues Dokument'}
+        footer={<><button className="btn btn-outline" onClick={()=>setDlDokModal(false)}>Abbrechen</button><button className="btn btn-primary" onClick={saveDLDok} disabled={saving}>{saving?'Speichern...':'Speichern'}</button></>}>
+        <div className="form-row"><div className="form-group"><label>Name *</label><input value={dlDokForm.name||''} onChange={e=>setDlDokForm(f=>({...f,name:e.target.value}))} autoFocus/></div><div className="form-group"><label>Typ</label><select value={dlDokForm.typ||'Dokument'} onChange={e=>setDlDokForm(f=>({...f,typ:e.target.value}))}>{['Angebot','Vertrag','Rechnung','Preisliste','Dokument','Bild','Sonstiges'].map(t=><option key={t}>{t}</option>)}</select></div></div>
+        <div className="form-group"><label>URL *</label><input type="url" value={dlDokForm.url||''} onChange={e=>setDlDokForm(f=>({...f,url:e.target.value}))} placeholder="https://..."/></div>
+        <div className="form-group"><label>Kommentar</label><textarea value={dlDokForm.kommentar||''} onChange={e=>setDlDokForm(f=>({...f,kommentar:e.target.value}))} style={{minHeight:60}}/></div>
       </Modal>
 
       <Modal open={dlHModal} onClose={()=>setDlHModal(false)} title={dlHForm.id?'Eintrag bearbeiten':'Neuer Eintrag'}
