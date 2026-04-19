@@ -43,6 +43,50 @@ function Modal({ open, onClose, title, children, footer }) {
   )
 }
 
+function PreisVergleichArtikel({ artikel }) {
+  const [preise, setPreise] = useState([])
+  useEffect(() => {
+    supabase.from('dienstleister_artikel')
+      .select('*,dienstleister(id,firma,typ)')
+      .eq('artikel_id', artikel.id)
+      .eq('aktiv', true)
+      .order('aktueller_preis')
+      .then(({ data }) => setPreise(data||[]))
+  }, [artikel.id])
+
+  const mitPreis = preise.filter(p=>p.aktueller_preis)
+  const guenstigster = mitPreis.length>0 ? mitPreis.reduce((a,b)=>a.aktueller_preis<b.aktueller_preis?a:b) : null
+
+  return (
+    <div className="card">
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+        <div>
+          <div style={{fontWeight:700,fontSize:15,color:'var(--navy)'}}>{artikel.name}</div>
+          <div style={{fontSize:12,color:'var(--gray-400)'}}>{artikel.einheit}{artikel.kategorie?' · '+artikel.kategorie:''}</div>
+        </div>
+        <span style={{fontSize:12,color:'var(--gray-500)'}}>{preise.length} Dienstleister</span>
+      </div>
+      {preise.length===0 ? <p style={{fontSize:13,color:'var(--gray-400)'}}>Noch kein Dienstleister hat diesen Artikel zugeordnet.</p> : (
+        <div style={{display:'grid',gap:6}}>
+          {preise.map((p,i)=>(
+            <div key={p.id} style={{display:'flex',alignItems:'center',gap:12,padding:'8px 12px',borderRadius:'var(--radius)',background:p.id===guenstigster?.id?'#e2efda':'var(--gray-100)'}}>
+              <div style={{flex:1,fontSize:13,fontWeight:500}}>{p.dienstleister?.firma}</div>
+              <div style={{fontSize:12,color:'var(--gray-500)'}}>{p.dienstleister?.typ}</div>
+              {p.aktueller_preis ? (
+                <div style={{display:'flex',alignItems:'center',gap:8}}>
+                  <strong style={{fontSize:14,color:p.id===guenstigster?.id?'#2d6b3a':'var(--navy)'}}>{Number(p.aktueller_preis).toLocaleString('de-DE')} EUR/{artikel.einheit}</strong>
+                  {p.id===guenstigster?.id&&<span style={{fontSize:10,background:'#2d6b3a',color:'white',padding:'1px 8px',borderRadius:10,fontWeight:700}}>Guenstigster</span>}
+                </div>
+              ) : <span style={{fontSize:12,color:'var(--gray-400)'}}>Kein Preis</span>}
+              {p.notiz&&<span style={{fontSize:11,color:'var(--gray-400)',fontStyle:'italic'}}>{p.notiz}</span>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function DLPreisEditor({ dlId, artikel, onSave }) {
   const [preis, setPreis] = useState('')
   const [kommentar, setKommentar] = useState('')
@@ -545,6 +589,14 @@ export default function Events() {
   const [dlHistorie, setDlHistorie] = useState([])
   const [dlSearch, setDlSearch] = useState('')
   const [dlDetailTab, setDlDetailTab] = useState('historie')
+  const [artikelTab, setArtikelTab] = useState('liste')
+  const [artikelModal, setArtikelModal] = useState(false)
+  const [artikelForm, setArtikelForm] = useState({})
+  const [dlArtikelZuordnung, setDlArtikelZuordnung] = useState([])
+  const [preisHistorie, setPreisHistorie] = useState([])
+  const [neuerPreisModal, setNeuerPreisModal] = useState(false)
+  const [neuerPreisForm, setNeuerPreisForm] = useState({})
+  const [selectedDLArtikel, setSelectedDLArtikel] = useState(null)
   const [dlTyp, setDlTyp] = useState('')
   const [eventArten, setEventArten] = useState([])
   const [eventStatus, setEventStatus] = useState([])
@@ -653,6 +705,67 @@ export default function Events() {
     setDlModal(false); setSaving(false); loadAll()
   }
 
+  async function loadDLArtikelZuordnung(dlId) {
+    const { data } = await supabase.from('dienstleister_artikel')
+      .select('*,dienstleistungsartikel(*)')
+      .eq('dienstleister_id', dlId)
+      .order('erstellt_am')
+    setDlArtikelZuordnung(data||[])
+  }
+
+  async function toggleDLArtikel(dlId, artikelId, aktuellerPreis, einheit, notiz) {
+    const existing = dlArtikelZuordnung.find(a => a.artikel_id === artikelId)
+    if (existing) {
+      await supabase.from('dienstleister_artikel').delete().eq('id', existing.id)
+    } else {
+      await supabase.from('dienstleister_artikel').insert({ dienstleister_id:dlId, artikel_id:artikelId, aktueller_preis:aktuellerPreis||null, einheit:einheit||null, notiz:notiz||null })
+    }
+    loadDLArtikelZuordnung(dlId)
+  }
+
+  async function updateDLArtikel(id, preis, notiz) {
+    await supabase.from('dienstleister_artikel').update({ aktueller_preis:preis||null, notiz:notiz||null }).eq('id', id)
+    loadDLArtikelZuordnung(selectedDL.id)
+  }
+
+  async function loadPreisHistorie(dlId, artikelId) {
+    const { data } = await supabase.from('dienstleister_preis_historie')
+      .select('*')
+      .eq('dienstleister_id', dlId)
+      .eq('artikel_id', artikelId)
+      .order('datum', { ascending: false })
+    setPreisHistorie(data||[])
+  }
+
+  async function saveNeuerPreis() {
+    if (!neuerPreisForm.preis || !selectedDLArtikel || !selectedDL) return
+    setSaving(true)
+    await supabase.from('dienstleister_preis_historie').insert({
+      dienstleister_id: selectedDL.id,
+      artikel_id: selectedDLArtikel.artikel_id,
+      preis: neuerPreisForm.preis,
+      menge: neuerPreisForm.menge||1,
+      einheit: neuerPreisForm.einheit||selectedDLArtikel.dienstleistungsartikel?.einheit||'Stk',
+      kommentar: neuerPreisForm.kommentar||null,
+      datum: neuerPreisForm.datum||new Date().toISOString().slice(0,10)
+    })
+    // Update aktueller_preis
+    await supabase.from('dienstleister_artikel').update({ aktueller_preis: neuerPreisForm.preis }).eq('id', selectedDLArtikel.id)
+    setNeuerPreisModal(false)
+    setSaving(false)
+    loadDLArtikelZuordnung(selectedDL.id)
+    loadPreisHistorie(selectedDL.id, selectedDLArtikel.artikel_id)
+  }
+
+  async function saveArtikel() {
+    if (!artikelForm.name?.trim()) return
+    setSaving(true)
+    const p = { name:artikelForm.name, einheit:artikelForm.einheit||'Stk', kategorie:artikelForm.kategorie||null, beschreibung:artikelForm.beschreibung||null, reihenfolge:artikelForm.reihenfolge||dlArtikel.length, aktiv:artikelForm.aktiv!==false }
+    if (artikelForm.id) await supabase.from('dienstleistungsartikel').update(p).eq('id', artikelForm.id)
+    else await supabase.from('dienstleistungsartikel').insert(p)
+    setArtikelModal(false); setSaving(false); loadAll()
+  }
+
   async function loadDLDokumente(id) {
     const { data } = await supabase.from('dienstleister_dokumente').select('*').eq('dienstleister_id', id).order('erstellt_am')
     setDlDokumente(data||[])
@@ -681,6 +794,7 @@ export default function Events() {
     const { data } = await supabase.from('dienstleister_historie').select('*').eq('dienstleister_id', id).order('datum', { ascending:false })
     setDlHistorie(data||[])
     loadDLDokumente(id)
+    loadDLArtikelZuordnung(id)
   }
 
   async function saveDLHistorie() {
@@ -702,7 +816,7 @@ export default function Events() {
       <p className="page-subtitle">Veranstaltungen, Kostenkalkulation und Dienstleister</p>
 
       <div className="tabs" style={{marginBottom:20}}>
-        {[['events','Veranstaltungen'],['dashboard','Kosten-Dashboard'],['dienstleister','Dienstleister']].map(([k,l])=>(
+        {[['events','Veranstaltungen'],['dashboard','Kosten-Dashboard'],['dienstleister','Dienstleister'],['artikel','📦 Artikel']].map(([k,l])=>(
           <button key={k} className={'tab-btn'+(hauptTab===k?' active':'')} onClick={()=>setHauptTab(k)}>{l}</button>
         ))}
       </div>
@@ -754,6 +868,53 @@ export default function Events() {
               />
             )}
           </div>
+        </div>
+      )}
+
+      {hauptTab==='artikel' && (
+        <div>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+            <div className="tabs" style={{marginBottom:0}}>
+              {[['liste','Artikel-Liste'],['vergleich','Preisvergleich']].map(([k,l])=>(
+                <button key={k} className={'tab-btn'+(artikelTab===k?' active':'')} onClick={()=>setArtikelTab(k)}>{l}</button>
+              ))}
+            </div>
+            <button className="btn btn-primary" onClick={()=>{setArtikelForm({einheit:'Stk',aktiv:true});setArtikelModal(true)}}>+ Neuer Artikel</button>
+          </div>
+
+          {artikelTab==='liste'&&(
+            <div style={{display:'grid',gap:8}}>
+              {dlArtikel.length===0&&<div className="empty-state card"><p>Noch keine Artikel angelegt.</p></div>}
+              {dlArtikel.map(a=>(
+                <div key={a.id} style={{padding:14,border:'1.5px solid var(--gray-200)',borderRadius:'var(--radius)',background:'var(--white)',display:'flex',justifyContent:'space-between',alignItems:'center',opacity:a.aktiv?1:0.6}}>
+                  <div>
+                    <div style={{fontWeight:600,fontSize:14}}>{a.name}</div>
+                    <div style={{fontSize:12,color:'var(--gray-500)',marginTop:2}}>
+                      <span style={{marginRight:12}}>Einheit: <strong>{a.einheit}</strong></span>
+                      {a.kategorie&&<span style={{marginRight:12}}>Kategorie: <strong>{a.kategorie}</strong></span>}
+                      {a.beschreibung&&<span style={{color:'var(--gray-400)'}}>{a.beschreibung}</span>}
+                    </div>
+                  </div>
+                  <div style={{display:'flex',gap:8}}>
+                    <button className="btn btn-sm btn-outline" onClick={()=>{setArtikelForm(a);setArtikelModal(true)}}>Bearb.</button>
+                    <button className="btn btn-sm btn-outline" onClick={async()=>{await supabase.from('dienstleistungsartikel').update({aktiv:!a.aktiv}).eq('id',a.id);loadAll()}}>{a.aktiv?'Deaktiv.':'Aktivieren'}</button>
+                    <button className="btn btn-sm btn-danger" onClick={async()=>{if(window.confirm('Artikel loeschen?')){await supabase.from('dienstleistungsartikel').delete().eq('id',a.id);loadAll()}}}>X</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {artikelTab==='vergleich'&&(
+            <div>
+              <p style={{fontSize:13,color:'var(--gray-500)',marginBottom:16}}>Waehle einen Artikel um alle Dienstleister-Preise zu vergleichen.</p>
+              <div style={{display:'grid',gap:20}}>
+                {dlArtikel.map(artikel=>(
+                  <PreisVergleichArtikel key={artikel.id} artikel={artikel}/>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -856,28 +1017,50 @@ export default function Events() {
 
                 {(dlDetailTab||'historie')==='preise'&&(
                   <div>
-                    <p style={{fontSize:13,color:'var(--gray-500)',marginBottom:12}}>Trage Preise pro Dienstleistungsartikel ein um Dienstleister zu vergleichen.</p>
-                    <div style={{display:'grid',gap:8}}>
-                      {dlArtikel.map(artikel=>{
-                        const existingPreis = null
-                        return (
-                          <div key={artikel.id} style={{padding:'12px 16px',border:'1.5px solid var(--gray-200)',borderRadius:'var(--radius)',background:'var(--white)'}}>
-                            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12}}>
-                              <div style={{flex:1}}>
-                                <div style={{fontWeight:600,fontSize:14}}>{artikel.name}</div>
-                                <div style={{fontSize:12,color:'var(--gray-400)'}}>{artikel.einheit} · {artikel.kategorie}</div>
-                              </div>
-                              <DLPreisEditor dlId={selectedDL.id} artikel={artikel} onSave={savePreis}/>
-                            </div>
-                          </div>
-                        )
-                      })}
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+                      <div>
+                        <strong style={{fontSize:14,color:'var(--navy)'}}>Zugeordnete Artikel</strong>
+                        <p style={{fontSize:12,color:'var(--gray-500)',marginTop:2}}>Waehle welche Artikel dieser Dienstleister anbietet.</p>
+                      </div>
+                      <button className="btn btn-outline btn-sm" onClick={()=>{setSelectedArtikel(null);setPreisModal(true)}}>Preisvergleich</button>
                     </div>
-                    {dlArtikel.length===0&&<div className="empty-state card"><p>Keine Artikel. In Einstellungen anlegen.</p></div>}
-                    <div style={{marginTop:16}}>
-                      <button className="btn btn-outline" onClick={()=>{setSelectedArtikel(null);setPreisModal(true)}}>
-                        Preisvergleich aller Dienstleister anzeigen
-                      </button>
+
+                    <div style={{marginBottom:16}}>
+                      <div style={{fontSize:12,fontWeight:600,color:'var(--gray-500)',textTransform:'uppercase',letterSpacing:'0.3px',marginBottom:8}}>Alle verfuegbaren Artikel</div>
+                      <div style={{display:'grid',gap:6}}>
+                        {dlArtikel.map(artikel=>{
+                          const zugeordnet = dlArtikelZuordnung.find(a=>a.artikel_id===artikel.id)
+                          return (
+                            <div key={artikel.id} style={{padding:'10px 14px',border:'1.5px solid '+(zugeordnet?'var(--navy)':'var(--gray-200)'),borderRadius:'var(--radius)',background:zugeordnet?'rgba(15,34,64,0.03)':'var(--white)'}}>
+                              <div style={{display:'flex',alignItems:'center',gap:12}}>
+                                <input type="checkbox" checked={!!zugeordnet} onChange={()=>toggleDLArtikel(selectedDL.id,artikel.id)}
+                                  style={{width:18,height:18,cursor:'pointer',flexShrink:0}}/>
+                                <div style={{flex:1}}>
+                                  <div style={{fontWeight:600,fontSize:13}}>{artikel.name}</div>
+                                  <div style={{fontSize:11,color:'var(--gray-400)'}}>{artikel.einheit}{artikel.kategorie?' · '+artikel.kategorie:''}</div>
+                                </div>
+                                {zugeordnet&&(
+                                  <div style={{display:'flex',alignItems:'center',gap:8}}>
+                                    <span style={{fontSize:13,fontWeight:700,color:'var(--navy)'}}>
+                                      {zugeordnet.aktueller_preis?Number(zugeordnet.aktueller_preis).toLocaleString('de-DE')+' EUR':'Kein Preis'}
+                                    </span>
+                                    <button className="btn btn-sm btn-outline" style={{fontSize:11}} onClick={()=>{
+                                      setSelectedDLArtikel(zugeordnet)
+                                      setNeuerPreisForm({datum:new Date().toISOString().slice(0,10),menge:1,einheit:artikel.einheit})
+                                      loadPreisHistorie(selectedDL.id,artikel.id)
+                                      setNeuerPreisModal(true)
+                                    }}>Preis + Historie</button>
+                                  </div>
+                                )}
+                              </div>
+                              {zugeordnet&&zugeordnet.notiz&&(
+                                <div style={{fontSize:12,color:'var(--gray-500)',marginTop:6,paddingLeft:30,fontStyle:'italic'}}>{zugeordnet.notiz}</div>
+                              )}
+                            </div>
+                          )
+                        })}
+                        {dlArtikel.length===0&&<div className="empty-state"><p>Keine Artikel. Im Tab "Artikel" anlegen.</p></div>}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1018,6 +1201,88 @@ export default function Events() {
               )}
             </div>
             <div className="modal-footer"><button className="btn btn-outline" onClick={()=>setPreisModal(false)}>Schliessen</button></div>
+          </div>
+        </div>
+      )}
+
+      {artikelModal&&(
+        <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setArtikelModal(false)}>
+          <div className="modal">
+            <div className="modal-header">
+              <span className="modal-title">{artikelForm.id?'Artikel bearbeiten':'Neuer Artikel'}</span>
+              <button className="close-btn" onClick={()=>setArtikelModal(false)}>x</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-row">
+                <div className="form-group"><label>Name *</label><input value={artikelForm.name||''} onChange={e=>setArtikelForm(f=>({...f,name:e.target.value}))} autoFocus/></div>
+                <div className="form-group"><label>Einheit</label>
+                  <select value={artikelForm.einheit||'Stk'} onChange={e=>setArtikelForm(f=>({...f,einheit:e.target.value}))}>
+                    {['Stk','Std','Tag','Pauschal','m²','lfd. m','kg','Liter','Portion'].map(u=><option key={u}>{u}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="form-group"><label>Kategorie</label><input value={artikelForm.kategorie||''} onChange={e=>setArtikelForm(f=>({...f,kategorie:e.target.value}))} placeholder="z.B. Catering, Technik..."/></div>
+                <div className="form-group"><label>Reihenfolge</label><input type="number" value={artikelForm.reihenfolge||0} onChange={e=>setArtikelForm(f=>({...f,reihenfolge:parseInt(e.target.value)||0}))}/></div>
+              </div>
+              <div className="form-group"><label>Beschreibung</label><textarea value={artikelForm.beschreibung||''} onChange={e=>setArtikelForm(f=>({...f,beschreibung:e.target.value}))}/></div>
+              <div className="form-group"><label style={{display:'flex',alignItems:'center',gap:8,fontSize:14,cursor:'pointer',textTransform:'none'}}><input type="checkbox" checked={artikelForm.aktiv!==false} onChange={e=>setArtikelForm(f=>({...f,aktiv:e.target.checked}))}/>Aktiv</label></div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={()=>setArtikelModal(false)}>Abbrechen</button>
+              <button className="btn btn-primary" onClick={saveArtikel} disabled={saving}>{saving?'Speichern...':'Speichern'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {neuerPreisModal&&selectedDLArtikel&&(
+        <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setNeuerPreisModal(false)}>
+          <div className="modal" style={{maxWidth:640}}>
+            <div className="modal-header">
+              <span className="modal-title">Preis erfassen: {selectedDLArtikel.dienstleistungsartikel?.name}</span>
+              <button className="close-btn" onClick={()=>setNeuerPreisModal(false)}>x</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-row">
+                <div className="form-group"><label>Preis (EUR) *</label><input type="number" step="0.01" value={neuerPreisForm.preis||''} onChange={e=>setNeuerPreisForm(f=>({...f,preis:e.target.value}))} autoFocus/></div>
+                <div className="form-group"><label>Menge</label><input type="number" step="0.5" min="0.5" value={neuerPreisForm.menge||1} onChange={e=>setNeuerPreisForm(f=>({...f,menge:e.target.value}))}/></div>
+              </div>
+              <div className="form-row">
+                <div className="form-group"><label>Einheit</label>
+                  <select value={neuerPreisForm.einheit||'Stk'} onChange={e=>setNeuerPreisForm(f=>({...f,einheit:e.target.value}))}>
+                    {['Stk','Std','Tag','Pauschal','m²','lfd. m','kg','Liter','Portion'].map(u=><option key={u}>{u}</option>)}
+                  </select>
+                </div>
+                <div className="form-group"><label>Datum</label><input type="date" value={neuerPreisForm.datum||''} onChange={e=>setNeuerPreisForm(f=>({...f,datum:e.target.value}))}/></div>
+              </div>
+              <div className="form-group"><label>Kommentar</label><textarea value={neuerPreisForm.kommentar||''} onChange={e=>setNeuerPreisForm(f=>({...f,kommentar:e.target.value}))} placeholder="z.B. Staffelpreis ab 100 Stk, inkl. Lieferung..." style={{minHeight:60}}/></div>
+              {preisHistorie.length>0&&(
+                <div style={{marginTop:16,paddingTop:16,borderTop:'1px solid var(--gray-100)'}}>
+                  <div style={{fontSize:12,fontWeight:600,color:'var(--gray-500)',textTransform:'uppercase',letterSpacing:'0.3px',marginBottom:8}}>Preishistorie</div>
+                  <div style={{display:'grid',gap:6,maxHeight:200,overflowY:'auto'}}>
+                    {preisHistorie.map(h=>(
+                      <div key={h.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 12px',background:'var(--gray-100)',borderRadius:'var(--radius)',fontSize:13}}>
+                        <div>
+                          <strong>{Number(h.preis).toLocaleString('de-DE')} EUR</strong>
+                          <span style={{marginLeft:8,color:'var(--gray-500)'}}>fuer {h.menge} {h.einheit}</span>
+                          {h.kommentar&&<div style={{fontSize:11,color:'var(--gray-400)',fontStyle:'italic'}}>{h.kommentar}</div>}
+                        </div>
+                        <div style={{fontSize:11,color:'var(--gray-400)',textAlign:'right'}}>
+                          {new Date(h.datum).toLocaleDateString('de-DE')}
+                          <button onClick={async()=>{await supabase.from('dienstleister_preis_historie').delete().eq('id',h.id);loadPreisHistorie(selectedDL.id,selectedDLArtikel.artikel_id)}}
+                            style={{marginLeft:8,background:'none',border:'none',cursor:'pointer',color:'var(--red)',fontSize:12}}>X</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={()=>setNeuerPreisModal(false)}>Abbrechen</button>
+              <button className="btn btn-primary" onClick={saveNeuerPreis} disabled={saving}>{saving?'Speichern...':'Preis speichern'}</button>
+            </div>
           </div>
         </div>
       )}
