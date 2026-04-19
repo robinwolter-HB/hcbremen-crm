@@ -55,6 +55,7 @@ export default function Sponsoring() {
   const [saisonModal, setSaisonModal] = useState(false)
   const [saisonForm, setSaisonForm] = useState({name:'',beginn:'',ende:'',aktiv:false,liga:'Oberliga'})
   const [aufstiegOpen, setAufstiegOpen] = useState(false)
+  const [kontor8Filter, setKontor8Filter] = useState(false)
   const [vertragsErstellerVertragId, setVertragsErstellerVertragId] = useState('')
 
   useEffect(() => { loadAll() }, [])
@@ -119,7 +120,7 @@ export default function Sponsoring() {
     if (!form.kontakt_id) return
     setSaving(true)
     const payload = { kontakt_id:form.kontakt_id, saison_id:form.selected_saisons?.[0]||null, paket_id:form.paket_id||null, jahresbetrag:form.jahresbetrag||null, gesamtwert:form.gesamtwert||null,
-      betrag_regionalliga:form.betrag_regionalliga||null, betrag_3liga:form.betrag_3liga||null, betrag_2liga:form.betrag_2liga||null, betrag_1liga:form.betrag_1liga||null,
+      betrag_regionalliga:form.betrag_regionalliga||null, betrag_3liga:form.betrag_3liga||null, betrag_2liga:form.betrag_2liga||null, betrag_1liga:form.betrag_1liga||null, rabatt_prozent:form.rabatt_prozent||null, rabatt_betrag:form.rabatt_betrag||null, rabatt_bezeichnung:form.rabatt_bezeichnung||null,
       status:form.status, vertragsbeginn:form.vertragsbeginn||null, vertragsende:form.vertragsende||null, laufzeit_jahre:form.laufzeit_jahre||null, verlaengerung_besprochen:form.verlaengerung_besprochen, auto_verlaengerung:form.auto_verlaengerung, vertrag_unterzeichnet:form.vertrag_unterzeichnet, vertrag_unterzeichnet_am:form.vertrag_unterzeichnet_am||null, kuendigungsfrist_tage:form.kuendigungsfrist_tage||30, drive_link:form.drive_link||null, notizen:form.notizen||null, individuelle_leistungen:form.individuelle_leistungen||[], sachleistungen:form.sachleistungen||[], geaendert_am:new Date().toISOString() }
     let sponsoringId = form.id
     if (form.id) {
@@ -406,7 +407,7 @@ export default function Sponsoring() {
   const aktiveLiga = aktiveSaison?.liga || 'Oberliga'
 
   const auslaufend = vertraege.filter(v => { if(!v.vertragsende) return false; const diff=(new Date(v.vertragsende)-new Date())/(1000*60*60*24); return diff>=0&&diff<60 })
-  const filtered = vertraege.filter(v => !saisonFilter || v.saison_id === saisonFilter || (v.sponsoring_saisons||[]).some(ss=>ss.saison_id===saisonFilter))
+  const filtered = vertraege.filter(v => (!saisonFilter || v.saison_id === saisonFilter || (v.sponsoring_saisons||[]).some(ss=>ss.saison_id===saisonFilter)) && (!kontor8Filter || v.sponsoring_pakete?.name?.toLowerCase().includes('kontor')))
   const filteredBySaison = vertraege.filter(v => !selectedSaison || v.saison_id === selectedSaison || (v.sponsoring_saisons||[]).some(ss=>ss.saison_id===selectedSaison))
 
   // Liga-bewusste Berechnung für die ausgewählte Saison
@@ -466,7 +467,12 @@ export default function Sponsoring() {
                   const saisonNames = v.sponsoring_saisons?.length > 0 ? v.sponsoring_saisons.map(ss=>ss.saisons?.name).filter(Boolean).join(', ') : v.saisons?.name || '--'
                   const hatAufstieg = v.betrag_regionalliga || v.betrag_3liga || v.betrag_2liga || v.betrag_1liga
                   return <tr key={v.id} style={{background:aus?'#fff8f8':'inherit'}}>
-                    <td><strong>{v.kontakte?.firma}</strong>{hatAufstieg&&<span title="Aufstiegs-Konditionen hinterlegt" style={{marginLeft:6,fontSize:11,background:'#fffbf0',border:'1px solid #c8a84b',color:'#8a6a00',padding:'1px 6px',borderRadius:10}}></span>}</td>
+                    <td>
+                      <strong>{v.kontakte?.firma}</strong>
+                      {v.sponsoring_pakete?.name?.toLowerCase().includes('kontor') && (
+                        <span title="Kontor 8 Sponsor" style={{marginLeft:6,fontSize:10,background:'#0f2240',color:'#c8a84b',padding:'1px 6px',borderRadius:10,fontWeight:700,border:'1px solid #c8a84b'}}>K8</span>
+                      )}
+                      {hatAufstieg&&<span title="Aufstiegs-Konditionen hinterlegt" style={{marginLeft:6,fontSize:11,background:'#fffbf0',border:'1px solid #c8a84b',color:'#8a6a00',padding:'1px 6px',borderRadius:10}}></span>}</td>
                     <td style={{fontSize:13}}>{saisonNames}</td>
                     <td style={{fontSize:13}}>{v.sponsoring_pakete?.name||'--'}</td>
                     <td style={{fontWeight:600}}>{v.jahresbetrag?Number(v.jahresbetrag).toLocaleString('de-DE')+' EUR':'--'}</td>
@@ -785,6 +791,25 @@ export default function Sponsoring() {
               <div className="form-row">
                 <div className="form-group"><label>Gesamtwert inkl. Sachleistungen (EUR)</label><input type="number" value={form.gesamtwert||''} onChange={e=>setForm(f=>({...f,gesamtwert:e.target.value}))}/></div>
                 <div className="form-group"><label>Laufzeit (Jahre)</label><input type="number" value={form.laufzeit_jahre||''} onChange={e=>setForm(f=>({...f,laufzeit_jahre:e.target.value}))}/></div>
+
+              {/* RABATT */}
+              <div style={{border:'1.5px solid #e0ddd6',borderRadius:'var(--radius)',marginBottom:16,overflow:'hidden'}}>
+                <div style={{background:'#f8f5ef',padding:'10px 16px',fontWeight:600,fontSize:13,color:'var(--navy)'}}>Rabatt (optional)</div>
+                <div style={{padding:'14px 16px',display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12}}>
+                  <div className="form-group" style={{margin:0}}>
+                    <label style={{fontSize:12}}>Rabatt %</label>
+                    <input type="number" min="0" max="100" step="0.5" value={form.rabatt_prozent||''} onChange={e=>setForm(f=>({...f,rabatt_prozent:e.target.value}))} placeholder="z.B. 10"/>
+                  </div>
+                  <div className="form-group" style={{margin:0}}>
+                    <label style={{fontSize:12}}>Rabatt Festbetrag (EUR)</label>
+                    <input type="number" min="0" value={form.rabatt_betrag||''} onChange={e=>setForm(f=>({...f,rabatt_betrag:e.target.value}))} placeholder="z.B. 500"/>
+                  </div>
+                  <div className="form-group" style={{margin:0}}>
+                    <label style={{fontSize:12}}>Rabatt Bezeichnung</label>
+                    <input value={form.rabatt_bezeichnung||''} onChange={e=>setForm(f=>({...f,rabatt_bezeichnung:e.target.value}))} placeholder="z.B. Treuerabatt"/>
+                  </div>
+                </div>
+              </div>
               </div>
 
               {/* AUFSTIEGS-KONDITIONEN */}
