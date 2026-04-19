@@ -834,12 +834,22 @@ export default function Events() {
   }
 
   async function savePosition() {
-    if (!positionForm.titel?.trim() || !selectedEvent) return
+    if (!positionForm.titel?.trim()) { alert('Bitte einen Titel eingeben.'); return }
+    if (!selectedEvent) { alert('Kein Event ausgewaehlt.'); return }
     setSaving(true)
-    const p = { event_id:selectedEvent.id, titel:positionForm.titel, beschreibung:positionForm.beschreibung||null, anzahl_benoetigt:positionForm.anzahl_benoetigt||1, faehigkeit_id:positionForm.faehigkeit_id||null, rang:positionForm.rang||'Helfer', reihenfolge:positionForm.reihenfolge||positionen.length }
-    if (positionForm.id) await supabase.from('event_positionen').update(p).eq('id', positionForm.id)
-    else await supabase.from('event_positionen').insert(p)
-    setPositionModal(false); setSaving(false); loadPositionen(selectedEvent.id)
+    const p = { event_id:selectedEvent.id, titel:positionForm.titel, beschreibung:positionForm.beschreibung||null, anzahl_benoetigt:parseInt(positionForm.anzahl_benoetigt)||1, faehigkeit_id:positionForm.faehigkeit_id||null, rang:positionForm.rang||'Helfer', reihenfolge:parseInt(positionForm.reihenfolge)||positionen.length }
+    let err
+    if (positionForm.id) {
+      const { error } = await supabase.from('event_positionen').update(p).eq('id', positionForm.id)
+      err = error
+    } else {
+      const { error } = await supabase.from('event_positionen').insert(p)
+      err = error
+    }
+    setSaving(false)
+    if (err) { alert('Fehler: ' + err.message); return }
+    setPositionModal(false)
+    loadPositionen(selectedEvent.id)
   }
 
   async function saveFreiwilligerZuordnung() {
