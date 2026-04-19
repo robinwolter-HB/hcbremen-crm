@@ -3,18 +3,22 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 
 const ALLE_BEREICHE = [
-  { key: 'kontakte', label: 'Kontakte' },
-  { key: 'historie', label: 'Kontakthistorie' },
-  { key: 'veranstaltungen', label: 'Veranstaltungen' },
-  { key: 'sponsoring', label: 'Sponsoring' },
-  { key: 'aufgaben', label: 'Aufgaben' },
-  { key: 'berichte', label: 'Berichte' },
+  { key: 'kontakte',       label: 'Kontakte',         gruppe: 'crm' },
+  { key: 'historie',       label: 'Kontakthistorie',  gruppe: 'crm' },
+  { key: 'veranstaltungen',label: 'Veranstaltungen',  gruppe: 'events' },
+  { key: 'sponsoring',     label: 'Sponsoring',       gruppe: 'crm' },
+  { key: 'aufgaben',       label: 'Aufgaben',         gruppe: 'crm' },
+  { key: 'berichte',       label: 'Berichte',         gruppe: 'crm' },
+  { key: 'media',          label: 'Media Hub',        gruppe: 'media' },
 ]
 
+const GRUPPEN_LABEL = { crm:'👥 CRM', events:'📅 Events', media:'📸 Media' }
+
 const ROLLEN = [
-  { key: 'admin', label: 'Admin', beschreibung: 'Voller Zugriff inkl. Benutzerverwaltung' },
-  { key: 'mitarbeiter', label: 'Mitarbeiter', beschreibung: 'Zugriff auf ausgewaehlte Bereiche' },
-  { key: 'readonly', label: 'Nur Lesen', beschreibung: 'Kann nur lesen, nichts bearbeiten' },
+  { key: 'admin',      label: 'Admin',        beschreibung: 'Voller Zugriff inkl. Benutzerverwaltung' },
+  { key: 'mitarbeiter',label: 'Mitarbeiter',  beschreibung: 'Zugriff auf ausgewählte Bereiche' },
+  { key: 'media',      label: 'Media',        beschreibung: 'Zugriff nur auf den Media Hub' },
+  { key: 'readonly',   label: 'Nur Lesen',    beschreibung: 'Kann nur lesen, nichts bearbeiten' },
 ]
 
 function Toggle({ checked, onChange }) {
@@ -43,24 +47,60 @@ function RolleAuswahl({ value, onChange }) {
   )
 }
 
-function BereicheToggles({ bereiche, onChange }) {
+function BereicheToggles({ bereiche, onChange, rolle }) {
+  // Für Media-Rolle: media ist automatisch aktiv
+  const effektiveBereiche = rolle === 'media'
+    ? [...new Set([...bereiche, 'media'])]
+    : bereiche
+
   function toggle(key) {
-    const updated = bereiche.includes(key) ? bereiche.filter(b=>b!==key) : [...bereiche, key]
+    const updated = effektiveBereiche.includes(key)
+      ? effektiveBereiche.filter(b=>b!==key)
+      : [...effektiveBereiche, key]
     onChange(updated)
   }
+
+  // Gruppiere nach Bereichen
+  const gruppen = ['crm','events','media']
+
   return (
-    <div style={{ border:'1.5px solid var(--gray-200)', borderRadius:'var(--radius)', overflow:'hidden' }}>
-      {ALLE_BEREICHE.map((b, i) => {
-        const hat = bereiche.includes(b.key)
+    <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+      {gruppen.map(gKey => {
+        const items = ALLE_BEREICHE.filter(b=>b.gruppe===gKey)
         return (
-          <div key={b.key} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 16px', borderBottom:i<ALLE_BEREICHE.length-1?'1px solid var(--gray-100)':'none', background:hat?'rgba(15,34,64,0.02)':'var(--white)' }}>
-            <span style={{ fontSize:14, fontWeight:500 }}>{b.label}</span>
-            <Toggle checked={hat} onChange={() => toggle(b.key)} />
+          <div key={gKey}>
+            <div style={{ fontSize:11, fontWeight:700, color:'var(--gray-400)', textTransform:'uppercase', letterSpacing:1, marginBottom:8 }}>{GRUPPEN_LABEL[gKey]}</div>
+            <div style={{ border:'1.5px solid var(--gray-200)', borderRadius:'var(--radius)', overflow:'hidden' }}>
+              {items.map((b, i) => {
+                const hat = effektiveBereiche.includes(b.key)
+                const isMediaLocked = b.key==='media' && rolle==='media'
+                return (
+                  <div key={b.key} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 16px', borderBottom:i<items.length-1?'1px solid var(--gray-100)':'none', background:hat?'rgba(15,34,64,0.02)':'var(--white)' }}>
+                    <div>
+                      <span style={{ fontSize:14, fontWeight:500 }}>{b.label}</span>
+                      {isMediaLocked && <span style={{ fontSize:11, color:'var(--gold)', marginLeft:8 }}>⚡ Standard für Media-Rolle</span>}
+                    </div>
+                    <Toggle checked={hat} onChange={() => !isMediaLocked && toggle(b.key)} />
+                  </div>
+                )
+              })}
+            </div>
           </div>
         )
       })}
     </div>
   )
+}
+
+function RollenBadge({ rolle }) {
+  const styles = {
+    admin:       { background:'#fce4d6', color:'#8a3a1a', label:'Admin' },
+    mitarbeiter: { background:'#ddeaff', color:'#1a4a8a', label:'Mitarbeiter' },
+    media:       { background:'#fff3cd', color:'#8a6a00', label:'Media' },
+    readonly:    { background:'#ececec', color:'#555',    label:'Nur Lesen' },
+  }
+  const s = styles[rolle] || styles.readonly
+  return <span style={{ fontSize:12, padding:'3px 10px', borderRadius:20, fontWeight:600, background:s.background, color:s.color }}>{s.label}</span>
 }
 
 export default function Benutzer() {
@@ -96,6 +136,13 @@ export default function Benutzer() {
     setSponsoren(data || [])
   }
 
+  // Standard-Bereiche je nach Rolle
+  function standardBereiche(rolle) {
+    if (rolle === 'admin') return ALLE_BEREICHE.map(b=>b.key)
+    if (rolle === 'media') return ['media']
+    return ['kontakte','historie','veranstaltungen','sponsoring','aufgaben']
+  }
+
   async function createUser() {
     if (!form.email || !form.password) { setError('E-Mail und Passwort erforderlich'); return }
     if (form.password.length < 6) { setError('Passwort mind. 6 Zeichen'); return }
@@ -125,11 +172,10 @@ export default function Benutzer() {
 
   async function updateUser() {
     setSaving(true)
-    const { error } = await supabase.from('profile').update({
-      name: editForm.name,
-      rolle: editForm.rolle,
-      bereiche: editForm.rolle==='admin' ? ['kontakte','historie','veranstaltungen','sponsoring','aufgaben','berichte'] : editForm.bereiche
-    }).eq('id', editForm.id)
+    const bereiche = editForm.rolle==='admin'
+      ? ALLE_BEREICHE.map(b=>b.key)
+      : editForm.bereiche
+    const { error } = await supabase.from('profile').update({ name:editForm.name, rolle:editForm.rolle, bereiche }).eq('id', editForm.id)
     if (error) { alert('Fehler: '+error.message); setSaving(false); return }
     setEditModal(false); setSaving(false); load()
   }
@@ -143,12 +189,7 @@ export default function Benutzer() {
       const { data: up } = await supabase.storage.from('logos').upload(path, avatarFile, { upsert: true })
       if (up) { const { data: pub } = supabase.storage.from('logos').getPublicUrl(up.path); avatar_url = pub.publicUrl }
     }
-    const { error } = await supabase.from('profile').update({
-      name: profilForm.name,
-      position: profilForm.position||null,
-      telefon: profilForm.telefon||null,
-      avatar_url
-    }).eq('id', profilForm.id)
+    const { error } = await supabase.from('profile').update({ name:profilForm.name, position:profilForm.position||null, telefon:profilForm.telefon||null, avatar_url }).eq('id', profilForm.id)
     if (error) { alert('Fehler: '+error.message) }
     setProfilModal(false); setSaving(false); setAvatarFile(null); setAvatarPreview(null); load()
   }
@@ -159,25 +200,12 @@ export default function Benutzer() {
     load()
   }
 
-  function openDetail(u) {
-    setSelectedUser(u)
-    loadSponsoren(u.name || u.email)
-    setDetailModal(true)
-  }
-
-  function openProfil(u) {
-    setProfilForm(u)
-    setAvatarPreview(u.avatar_url||null)
-    setAvatarFile(null)
-    setProfilModal(true)
-  }
+  function openDetail(u) { setSelectedUser(u); loadSponsoren(u.name||u.email); setDetailModal(true) }
+  function openProfil(u) { setProfilForm(u); setAvatarPreview(u.avatar_url||null); setAvatarFile(null); setProfilModal(true) }
 
   if (!isAdmin()) return (
-    <main className="main">
-      <div className="card"><p style={{color:'var(--red)'}}>Nur Admins können Benutzer verwalten.</p></div>
-    </main>
+    <main className="main"><div className="card"><p style={{color:'var(--red)'}}>Nur Admins können Benutzer verwalten.</p></div></main>
   )
-
   if (loading) return <div className="loading-center"><div className="spinner"/></div>
 
   return (
@@ -186,7 +214,10 @@ export default function Benutzer() {
       <p className="page-subtitle">Nutzer anlegen, Rechte verwalten und Profile bearbeiten</p>
       {success && <div className="alert alert-success" style={{marginBottom:20}}>{success}</div>}
       <div className="toolbar">
-        <button className="btn btn-primary" onClick={() => { setForm({ email:'', name:'', password:'', rolle:'mitarbeiter', bereiche:['kontakte','historie','veranstaltungen','sponsoring','aufgaben'] }); setError(''); setModal(true) }}>+ Neuer Benutzer</button>
+        <button className="btn btn-primary" onClick={() => {
+          setForm({ email:'', name:'', password:'', rolle:'mitarbeiter', bereiche:['kontakte','historie','veranstaltungen','sponsoring','aufgaben'] })
+          setError(''); setModal(true)
+        }}>+ Neuer Benutzer</button>
       </div>
 
       <div style={{ display:'grid', gap:16 }}>
@@ -213,21 +244,37 @@ export default function Benutzer() {
                   </div>
                 </div>
                 <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
-                  <span style={{ fontSize:12, padding:'3px 10px', borderRadius:20, fontWeight:600, background:u.rolle==='admin'?'#fce4d6':u.rolle==='mitarbeiter'?'#ddeaff':'#ececec', color:u.rolle==='admin'?'#8a3a1a':u.rolle==='mitarbeiter'?'#1a4a8a':'#555' }}>
-                    {u.rolle==='admin'?'Admin':u.rolle==='mitarbeiter'?'Mitarbeiter':'Nur Lesen'}
-                  </span>
+                  <RollenBadge rolle={u.rolle} />
                   <button className="btn btn-sm btn-outline" onClick={() => openDetail(u)}>Sponsoren</button>
                   <button className="btn btn-sm btn-outline" onClick={() => openProfil(u)}>{isMe?'Mein Profil':'Profil'}</button>
                   {isAdmin()&&<button className="btn btn-sm btn-outline" onClick={() => { setEditForm({...u, bereiche:u.bereiche||[]}); setEditModal(true) }}>Rechte</button>}
                   {!isMe&&isAdmin()&&<button className="btn btn-sm btn-danger" onClick={() => deactivateUser(u.id)}>Deaktivieren</button>}
                 </div>
               </div>
+
+              {/* Zugriffsrechte gruppiert */}
               <div style={{ paddingTop:12, borderTop:'1px solid var(--gray-100)' }}>
-                <div style={{ fontSize:11, color:'var(--gray-400)', marginBottom:8, textTransform:'uppercase', letterSpacing:'0.3px' }}>Zugriffsrechte</div>
-                <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
-                  {ALLE_BEREICHE.map(b => {
-                    const hat = u.rolle==='admin' || (u.bereiche||[]).includes(b.key)
-                    return <span key={b.key} style={{ fontSize:12, padding:'3px 10px', borderRadius:20, fontWeight:600, background:hat?'#e2efda':'var(--gray-100)', color:hat?'#2d6b3a':'var(--gray-400)' }}>{hat?'✓':'✕'} {b.label}</span>
+                <div style={{ fontSize:11, color:'var(--gray-400)', marginBottom:10, textTransform:'uppercase', letterSpacing:'0.3px' }}>Zugriffsrechte</div>
+                <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                  {['crm','events','media'].map(gKey => {
+                    const items = ALLE_BEREICHE.filter(b=>b.gruppe===gKey)
+                    const aktive = items.filter(b => u.rolle==='admin' || (u.bereiche||[]).includes(b.key))
+                    if (aktive.length===0) return null
+                    return (
+                      <div key={gKey} style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+                        <span style={{ fontSize:11, color:'var(--gray-400)', width:60, flexShrink:0 }}>{GRUPPEN_LABEL[gKey]}</span>
+                        <div style={{ display:'flex', gap:5, flexWrap:'wrap' }}>
+                          {items.map(b => {
+                            const hat = u.rolle==='admin' || (u.bereiche||[]).includes(b.key)
+                            return (
+                              <span key={b.key} style={{ fontSize:12, padding:'3px 10px', borderRadius:20, fontWeight:600, background:hat?'#e2efda':'var(--gray-100)', color:hat?'#2d6b3a':'var(--gray-400)' }}>
+                                {hat?'✓':'✕'} {b.label}
+                              </span>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
                   })}
                 </div>
               </div>
@@ -239,7 +286,7 @@ export default function Benutzer() {
       {/* MODAL: NEUER BENUTZER */}
       {modal&&(
         <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setModal(false)}>
-          <div className="modal" style={{maxWidth:600}}>
+          <div className="modal" style={{maxWidth:620}}>
             <div className="modal-header"><span className="modal-title">Neuer Benutzer</span><button className="close-btn" onClick={()=>setModal(false)}>×</button></div>
             <div className="modal-body">
               {error&&<div className="alert alert-error" style={{marginBottom:16}}>{error}</div>}
@@ -248,8 +295,16 @@ export default function Benutzer() {
                 <div className="form-group"><label>E-Mail *</label><input type="email" value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))} placeholder="name@email.de"/></div>
               </div>
               <div className="form-group"><label>Passwort * (mind. 6 Zeichen)</label><input type="password" value={form.password} onChange={e=>setForm(f=>({...f,password:e.target.value}))}/></div>
-              <div className="form-group"><label>Rolle</label><RolleAuswahl value={form.rolle} onChange={rolle=>setForm(f=>({...f,rolle}))}/></div>
-              {form.rolle!=='admin'&&<div className="form-group"><label>Zugriffsrechte</label><BereicheToggles bereiche={form.bereiche} onChange={bereiche=>setForm(f=>({...f,bereiche}))}/></div>}
+              <div className="form-group">
+                <label>Rolle</label>
+                <RolleAuswahl value={form.rolle} onChange={rolle=>setForm(f=>({...f, rolle, bereiche:standardBereiche(rolle)}))}/>
+              </div>
+              {form.rolle!=='admin'&&(
+                <div className="form-group">
+                  <label>Zugriffsrechte</label>
+                  <BereicheToggles bereiche={form.bereiche} rolle={form.rolle} onChange={bereiche=>setForm(f=>({...f,bereiche}))}/>
+                </div>
+              )}
             </div>
             <div className="modal-footer">
               <button className="btn btn-outline" onClick={()=>setModal(false)}>Abbrechen</button>
@@ -262,11 +317,19 @@ export default function Benutzer() {
       {/* MODAL: RECHTE BEARBEITEN */}
       {editModal&&(
         <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setEditModal(false)}>
-          <div className="modal" style={{maxWidth:600}}>
+          <div className="modal" style={{maxWidth:620}}>
             <div className="modal-header"><span className="modal-title">Rechte bearbeiten – {editForm.name||editForm.email}</span><button className="close-btn" onClick={()=>setEditModal(false)}>×</button></div>
             <div className="modal-body">
-              <div className="form-group"><label>Rolle</label><RolleAuswahl value={editForm.rolle} onChange={rolle=>setEditForm(f=>({...f,rolle}))}/></div>
-              {editForm.rolle!=='admin'&&<div className="form-group"><label>Zugriffsrechte</label><BereicheToggles bereiche={editForm.bereiche||[]} onChange={bereiche=>setEditForm(f=>({...f,bereiche}))}/></div>}
+              <div className="form-group">
+                <label>Rolle</label>
+                <RolleAuswahl value={editForm.rolle} onChange={rolle=>setEditForm(f=>({...f, rolle, bereiche:standardBereiche(rolle)}))}/>
+              </div>
+              {editForm.rolle!=='admin'&&(
+                <div className="form-group">
+                  <label>Zugriffsrechte</label>
+                  <BereicheToggles bereiche={editForm.bereiche||[]} rolle={editForm.rolle} onChange={bereiche=>setEditForm(f=>({...f,bereiche}))}/>
+                </div>
+              )}
             </div>
             <div className="modal-footer">
               <button className="btn btn-outline" onClick={()=>setEditModal(false)}>Abbrechen</button>
@@ -276,13 +339,12 @@ export default function Benutzer() {
         </div>
       )}
 
-      {/* MODAL: PROFIL BEARBEITEN */}
+      {/* MODAL: PROFIL */}
       {profilModal&&(
         <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setProfilModal(false)}>
           <div className="modal" style={{maxWidth:520}}>
             <div className="modal-header"><span className="modal-title">Profil bearbeiten</span><button className="close-btn" onClick={()=>setProfilModal(false)}>×</button></div>
             <div className="modal-body">
-              {/* Avatar */}
               <div className="form-group">
                 <label>Profilbild</label>
                 <div style={{display:'flex',alignItems:'center',gap:16}}>
@@ -299,7 +361,7 @@ export default function Benutzer() {
               </div>
               <div className="form-row">
                 <div className="form-group"><label>Name</label><input value={profilForm.name||''} onChange={e=>setProfilForm(f=>({...f,name:e.target.value}))}/></div>
-                <div className="form-group"><label>Position / Rolle im Verein</label><input value={profilForm.position||''} onChange={e=>setProfilForm(f=>({...f,position:e.target.value}))} placeholder="z.B. Sponsoring-Manager"/></div>
+                <div className="form-group"><label>Position im Verein</label><input value={profilForm.position||''} onChange={e=>setProfilForm(f=>({...f,position:e.target.value}))} placeholder="z.B. Sponsoring-Manager"/></div>
               </div>
               <div className="form-group"><label>Telefon</label><input value={profilForm.telefon||''} onChange={e=>setProfilForm(f=>({...f,telefon:e.target.value}))} placeholder="+49 421 ..."/></div>
               <div className="form-group"><label>E-Mail</label><input value={profilForm.email||''} disabled style={{background:'var(--gray-100)',color:'var(--gray-400)'}}/></div>
@@ -312,7 +374,7 @@ export default function Benutzer() {
         </div>
       )}
 
-      {/* MODAL: SPONSOREN-ÜBERSICHT */}
+      {/* MODAL: SPONSOREN */}
       {detailModal&&selectedUser&&(
         <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setDetailModal(false)}>
           <div className="modal" style={{maxWidth:620}}>
