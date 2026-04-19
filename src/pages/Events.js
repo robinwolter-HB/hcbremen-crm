@@ -219,8 +219,38 @@ function PositionenTab({ ev, positionen=[], eventFreiwillige=[], freiwillige=[],
   )
 }
 
-function EventDetail({ ev, teilnahmen=[], todos=[], ablauf=[], dateien=[], kosten=[], dienstleister=[], kostenKategorien=[], personen=[], kontakte=[], positionen=[], eventFreiwillige=[], freiwillige=[], faehigkeiten=[], onOpenPosition, onNewPosition, onEditPosition, onDeletePosition, onUpdateFreiwilligerStatus, onRemoveFreiwilliger, onEdit, onDelete, onReload, loadDetails }) {
+function EventDetail({ ev, teilnahmen=[], todos=[], ablauf=[], dateien=[], kosten=[], dienstleister=[], kostenKategorien=[], personen=[], kontakte=[], positionen=[], eventFreiwillige=[], freiwillige=[], faehigkeiten=[], loadPositionen, onEdit, onDelete, onReload, loadDetails }) {
   const [tab, setTab] = useState('teilnehmer')
+  const [positionModal, setPositionModal] = useState(false)
+  const [positionForm, setPositionForm] = useState({})
+  const [freiwilligerModal, setFreiwilligerModal] = useState(false)
+  const [freiwilligerForm, setFreiwilligerForm] = useState({})
+  const [selectedPosition, setSelectedPosition] = useState(null)
+  const [savingPos, setSavingPos] = useState(false)
+
+  async function savePosition() {
+    if (!positionForm.titel?.trim()) { alert('Bitte einen Titel eingeben.'); return }
+    setSavingPos(true)
+    const p = { event_id:ev.id, titel:positionForm.titel, beschreibung:positionForm.beschreibung||null, anzahl_benoetigt:parseInt(positionForm.anzahl_benoetigt)||1, faehigkeit_id:positionForm.faehigkeit_id||null, rang:positionForm.rang||'Helfer', reihenfolge:parseInt(positionForm.reihenfolge)||positionen.length }
+    let error
+    if (positionForm.id) { const r = await supabase.from('event_positionen').update(p).eq('id', positionForm.id); error = r.error }
+    else { const r = await supabase.from('event_positionen').insert(p); error = r.error }
+    setSavingPos(false)
+    if (error) { alert('Fehler: ' + error.message); return }
+    setPositionModal(false)
+    if (loadPositionen) loadPositionen(ev.id)
+  }
+
+  async function saveFreiwilliger() {
+    if (!freiwilligerForm.freiwilliger_id || !selectedPosition) return
+    setSavingPos(true)
+    const p = { event_id:ev.id, position_id:selectedPosition.id, freiwilliger_id:freiwilligerForm.freiwilliger_id, rang:freiwilligerForm.rang||'Helfer', status:freiwilligerForm.status||'Angefragt', notiz:freiwilligerForm.notiz||null }
+    const { error } = await supabase.from('event_freiwillige').upsert(p, { onConflict:'event_id,position_id,freiwilliger_id' })
+    setSavingPos(false)
+    if (error) { alert('Fehler: ' + error.message); return }
+    setFreiwilligerModal(false)
+    if (loadPositionen) loadPositionen(ev.id)
+  }
   const [statusFilter, setStatusFilter] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -425,13 +455,92 @@ ${ev.notizen?`<h2>Notizen</h2><div style="background:#f8f5ef;padding:14px;border
           eventFreiwillige={eventFreiwillige}
           freiwillige={freiwillige}
           faehigkeiten={faehigkeiten}
-          onNewPosition={onNewPosition}
-          onEditPosition={onEditPosition}
-          onDeletePosition={onDeletePosition}
-          onOpenPosition={onOpenPosition}
-          onUpdateFreiwilligerStatus={onUpdateFreiwilligerStatus}
-          onRemoveFreiwilliger={onRemoveFreiwilliger}
+          onNewPosition={()=>{ setPositionForm({anzahl_benoetigt:1,rang:'Helfer',reihenfolge:positionen.length}); setPositionModal(true) }}
+          onEditPosition={(pos)=>{ setPositionForm(pos); setPositionModal(true) }}
+          onDeletePosition={async(id)=>{ if(!window.confirm('Position loeschen?'))return; await supabase.from('event_positionen').delete().eq('id',id); if(loadPositionen)loadPositionen(ev.id) }}
+          onOpenPosition={(pos)=>{ setSelectedPosition(pos); setFreiwilligerForm({status:'Angefragt',rang:'Helfer'}); setFreiwilligerModal(true) }}
+          onUpdateFreiwilligerStatus={async(id,status)=>{ await supabase.from('event_freiwillige').update({status}).eq('id',id); if(loadPositionen)loadPositionen(ev.id) }}
+          onRemoveFreiwilliger={async(id)=>{ await supabase.from('event_freiwillige').delete().eq('id',id); if(loadPositionen)loadPositionen(ev.id) }}
         />
+      )}
+
+      {positionModal&&(
+        <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setPositionModal(false)}>
+          <div className="modal">
+            <div className="modal-header">
+              <span className="modal-title">{positionForm.id?'Position bearbeiten':'Neue Position'}</span>
+              <button className="close-btn" onClick={()=>setPositionModal(false)}>x</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-row">
+                <div className="form-group"><label>Titel *</label><input value={positionForm.titel||''} onChange={e=>setPositionForm(f=>({...f,titel:e.target.value}))} autoFocus placeholder="z.B. Einlass, Catering, Ordner..."/></div>
+                <div className="form-group"><label>Anzahl benötigt</label><input type="number" min="1" value={positionForm.anzahl_benoetigt||1} onChange={e=>setPositionForm(f=>({...f,anzahl_benoetigt:parseInt(e.target.value)||1}))}/></div>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Rang</label>
+                  <select value={positionForm.rang||'Helfer'} onChange={e=>setPositionForm(f=>({...f,rang:e.target.value}))}>
+                    {['Helfer','Teamleiter','Schichtleiter','Koordinator','Verantwortlicher'].map(r=><option key={r}>{r}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Erforderliche Fähigkeit</label>
+                  <select value={positionForm.faehigkeit_id||''} onChange={e=>setPositionForm(f=>({...f,faehigkeit_id:e.target.value||null}))}>
+                    <option value="">-- Keine --</option>
+                    {faehigkeiten.map(fk=><option key={fk.id} value={fk.id}>{fk.name}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="form-group"><label>Beschreibung</label><textarea value={positionForm.beschreibung||''} onChange={e=>setPositionForm(f=>({...f,beschreibung:e.target.value}))} style={{minHeight:60}}/></div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={()=>setPositionModal(false)}>Abbrechen</button>
+              <button className="btn btn-primary" onClick={savePosition} disabled={savingPos}>{savingPos?'Speichern...':'Speichern'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {freiwilligerModal&&selectedPosition&&(
+        <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setFreiwilligerModal(false)}>
+          <div className="modal" style={{maxWidth:560}}>
+            <div className="modal-header">
+              <span className="modal-title">Freiwilligen zuordnen: {selectedPosition.titel}</span>
+              <button className="close-btn" onClick={()=>setFreiwilligerModal(false)}>x</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-group">
+                <label>Person *</label>
+                <select value={freiwilligerForm.freiwilliger_id||''} onChange={e=>setFreiwilligerForm(f=>({...f,freiwilliger_id:e.target.value}))}>
+                  <option value="">-- Person wählen --</option>
+                  {freiwillige.filter(fw=>!selectedPosition.faehigkeit_id||(fw.freiwillige_zu_faehigkeiten||[]).some(z=>z.faehigkeit_id===selectedPosition.faehigkeit_id)).map(fw=>(
+                    <option key={fw.id} value={fw.id}>{fw.vorname} {fw.nachname}</option>
+                  ))}
+                </select>
+                {selectedPosition.faehigkeit_id&&<p style={{fontSize:11,color:'var(--gray-400)',marginTop:4}}>Gefiltert nach Fähigkeit: {faehigkeiten.find(f=>f.id===selectedPosition.faehigkeit_id)?.name}</p>}
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Rang</label>
+                  <select value={freiwilligerForm.rang||'Helfer'} onChange={e=>setFreiwilligerForm(f=>({...f,rang:e.target.value}))}>
+                    {['Helfer','Teamleiter','Schichtleiter','Koordinator','Verantwortlicher'].map(r=><option key={r}>{r}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Status</label>
+                  <select value={freiwilligerForm.status||'Angefragt'} onChange={e=>setFreiwilligerForm(f=>({...f,status:e.target.value}))}>
+                    {['Angefragt','Zugesagt','Abgesagt','Erschienen','Nicht erschienen'].map(s=><option key={s}>{s}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="form-group"><label>Notiz</label><textarea value={freiwilligerForm.notiz||''} onChange={e=>setFreiwilligerForm(f=>({...f,notiz:e.target.value}))} style={{minHeight:60}}/></div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={()=>setFreiwilligerModal(false)}>Abbrechen</button>
+              <button className="btn btn-primary" onClick={saveFreiwilliger} disabled={savingPos}>{savingPos?'Speichern...':'Zuordnen'}</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {tab==='todos'&&(
@@ -1018,12 +1127,7 @@ export default function Events() {
                 teilnahmen={teilnahmen} todos={todos} ablauf={ablauf} dateien={dateien} kosten={kosten}
                 dienstleister={dienstleister} kostenKategorien={kostenKategorien} personen={personen} kontakte={kontakte}
                 positionen={positionen} eventFreiwillige={eventFreiwillige} freiwillige={freiwillige} faehigkeiten={faehigkeiten}
-                onNewPosition={()=>{ setPositionForm({anzahl_benoetigt:1,rang:'Helfer',reihenfolge:positionen.length}); setPositionModal(true) }}
-                onEditPosition={(pos)=>{ setPositionForm(pos); setPositionModal(true) }}
-                onDeletePosition={async(id)=>{ if(!window.confirm('Position loeschen?'))return; await supabase.from('event_positionen').delete().eq('id',id); loadPositionen(selectedEvent.id) }}
-                onOpenPosition={(pos)=>{ setSelectedPosition(pos); setFreiwilligerForm({status:'Angefragt',rang:'Helfer'}); setFreiwilligerModal(true) }}
-                onUpdateFreiwilligerStatus={async(id,status)=>{ await supabase.from('event_freiwillige').update({status}).eq('id',id); loadPositionen(selectedEvent.id) }}
-                onRemoveFreiwilliger={async(id)=>{ await supabase.from('event_freiwillige').delete().eq('id',id); loadPositionen(selectedEvent.id) }}
+                loadPositionen={loadPositionen}
                 onEdit={()=>{ setEventForm(selectedEvent); setEventModal(true) }}
                 onDelete={()=>deleteEvent(selectedEvent.id)}
                 onReload={loadAll}
