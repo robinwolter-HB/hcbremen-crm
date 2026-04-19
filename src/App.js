@@ -37,9 +37,11 @@ function DropdownMenu({ label, items, onEmail, onLogout, onClose }) {
   function close() { setOpen(false); onClose && onClose() }
   return (
     <div style={{position:'relative'}}>
-      <button className="nav-link" style={{display:'flex',alignItems:'center',gap:4}}
+      <button
+        className={`nav-link${items.some(i => i.active) ? ' active' : ''}`}
+        style={{display:'flex',alignItems:'center',gap:4}}
         onClick={()=>setOpen(o=>!o)}>
-        {label} <span style={{fontSize:10,opacity:0.7}}>{open?'v':'^'}</span>
+        {label} <span style={{fontSize:10,opacity:0.7}}>{open?'▾':'▾'}</span>
       </button>
       {open && (
         <>
@@ -63,7 +65,7 @@ function DropdownMenu({ label, items, onEmail, onLogout, onClose }) {
               <button onClick={()=>{close();onEmail()}} style={{display:'flex',alignItems:'center',gap:8,
                 padding:'10px 16px',fontSize:14,fontWeight:500,color:'rgba(255,255,255,0.85)',
                 background:'transparent',border:'none',cursor:'pointer',width:'100%',textAlign:'left'}}>
-                E-Mail senden
+                📧 E-Mail senden
               </button>
             )}
             {onLogout && (
@@ -106,13 +108,34 @@ function Header() {
     await supabase.auth.signOut()
   }
 
-  // Zugriff auf Media: admin, rolle=media, oder 'media' im bereiche-Array
   const canAccessMedia = () => {
     if (!profile) return false
     return profile.rolle === 'admin' || profile.rolle === 'media' || (profile.bereiche || []).includes('media')
   }
 
   if (!user) return null
+
+  const crmItems = [
+    ...(canAccess('kontakte') ? [{ to:'/kontakte', label:'👥 Kontakte' }] : []),
+    ...(canAccess('sponsoring') ? [{ to:'/sponsoring', label:'🤝 Sponsoring' }] : []),
+    ...(isAdmin() ? [{ to:'/ev', label:'🏛️ e.V.' }] : []),
+  ]
+
+  const eventsItems = [
+    ...(canAccess('events') ? [{ to:'/events', label:'📅 Events' }] : []),
+    ...(canAccess('events') ? [{ to:'/freiwillige', label:'🙋 Freiwillige' }] : []),
+  ]
+
+  const aktivItems = [
+    ...(canAccess('historie') ? [{ to:'/historie', label:'📋 Historie' }] : []),
+    { to:'/aufgaben', label:'✓ Aufgaben' },
+    { to:'/kalender', label:'📅 Kalender' },
+    { to:'/inbox', label:'📬 Inbox', badge: unreadCount },
+  ]
+
+  const verwaltungItems = [
+    ...(isAdmin() ? [{ to:'/benutzer', label:'👥 Nutzer' }, { to:'/einstellungen', label:'⚙️ Einstellungen' }] : []),
+  ]
 
   return (
     <>
@@ -125,23 +148,28 @@ function Header() {
         <span className="user-badge">{profile?.name || user.email}</span>
         <nav className={`nav${navOpen ? ' open' : ''}`} onClick={e => { if(e.target===e.currentTarget) setNavOpen(false) }}>
           <NavLink to="/" className={({isActive})=>'nav-link'+(isActive?' active':'')} end onClick={()=>setNavOpen(false)}>🏠 Dashboard</NavLink>
-          {canAccess('kontakte') && <NavLink to="/kontakte" className={({isActive})=>'nav-link'+(isActive?' active':'')} onClick={()=>setNavOpen(false)}>👥 Kontakte</NavLink>}
-          {canAccess('events') && <NavLink to="/events" className={({isActive})=>'nav-link'+(isActive?' active':'')} onClick={()=>setNavOpen(false)}>📅 Events</NavLink>}
-          {canAccess('sponsoring') && <NavLink to="/sponsoring" className={({isActive})=>'nav-link'+(isActive?' active':'')} onClick={()=>setNavOpen(false)}>🤝 Sponsoring</NavLink>}
-          {isAdmin() && <NavLink to="/ev" className={({isActive})=>'nav-link'+(isActive?' active':'')} onClick={()=>setNavOpen(false)}>🏛️ e.V.</NavLink>}
-          {canAccess('events') && <NavLink to="/freiwillige" className={({isActive})=>'nav-link'+(isActive?' active':'')} onClick={()=>setNavOpen(false)}>👥 Freiwillige</NavLink>}
+
+          {crmItems.length > 0 && (
+            <DropdownMenu label="👥 CRM" onClose={()=>setNavOpen(false)} items={crmItems} />
+          )}
+
+          {eventsItems.length > 0 && (
+            <DropdownMenu label="📅 Events" onClose={()=>setNavOpen(false)} items={eventsItems} />
+          )}
+
           {canAccessMedia() && (
             <NavLink to="/media" className={({isActive})=>'nav-link'+(isActive?' active':'')} onClick={()=>setNavOpen(false)}>📸 Media</NavLink>
           )}
-          <DropdownMenu label="📋 Aktivitäten" onClose={()=>setNavOpen(false)} items={[
-            ...(canAccess('historie') ? [{ to:'/historie', label:'📋 Historie' }] : []),
-            { to:'/aufgaben', label:'✓ Aufgaben' },
-            { to:'/kalender', label:'📅 Kalender' },
-            { to:'/inbox', label:'📬 Inbox', badge: unreadCount },
-          ]} onEmail={()=>setEmailModal(true)}/>
-          <DropdownMenu label="⚙️ Verwaltung" onClose={()=>setNavOpen(false)} items={[
-            ...(isAdmin() ? [{ to:'/benutzer', label:'👥 Nutzer' }, { to:'/einstellungen', label:'⚙️ Einstellungen' }] : []),
-          ]} onLogout={handleLogout}/>
+
+          <DropdownMenu label="📋 Aktivitäten" onClose={()=>setNavOpen(false)} items={aktivItems} onEmail={()=>setEmailModal(true)} />
+
+          {verwaltungItems.length > 0 && (
+            <DropdownMenu label="⚙️ Einstellungen" onClose={()=>setNavOpen(false)} items={verwaltungItems} onLogout={handleLogout} />
+          )}
+
+          {verwaltungItems.length === 0 && (
+            <DropdownMenu label="⚙️" onClose={()=>setNavOpen(false)} items={[]} onLogout={handleLogout} />
+          )}
         </nav>
       </div>
     </header>
