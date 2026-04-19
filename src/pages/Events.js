@@ -492,15 +492,17 @@ ${ev.notizen?`<h2>Notizen</h2><div style="background:#f8f5ef;padding:14px;border
                   </select>
                 </div>
               </div>
-              {posKategorien.length>0&&(
-                <div className="form-group">
-                  <label>Positionsart</label>
-                  <select value={positionForm.positionsart||''} onChange={e=>setPositionForm(f=>({...f,positionsart:e.target.value||null}))}>
-                    <option value="">-- Keine --</option>
-                    {posKategorien.map(pk=><option key={pk.id} value={pk.name}>{pk.name}</option>)}
-                  </select>
-                </div>
-              )}
+              <div className="form-group">
+                <label>Positionsart</label>
+                <select value={positionForm.positionsart||''} onChange={e=>setPositionForm(f=>({...f,positionsart:e.target.value||null}))}>
+                  <option value="">-- Keine --</option>
+                  {posKategorien.length>0
+                    ? posKategorien.map(pk=><option key={pk.id} value={pk.name}>{pk.name}</option>)
+                    : ['Einlass','Catering','Technik','Ordner','VIP','Aufbau','Sonstiges'].map(k=><option key={k}>{k}</option>)
+                  }
+                </select>
+                {posKategorien.length===0&&<p style={{fontSize:11,color:'var(--gray-400)',marginTop:4}}>Kategorien in Einstellungen → Positions-Kategorien anlegen</p>}
+              </div>
               <div className="form-group"><label>Beschreibung</label><textarea value={positionForm.beschreibung||''} onChange={e=>setPositionForm(f=>({...f,beschreibung:e.target.value}))} style={{minHeight:60}}/></div>
             </div>
             <div className="modal-footer">
