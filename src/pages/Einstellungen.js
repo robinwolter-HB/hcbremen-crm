@@ -27,7 +27,7 @@ function VerwaltungsBlock({ titel, items, onSave, onDelete, onToggle, felder }) 
   function openEdit(item) { setForm(item); setModal(true) }
 
   async function save() {
-    if (!form.name?.trim()) return
+    if (!form.name?.trim()) { alert('Bitte einen Namen eingeben.'); return }
     setSaving(true)
     await onSave(form)
     setModal(false); setSaving(false)
@@ -224,11 +224,12 @@ export default function Einstellungen() {
   const [dlArtikel, setDlArtikel] = useState([])
   const [fkKategorien, setFkKategorien] = useState([])
   const [posKategorien, setPosKategorien] = useState([])
+  const [raenge, setRaenge] = useState([])
 
   useEffect(() => { load() }, [])
 
   async function load() {
-    const [{ data:k },{ data:s },{ data:ea },{ data:es },{ data:dt },{ data:da },{ data:fkk },{ data:pk }] = await Promise.all([
+    const [{ data:k },{ data:s },{ data:ea },{ data:es },{ data:dt },{ data:da },{ data:fkk },{ data:pk },{ data:rg }] = await Promise.all([
       supabase.from('kontakt_kategorien').select('*').order('reihenfolge'),
       supabase.from('crm_status').select('*').order('reihenfolge'),
       supabase.from('event_arten').select('*').order('reihenfolge'),
@@ -237,6 +238,7 @@ export default function Einstellungen() {
       supabase.from('dienstleistungsartikel').select('*').order('reihenfolge'),
       supabase.from('freiwillige_faehigkeit_kategorien').select('*').order('reihenfolge'),
       supabase.from('event_position_kategorien').select('*').order('reihenfolge'),
+      supabase.from('freiwillige_raenge').select('*').order('reihenfolge'),
     ])
     setKategorien(k||[])
     setStatus(s||[])
@@ -246,35 +248,50 @@ export default function Einstellungen() {
     setDlArtikel(da||[])
     setFkKategorien(fkk||[])
     setPosKategorien(pk||[])
+    setRaenge(rg||[])
     setLoading(false)
   }
 
   // Generic CRUD factories
-  function makeCRUD(table, setter, extraFields = {}) {
+  function makeCRUD(table, setter, allowedFields = []) {
     return {
       save: async (form) => {
-        const payload = { name:form.name, reihenfolge:form.reihenfolge||0, aktiv:form.aktiv!==false, ...extraFields }
-        if (form.farbe !== undefined) payload.farbe = form.farbe || '#2d6fa3'
-        if (form.einheit !== undefined) payload.einheit = form.einheit
-        if (form.kategorie !== undefined) payload.kategorie = form.kategorie
-        if (form.beschreibung !== undefined) payload.beschreibung = form.beschreibung
-        if (form.id) await supabase.from(table).update(payload).eq('id', form.id)
-        else await supabase.from(table).insert(payload)
+        const payload = { name:form.name.trim(), reihenfolge:form.reihenfolge||0, aktiv:form.aktiv!==false }
+        if (allowedFields.includes('farbe')) payload.farbe = form.farbe || '#2d6fa3'
+        if (allowedFields.includes('einheit')) payload.einheit = form.einheit || 'Stk'
+        if (allowedFields.includes('kategorie')) payload.kategorie = form.kategorie || null
+        if (allowedFields.includes('beschreibung')) payload.beschreibung = form.beschreibung || null
+        let error
+        if (form.id) {
+          const r = await supabase.from(table).update(payload).eq('id', form.id)
+          error = r.error
+        } else {
+          const r = await supabase.from(table).insert(payload)
+          error = r.error
+        }
+        if (error) { alert('Fehler beim Speichern: ' + error.message); return }
         load()
       },
-      delete: async (id) => { await supabase.from(table).delete().eq('id', id); load() },
-      toggle: async (item) => { await supabase.from(table).update({ aktiv:!item.aktiv }).eq('id', item.id); load() },
+      delete: async (id) => {
+        const { error } = await supabase.from(table).delete().eq('id', id)
+        if (error) { alert('Fehler beim Loeschen: ' + error.message); return }
+        load()
+      },
+      toggle: async (item) => {
+        await supabase.from(table).update({ aktiv:!item.aktiv }).eq('id', item.id)
+        load()
+      },
     }
   }
 
-  const katCRUD = makeCRUD('kontakt_kategorien', setKategorien)
-  const statusCRUD = makeCRUD('crm_status', setStatus)
-  const eArtenCRUD = makeCRUD('event_arten', setEventArten)
-  const eStatusCRUD = makeCRUD('event_status_liste', setEventStatus)
-  const dlTypenCRUD = makeCRUD('dienstleister_typen', setDlTypen)
-  const dlArtikelCRUD = makeCRUD('dienstleistungsartikel', setDlArtikel)
-  const fkKatCRUD = makeCRUD('freiwillige_faehigkeit_kategorien', setFkKategorien)
-  const posKatCRUD = makeCRUD('event_position_kategorien', setPosKategorien)
+  const katCRUD = makeCRUD('kontakt_kategorien', setKategorien, ['farbe'])
+  const statusCRUD = makeCRUD('crm_status', setStatus, ['farbe'])
+  const eArtenCRUD = makeCRUD('event_arten', setEventArten, ['farbe'])
+  const eStatusCRUD = makeCRUD('event_status_liste', setEventStatus, ['farbe'])
+  const dlTypenCRUD = makeCRUD('dienstleister_typen', setDlTypen, [])
+  const dlArtikelCRUD = makeCRUD('dienstleistungsartikel', setDlArtikel, ['einheit','kategorie','beschreibung'])
+  const fkKatCRUD = makeCRUD('freiwillige_faehigkeit_kategorien', setFkKategorien, [])
+  const posKatCRUD = makeCRUD('event_position_kategorien', setPosKategorien, [])
 
   if (!isAdmin()) return (
     <main className="main">
@@ -291,6 +308,7 @@ export default function Einstellungen() {
     ['event-status','🔄 Event-Status'],
     ['dl-typen','🏢 Dienstleister-Typen'],
     ['dl-artikel','📦 Dienstleistungsartikel'],
+    ['raenge','⭐ Ränge'],
     ['fk-kategorien','🏷️ Fähigkeits-Kategorien'],
     ['pos-kategorien','📍 Positions-Kategorien'],
     ['klauseln','📋 Vertragsklauseln'],
@@ -341,6 +359,18 @@ export default function Einstellungen() {
           <div className="card" style={{marginTop:16,background:'#f8f5ef',border:'1.5px solid #e0ddd6'}}>
             <div style={{fontSize:13,color:'var(--gray-600)'}}>
               <strong>Hinweis:</strong> Preise pro Dienstleister werden im Dienstleister-Tab unter Events eingetragen. Dort kannst du fuer jeden Artikel den Preis pro Dienstleister vergleichen.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {tab==='raenge' && (
+        <div>
+          <VerwaltungsBlock titel="Ränge (Freiwillige & Positionen)" items={raenge}
+            onSave={raengeCRUD.save} onDelete={raengeCRUD.delete} onToggle={raengeCRUD.toggle} felder={[]}/>
+          <div className="card" style={{marginTop:16,background:'#f8f5ef',border:'1.5px solid #e0ddd6'}}>
+            <div style={{fontSize:13,color:'var(--gray-600)'}}>
+              <strong>Hinweis:</strong> Diese Ränge werden bei Event-Positionen und der Freiwilligen-Zuordnung verwendet (z.B. Helfer, Teamleiter, Koordinator).
             </div>
           </div>
         </div>
