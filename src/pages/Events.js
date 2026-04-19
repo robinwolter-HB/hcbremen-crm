@@ -170,6 +170,7 @@ function PositionenTab({ ev, positionen=[], eventFreiwillige=[], freiwillige=[],
                       </span>
                       <span style={{fontSize:11,background:'#ddeaff',color:'#1a4a8a',padding:'1px 8px',borderRadius:10,fontWeight:600}}>{pos.rang||'Helfer'}</span>
                       {fk&&<span style={{fontSize:11,background:'var(--gray-100)',color:'var(--gray-600)',padding:'1px 8px',borderRadius:10}}>{fk.name}</span>}
+                      {pos.positionsart&&<span style={{fontSize:11,background:'#f0e8ff',color:'#6b21a8',padding:'1px 8px',borderRadius:10}}>{pos.positionsart}</span>}
                     </div>
                     {pos.beschreibung&&<div style={{fontSize:12,color:'var(--gray-500)',marginTop:3}}>{pos.beschreibung}</div>}
                   </div>
@@ -219,7 +220,7 @@ function PositionenTab({ ev, positionen=[], eventFreiwillige=[], freiwillige=[],
   )
 }
 
-function EventDetail({ ev, teilnahmen=[], todos=[], ablauf=[], dateien=[], kosten=[], dienstleister=[], kostenKategorien=[], personen=[], kontakte=[], positionen=[], eventFreiwillige=[], freiwillige=[], faehigkeiten=[], loadPositionen, onEdit, onDelete, onReload, loadDetails }) {
+function EventDetail({ ev, teilnahmen=[], todos=[], ablauf=[], dateien=[], kosten=[], dienstleister=[], kostenKategorien=[], personen=[], kontakte=[], positionen=[], eventFreiwillige=[], freiwillige=[], faehigkeiten=[], raenge=[], posKategorien=[], loadPositionen, onEdit, onDelete, onReload, loadDetails }) {
   const [tab, setTab] = useState('teilnehmer')
   const [positionModal, setPositionModal] = useState(false)
   const [positionForm, setPositionForm] = useState({})
@@ -231,7 +232,7 @@ function EventDetail({ ev, teilnahmen=[], todos=[], ablauf=[], dateien=[], koste
   async function savePosition() {
     if (!positionForm.titel?.trim()) { alert('Bitte einen Titel eingeben.'); return }
     setSavingPos(true)
-    const p = { event_id:ev.id, titel:positionForm.titel, beschreibung:positionForm.beschreibung||null, anzahl_benoetigt:parseInt(positionForm.anzahl_benoetigt)||1, faehigkeit_id:positionForm.faehigkeit_id||null, rang:positionForm.rang||'Helfer', reihenfolge:parseInt(positionForm.reihenfolge)||positionen.length }
+    const p = { event_id:ev.id, titel:positionForm.titel, beschreibung:positionForm.beschreibung||null, anzahl_benoetigt:parseInt(positionForm.anzahl_benoetigt)||1, faehigkeit_id:positionForm.faehigkeit_id||null, rang:positionForm.rang||'Helfer', positionsart:positionForm.positionsart||null, reihenfolge:parseInt(positionForm.reihenfolge)||positionen.length }
     let error
     if (positionForm.id) { const r = await supabase.from('event_positionen').update(p).eq('id', positionForm.id); error = r.error }
     else { const r = await supabase.from('event_positionen').insert(p); error = r.error }
@@ -480,7 +481,7 @@ ${ev.notizen?`<h2>Notizen</h2><div style="background:#f8f5ef;padding:14px;border
                 <div className="form-group">
                   <label>Rang</label>
                   <select value={positionForm.rang||'Helfer'} onChange={e=>setPositionForm(f=>({...f,rang:e.target.value}))}>
-                    {['Helfer','Teamleiter','Schichtleiter','Koordinator','Verantwortlicher'].map(r=><option key={r}>{r}</option>)}
+                    {(raenge.length>0?raenge.map(r=>r.name):['Helfer','Teamleiter','Schichtleiter','Koordinator','Verantwortlicher']).map(r=><option key={r}>{r}</option>)}
                   </select>
                 </div>
                 <div className="form-group">
@@ -491,6 +492,15 @@ ${ev.notizen?`<h2>Notizen</h2><div style="background:#f8f5ef;padding:14px;border
                   </select>
                 </div>
               </div>
+              {posKategorien.length>0&&(
+                <div className="form-group">
+                  <label>Positionsart</label>
+                  <select value={positionForm.positionsart||''} onChange={e=>setPositionForm(f=>({...f,positionsart:e.target.value||null}))}>
+                    <option value="">-- Keine --</option>
+                    {posKategorien.map(pk=><option key={pk.id} value={pk.name}>{pk.name}</option>)}
+                  </select>
+                </div>
+              )}
               <div className="form-group"><label>Beschreibung</label><textarea value={positionForm.beschreibung||''} onChange={e=>setPositionForm(f=>({...f,beschreibung:e.target.value}))} style={{minHeight:60}}/></div>
             </div>
             <div className="modal-footer">
@@ -523,7 +533,7 @@ ${ev.notizen?`<h2>Notizen</h2><div style="background:#f8f5ef;padding:14px;border
                 <div className="form-group">
                   <label>Rang</label>
                   <select value={freiwilligerForm.rang||'Helfer'} onChange={e=>setFreiwilligerForm(f=>({...f,rang:e.target.value}))}>
-                    {['Helfer','Teamleiter','Schichtleiter','Koordinator','Verantwortlicher'].map(r=><option key={r}>{r}</option>)}
+                    {(raenge.length>0?raenge.map(r=>r.name):['Helfer','Teamleiter','Schichtleiter','Koordinator','Verantwortlicher']).map(r=><option key={r}>{r}</option>)}
                   </select>
                 </div>
                 <div className="form-group">
@@ -817,6 +827,8 @@ export default function Events() {
   const [selectedDLArtikel, setSelectedDLArtikel] = useState(null)
   const [freiwillige, setFreiwillige] = useState([])
   const [faehigkeiten, setFaehigkeiten] = useState([])
+  const [raenge, setRaenge] = useState([])
+  const [posKategorien, setPosKategorien] = useState([])
   const [positionen, setPositionen] = useState([])
   const [eventFreiwillige, setEventFreiwillige] = useState([])
   const [positionModal, setPositionModal] = useState(false)
@@ -1126,7 +1138,7 @@ export default function Events() {
                 ev={selectedEvent}
                 teilnahmen={teilnahmen} todos={todos} ablauf={ablauf} dateien={dateien} kosten={kosten}
                 dienstleister={dienstleister} kostenKategorien={kostenKategorien} personen={personen} kontakte={kontakte}
-                positionen={positionen} eventFreiwillige={eventFreiwillige} freiwillige={freiwillige} faehigkeiten={faehigkeiten}
+                positionen={positionen} eventFreiwillige={eventFreiwillige} freiwillige={freiwillige} faehigkeiten={faehigkeiten} raenge={raenge} posKategorien={posKategorien}
                 loadPositionen={loadPositionen}
                 onEdit={()=>{ setEventForm(selectedEvent); setEventModal(true) }}
                 onDelete={()=>deleteEvent(selectedEvent.id)}
