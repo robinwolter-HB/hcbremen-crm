@@ -40,20 +40,24 @@ export default function Freiwillige() {
   useEffect(() => { if (selected) loadFaehigkeiten(selected.id) }, [selected])
 
   async function load() {
-    const [{ data: f }, { data: fk }] = await Promise.all([
-      supabase.from('freiwillige').select('*').order('nachname'),
-      supabase.from('freiwillige_faehigkeiten').select('*').eq('aktiv', true).order('reihenfolge'),
-    ])
-    setListe(f || [])
-    setFaehigkeiten(fk || [])
+    try {
+      const { data: f, error: e1 } = await supabase.from('freiwillige').select('*').order('nachname')
+      if (!e1) setListe(f || [])
+    } catch(e) { console.error('freiwillige load error:', e) }
+    try {
+      const { data: fk, error: e2 } = await supabase.from('freiwillige_faehigkeiten').select('*').eq('aktiv', true).order('reihenfolge')
+      if (!e2) setFaehigkeiten(fk || [])
+    } catch(e) { console.error('faehigkeiten load error:', e) }
     setLoading(false)
   }
 
   async function loadFaehigkeiten(id) {
-    const { data } = await supabase.from('freiwillige_zu_faehigkeiten')
-      .select('*,freiwillige_faehigkeiten(name,kategorie)')
-      .eq('freiwilliger_id', id)
-    setSelectedFaehigkeiten(data || [])
+    try {
+      const { data } = await supabase.from('freiwillige_zu_faehigkeiten')
+        .select('*,freiwillige_faehigkeiten(name,kategorie)')
+        .eq('freiwilliger_id', id)
+      setSelectedFaehigkeiten(data || [])
+    } catch(e) { setSelectedFaehigkeiten([]) }
   }
 
   function openNew() {
