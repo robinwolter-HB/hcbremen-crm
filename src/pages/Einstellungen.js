@@ -211,6 +211,307 @@ function KlauselnVerwaltung() {
   )
 }
 
+// ─── NEUE PANELS ────────────────────────────────────────────
+
+function MannschaftenPanel() {
+  const [liste, setListe] = useState([])
+  const [form, setForm] = useState({ name:'', kuerzel:'', farbe:'#0f2240' })
+  const [editId, setEditId] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => { load() }, [])
+
+  async function load() {
+    setLoading(true)
+    const { data } = await supabase.from('mannschaften').select('*').order('reihenfolge')
+    setListe(data||[])
+    setLoading(false)
+  }
+
+  function startEdit(m) {
+    setForm({ name:m.name, kuerzel:m.kuerzel||'', farbe:m.farbe||'#0f2240' })
+    setEditId(m.id)
+  }
+
+  async function speichern() {
+    if(!form.name.trim()) return
+    const payload = { name:form.name.trim(), kuerzel:form.kuerzel.trim()||null, farbe:form.farbe }
+    if (editId) {
+      await supabase.from('mannschaften').update(payload).eq('id', editId)
+    } else {
+      await supabase.from('mannschaften').insert({ ...payload, reihenfolge: liste.length })
+    }
+    setForm({ name:'', kuerzel:'', farbe:'#0f2240' })
+    setEditId(null)
+    load()
+  }
+
+  async function toggleAktiv(id, aktiv) {
+    await supabase.from('mannschaften').update({ aktiv: !aktiv }).eq('id', id)
+    load()
+  }
+
+  async function loeschen(id) {
+    if(!window.confirm('Mannschaft wirklich löschen?')) return
+    await supabase.from('mannschaften').delete().eq('id', id)
+    load()
+  }
+
+  return (
+    <div>
+      <div className="card" style={{ marginBottom:16 }}>
+        <div className="section-title" style={{ marginBottom:14 }}>{editId ? 'Mannschaft bearbeiten' : 'Neue Mannschaft'}</div>
+        <div className="form-row-3">
+          <div className="form-group">
+            <label>Name *</label>
+            <input value={form.name} onChange={e=>setForm(p=>({...p,name:e.target.value}))} placeholder="z.B. 1. Herren" />
+          </div>
+          <div className="form-group">
+            <label>Kürzel</label>
+            <input value={form.kuerzel} onChange={e=>setForm(p=>({...p,kuerzel:e.target.value}))} placeholder="H1" maxLength={4} />
+          </div>
+          <div className="form-group">
+            <label>Farbe</label>
+            <FarbPicker value={form.farbe} onChange={farbe=>setForm(p=>({...p,farbe}))} />
+          </div>
+        </div>
+        <div style={{ display:'flex', gap:8 }}>
+          <button onClick={speichern} className="btn btn-primary">{editId?'Aktualisieren':'Speichern'}</button>
+          {editId && <button onClick={()=>{ setEditId(null); setForm({name:'',kuerzel:'',farbe:'#0f2240'}) }} className="btn btn-outline">Abbrechen</button>}
+        </div>
+      </div>
+
+      {loading ? <div className="loading-center"><div className="spinner"/></div> : (
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Farbe</th><th>Name</th><th>Kürzel</th><th>Status</th><th></th></tr>
+            </thead>
+            <tbody>
+              {liste.map(m=>(
+                <tr key={m.id} style={{ opacity:m.aktiv?1:0.5 }}>
+                  <td><div style={{ width:20, height:20, borderRadius:4, background:m.farbe||'#ccc', border:'1px solid var(--gray-200)' }} /></td>
+                  <td style={{ fontWeight:600 }}>{m.name}</td>
+                  <td><span style={{ fontFamily:'monospace', fontSize:12, background:'var(--gray-100)', padding:'2px 8px', borderRadius:4 }}>{m.kuerzel||'–'}</span></td>
+                  <td><span className={`badge ${m.aktiv?'badge-aktiv':'badge-ehemaliger'}`}>{m.aktiv?'Aktiv':'Inaktiv'}</span></td>
+                  <td>
+                    <div style={{ display:'flex', gap:6 }}>
+                      <button onClick={()=>startEdit(m)} className="btn btn-sm btn-outline">Bearb.</button>
+                      <button onClick={()=>toggleAktiv(m.id,m.aktiv)} className="btn btn-sm btn-outline">{m.aktiv?'Deaktivieren':'Aktivieren'}</button>
+                      <button onClick={()=>loeschen(m.id)} className="btn btn-sm btn-danger">Löschen</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MediaKategorienPanel() {
+  const TYPEN = ['foto','bericht','aufgabe','posting','allgemein']
+  const TYP_LABEL = { foto:'📷 Foto', bericht:'📝 Bericht', aufgabe:'✓ Aufgabe', posting:'📱 Posting', allgemein:'📎 Allgemein' }
+  const [liste, setListe] = useState([])
+  const [form, setForm] = useState({ name:'', typ:'allgemein', farbe:'#2d6fa3' })
+  const [editId, setEditId] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => { load() }, [])
+
+  async function load() {
+    setLoading(true)
+    const { data } = await supabase.from('media_kategorien').select('*').order('typ').order('name')
+    setListe(data||[])
+    setLoading(false)
+  }
+
+  function startEdit(k) {
+    setForm({ name:k.name, typ:k.typ, farbe:k.farbe||'#2d6fa3' })
+    setEditId(k.id)
+  }
+
+  async function speichern() {
+    if(!form.name.trim()) return
+    const payload = { name:form.name.trim(), typ:form.typ, farbe:form.farbe, aktiv:true }
+    if (editId) await supabase.from('media_kategorien').update(payload).eq('id', editId)
+    else await supabase.from('media_kategorien').insert(payload)
+    setForm({ name:'', typ:'allgemein', farbe:'#2d6fa3' })
+    setEditId(null)
+    load()
+  }
+
+  async function toggleAktiv(id, aktiv) {
+    await supabase.from('media_kategorien').update({ aktiv: !aktiv }).eq('id', id)
+    load()
+  }
+
+  async function loeschen(id) {
+    await supabase.from('media_kategorien').delete().eq('id', id)
+    load()
+  }
+
+  // Gruppiert nach Typ
+  const grouped = TYPEN.reduce((acc, t) => { acc[t] = liste.filter(k=>k.typ===t); return acc }, {})
+
+  return (
+    <div>
+      <div className="card" style={{ marginBottom:16 }}>
+        <div className="section-title" style={{ marginBottom:14 }}>{editId ? 'Kategorie bearbeiten' : 'Neue Kategorie'}</div>
+        <div className="form-row-3">
+          <div className="form-group">
+            <label>Name *</label>
+            <input value={form.name} onChange={e=>setForm(p=>({...p,name:e.target.value}))} placeholder="z.B. Spielfoto" />
+          </div>
+          <div className="form-group">
+            <label>Typ</label>
+            <select value={form.typ} onChange={e=>setForm(p=>({...p,typ:e.target.value}))}>
+              {TYPEN.map(t=><option key={t} value={t}>{TYP_LABEL[t]}</option>)}
+            </select>
+          </div>
+          <div className="form-group">
+            <label>Farbe</label>
+            <FarbPicker value={form.farbe} onChange={farbe=>setForm(p=>({...p,farbe}))} />
+          </div>
+        </div>
+        <div style={{ display:'flex', gap:8 }}>
+          <button onClick={speichern} className="btn btn-primary">{editId?'Aktualisieren':'Speichern'}</button>
+          {editId && <button onClick={()=>{ setEditId(null); setForm({name:'',typ:'allgemein',farbe:'#2d6fa3'}) }} className="btn btn-outline">Abbrechen</button>}
+        </div>
+      </div>
+
+      {loading ? <div className="loading-center"><div className="spinner"/></div> : (
+        <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+          {TYPEN.map(typ => {
+            const items = grouped[typ]
+            if (!items?.length) return null
+            return (
+              <div key={typ}>
+                <div style={{ fontSize:12, fontWeight:600, color:'var(--gray-400)', textTransform:'uppercase', letterSpacing:1, marginBottom:8 }}>{TYP_LABEL[typ]}</div>
+                <div className="table-wrap">
+                  <table>
+                    <thead><tr><th>Farbe</th><th>Name</th><th>Typ</th><th>Status</th><th></th></tr></thead>
+                    <tbody>
+                      {items.map(k=>(
+                        <tr key={k.id} style={{ opacity:k.aktiv?1:0.5 }}>
+                          <td><div style={{ width:20, height:20, borderRadius:4, background:k.farbe||'#ccc', border:'1px solid var(--gray-200)' }} /></td>
+                          <td style={{ fontWeight:600 }}>{k.name}</td>
+                          <td><span style={{ fontSize:12, background:'var(--gray-100)', padding:'2px 8px', borderRadius:10 }}>{k.typ}</span></td>
+                          <td><span className={`badge ${k.aktiv?'badge-aktiv':'badge-ehemaliger'}`}>{k.aktiv?'Aktiv':'Inaktiv'}</span></td>
+                          <td>
+                            <div style={{ display:'flex', gap:6 }}>
+                              <button onClick={()=>startEdit(k)} className="btn btn-sm btn-outline">Bearb.</button>
+                              <button onClick={()=>toggleAktiv(k.id,k.aktiv)} className="btn btn-sm btn-outline">{k.aktiv?'Deaktiv.':'Aktivieren'}</button>
+                              <button onClick={()=>loeschen(k.id)} className="btn btn-sm btn-danger">Löschen</button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )
+          })}
+          {liste.length === 0 && <div className="empty-state"><p>Noch keine Kategorien.</p></div>}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function HCTeamsPanel() {
+  const [liste, setListe] = useState([])
+  const [form, setForm] = useState({ name:'', beschreibung:'' })
+  const [editId, setEditId] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => { load() }, [])
+
+  async function load() {
+    setLoading(true)
+    const { data } = await supabase.from('hc_teams').select('*').order('name')
+    setListe(data||[])
+    setLoading(false)
+  }
+
+  function startEdit(t) {
+    setForm({ name:t.name, beschreibung:t.beschreibung||'' })
+    setEditId(t.id)
+  }
+
+  async function speichern() {
+    if(!form.name.trim()) return
+    const payload = { name:form.name.trim(), beschreibung:form.beschreibung||null, aktiv:true }
+    if (editId) await supabase.from('hc_teams').update(payload).eq('id', editId)
+    else await supabase.from('hc_teams').insert(payload)
+    setForm({ name:'', beschreibung:'' })
+    setEditId(null)
+    load()
+  }
+
+  async function toggleAktiv(id, aktiv) {
+    await supabase.from('hc_teams').update({ aktiv: !aktiv }).eq('id', id)
+    load()
+  }
+
+  async function loeschen(id) {
+    if(!window.confirm('Team wirklich löschen?')) return
+    await supabase.from('hc_teams').delete().eq('id', id)
+    load()
+  }
+
+  return (
+    <div>
+      <div className="card" style={{ marginBottom:16 }}>
+        <div className="section-title" style={{ marginBottom:14 }}>{editId ? 'Team bearbeiten' : 'Neues Team'}</div>
+        <div className="form-row">
+          <div className="form-group">
+            <label>Name *</label>
+            <input value={form.name} onChange={e=>setForm(p=>({...p,name:e.target.value}))} placeholder="z.B. Trainerteam" />
+          </div>
+          <div className="form-group">
+            <label>Beschreibung</label>
+            <input value={form.beschreibung} onChange={e=>setForm(p=>({...p,beschreibung:e.target.value}))} placeholder="Kurze Beschreibung" />
+          </div>
+        </div>
+        <div style={{ display:'flex', gap:8 }}>
+          <button onClick={speichern} className="btn btn-primary">{editId?'Aktualisieren':'Speichern'}</button>
+          {editId && <button onClick={()=>{ setEditId(null); setForm({name:'',beschreibung:''}) }} className="btn btn-outline">Abbrechen</button>}
+        </div>
+      </div>
+
+      {loading ? <div className="loading-center"><div className="spinner"/></div> : (
+        <div className="table-wrap">
+          <table>
+            <thead><tr><th>Name</th><th>Beschreibung</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+              {liste.map(t=>(
+                <tr key={t.id} style={{ opacity:t.aktiv?1:0.5 }}>
+                  <td style={{ fontWeight:600 }}>{t.name}</td>
+                  <td style={{ color:'var(--gray-600)' }}>{t.beschreibung||'–'}</td>
+                  <td><span className={`badge ${t.aktiv?'badge-aktiv':'badge-ehemaliger'}`}>{t.aktiv?'Aktiv':'Inaktiv'}</span></td>
+                  <td>
+                    <div style={{ display:'flex', gap:6 }}>
+                      <button onClick={()=>startEdit(t)} className="btn btn-sm btn-outline">Bearb.</button>
+                      <button onClick={()=>toggleAktiv(t.id,t.aktiv)} className="btn btn-sm btn-outline">{t.aktiv?'Deaktiv.':'Aktivieren'}</button>
+                      <button onClick={()=>loeschen(t.id)} className="btn btn-sm btn-danger">Löschen</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── HAUPT-KOMPONENTE ────────────────────────────────────────
+
 export default function Einstellungen() {
   const { isAdmin } = useAuth()
   const [tab, setTab] = useState('kategorien')
@@ -229,7 +530,10 @@ export default function Einstellungen() {
   useEffect(() => { load() }, [])
 
   async function load() {
-    const [{ data:k },{ data:s },{ data:ea },{ data:es },{ data:dt },{ data:da },{ data:fkk },{ data:pk },{ data:rg }] = await Promise.all([
+    const [
+      {data:k},{data:s},{data:ea},{data:es},
+      {data:dt},{data:da},{data:fkk},{data:pk},{data:rg}
+    ] = await Promise.all([
       supabase.from('kontakt_kategorien').select('*').order('reihenfolge'),
       supabase.from('crm_status').select('*').order('reihenfolge'),
       supabase.from('event_arten').select('*').order('reihenfolge'),
@@ -240,20 +544,13 @@ export default function Einstellungen() {
       supabase.from('event_position_kategorien').select('*').order('reihenfolge'),
       supabase.from('freiwillige_raenge').select('*').order('reihenfolge'),
     ])
-    setKategorien(k||[])
-    setStatus(s||[])
-    setEventArten(ea||[])
-    setEventStatus(es||[])
-    setDlTypen(dt||[])
-    setDlArtikel(da||[])
-    setFkKategorien(fkk||[])
-    setPosKategorien(pk||[])
-    setRaenge(rg||[])
+    setKategorien(k||[]); setStatus(s||[]); setEventArten(ea||[])
+    setEventStatus(es||[]); setDlTypen(dt||[]); setDlArtikel(da||[])
+    setFkKategorien(fkk||[]); setPosKategorien(pk||[]); setRaenge(rg||[])
     setLoading(false)
   }
 
-  // Generic CRUD factories
-  function makeCRUD(table, setter, allowedFields = []) {
+  function makeCRUD(table, allowedFields = []) {
     return {
       save: async (form) => {
         const payload = { name:form.name.trim(), reihenfolge:form.reihenfolge||0, aktiv:form.aktiv!==false }
@@ -262,19 +559,14 @@ export default function Einstellungen() {
         if (allowedFields.includes('kategorie')) payload.kategorie = form.kategorie || null
         if (allowedFields.includes('beschreibung')) payload.beschreibung = form.beschreibung || null
         let error
-        if (form.id) {
-          const r = await supabase.from(table).update(payload).eq('id', form.id)
-          error = r.error
-        } else {
-          const r = await supabase.from(table).insert(payload)
-          error = r.error
-        }
-        if (error) { alert('Fehler beim Speichern: ' + error.message); return }
+        if (form.id) { const r = await supabase.from(table).update(payload).eq('id', form.id); error=r.error }
+        else { const r = await supabase.from(table).insert(payload); error=r.error }
+        if (error) { alert('Fehler: ' + error.message); return }
         load()
       },
       delete: async (id) => {
         const { error } = await supabase.from(table).delete().eq('id', id)
-        if (error) { alert('Fehler beim Loeschen: ' + error.message); return }
+        if (error) { alert('Fehler: ' + error.message); return }
         load()
       },
       toggle: async (item) => {
@@ -284,14 +576,15 @@ export default function Einstellungen() {
     }
   }
 
-  const katCRUD = makeCRUD('kontakt_kategorien', setKategorien, ['farbe'])
-  const statusCRUD = makeCRUD('crm_status', setStatus, ['farbe'])
-  const eArtenCRUD = makeCRUD('event_arten', setEventArten, ['farbe'])
-  const eStatusCRUD = makeCRUD('event_status_liste', setEventStatus, ['farbe'])
-  const dlTypenCRUD = makeCRUD('dienstleister_typen', setDlTypen, [])
-  const dlArtikelCRUD = makeCRUD('dienstleistungsartikel', setDlArtikel, ['einheit','kategorie','beschreibung'])
-  const fkKatCRUD = makeCRUD('freiwillige_faehigkeit_kategorien', setFkKategorien, [])
-  const posKatCRUD = makeCRUD('event_position_kategorien', setPosKategorien, [])
+  const katCRUD    = makeCRUD('kontakt_kategorien', ['farbe'])
+  const statusCRUD = makeCRUD('crm_status', ['farbe'])
+  const eArtenCRUD = makeCRUD('event_arten', ['farbe'])
+  const eStatusCRUD= makeCRUD('event_status_liste', ['farbe'])
+  const dlTypenCRUD= makeCRUD('dienstleister_typen', [])
+  const dlArtikelCRUD = makeCRUD('dienstleistungsartikel', ['einheit','kategorie','beschreibung'])
+  const fkKatCRUD  = makeCRUD('freiwillige_faehigkeit_kategorien', [])
+  const posKatCRUD = makeCRUD('event_position_kategorien', [])
+  const raengeCRUD = makeCRUD('freiwillige_raenge', [])
 
   if (!isAdmin()) return (
     <main className="main">
@@ -302,17 +595,20 @@ export default function Einstellungen() {
   if (loading) return <div className="loading-center"><div className="spinner"/></div>
 
   const TABS = [
-    ['kategorien','👥 Kontakt-Kategorien'],
-    ['status','🔵 Kontakt-Status'],
-    ['event-arten','📅 Event-Arten'],
-    ['event-status','🔄 Event-Status'],
-    ['dl-typen','🏢 Dienstleister-Typen'],
-    ['dl-artikel','📦 Dienstleistungsartikel'],
-    ['raenge','⭐ Ränge'],
-    ['fk-kategorien','🏷️ Fähigkeits-Kategorien'],
-    ['pos-kategorien','📍 Positions-Kategorien'],
-    ['klauseln','📋 Vertragsklauseln'],
-    ['info','ℹ️ Info'],
+    ['kategorien',    '👥 Kontakt-Kategorien'],
+    ['status',        '🔵 Kontakt-Status'],
+    ['event-arten',   '📅 Event-Arten'],
+    ['event-status',  '🔄 Event-Status'],
+    ['dl-typen',      '🏢 Dienstleister-Typen'],
+    ['dl-artikel',    '📦 Dienstleistungsartikel'],
+    ['raenge',        '⭐ Ränge'],
+    ['fk-kategorien', '🏷️ Fähigkeits-Kat.'],
+    ['pos-kategorien','📍 Positions-Kat.'],
+    ['klauseln',      '📋 Vertragsklauseln'],
+    ['mannschaften',  '🏅 Mannschaften'],
+    ['media-kat',     '🎨 Media Kategorien'],
+    ['hc-teams',      '🤝 HC Teams'],
+    ['info',          'ℹ️ Info'],
   ]
 
   return (
@@ -320,93 +616,46 @@ export default function Einstellungen() {
       <div className="page-title">⚙️ Einstellungen</div>
       <p className="page-subtitle">Kategorien, Status, Event-Arten und weitere Konfigurationen</p>
 
-      <div className="tabs">
+      <div className="tabs" style={{ overflowX:'auto', flexWrap:'nowrap' }}>
         {TABS.map(([key,label]) => (
-          <button key={key} className={'tab-btn'+(tab===key?' active':'')} onClick={()=>setTab(key)}>{label}</button>
+          <button key={key} className={'tab-btn'+(tab===key?' active':'')} onClick={()=>setTab(key)} style={{ whiteSpace:'nowrap' }}>{label}</button>
         ))}
       </div>
 
-      {tab==='kategorien' && (
-        <VerwaltungsBlock titel="Kontakt-Kategorien" items={kategorien}
-          onSave={katCRUD.save} onDelete={katCRUD.delete} onToggle={katCRUD.toggle} felder={['farbe']}/>
-      )}
-
-      {tab==='status' && (
-        <VerwaltungsBlock titel="Kontakt-Status" items={status}
-          onSave={statusCRUD.save} onDelete={statusCRUD.delete} onToggle={statusCRUD.toggle} felder={['farbe']}/>
-      )}
-
-      {tab==='event-arten' && (
-        <VerwaltungsBlock titel="Event-Arten" items={eventArten}
-          onSave={eArtenCRUD.save} onDelete={eArtenCRUD.delete} onToggle={eArtenCRUD.toggle} felder={['farbe']}/>
-      )}
-
-      {tab==='event-status' && (
-        <VerwaltungsBlock titel="Event-Status" items={eventStatus}
-          onSave={eStatusCRUD.save} onDelete={eStatusCRUD.delete} onToggle={eStatusCRUD.toggle} felder={['farbe']}/>
-      )}
-
-      {tab==='dl-typen' && (
-        <VerwaltungsBlock titel="Dienstleister-Typen" items={dlTypen}
-          onSave={dlTypenCRUD.save} onDelete={dlTypenCRUD.delete} onToggle={dlTypenCRUD.toggle} felder={[]}/>
-      )}
-
-      {tab==='dl-artikel' && (
+      {tab==='kategorien'   && <VerwaltungsBlock titel="Kontakt-Kategorien"   items={kategorien}   onSave={katCRUD.save}    onDelete={katCRUD.delete}    onToggle={katCRUD.toggle}    felder={['farbe']}/>}
+      {tab==='status'       && <VerwaltungsBlock titel="Kontakt-Status"        items={status}       onSave={statusCRUD.save} onDelete={statusCRUD.delete} onToggle={statusCRUD.toggle} felder={['farbe']}/>}
+      {tab==='event-arten'  && <VerwaltungsBlock titel="Event-Arten"           items={eventArten}   onSave={eArtenCRUD.save} onDelete={eArtenCRUD.delete} onToggle={eArtenCRUD.toggle} felder={['farbe']}/>}
+      {tab==='event-status' && <VerwaltungsBlock titel="Event-Status"          items={eventStatus}  onSave={eStatusCRUD.save} onDelete={eStatusCRUD.delete} onToggle={eStatusCRUD.toggle} felder={['farbe']}/>}
+      {tab==='dl-typen'     && <VerwaltungsBlock titel="Dienstleister-Typen"   items={dlTypen}      onSave={dlTypenCRUD.save} onDelete={dlTypenCRUD.delete} onToggle={dlTypenCRUD.toggle} felder={[]}/>}
+      {tab==='dl-artikel'   && (
         <div>
-          <VerwaltungsBlock titel="Dienstleistungsartikel" items={dlArtikel}
-            onSave={dlArtikelCRUD.save} onDelete={dlArtikelCRUD.delete} onToggle={dlArtikelCRUD.toggle}
-            felder={['einheit','kategorie','beschreibung']}/>
+          <VerwaltungsBlock titel="Dienstleistungsartikel" items={dlArtikel} onSave={dlArtikelCRUD.save} onDelete={dlArtikelCRUD.delete} onToggle={dlArtikelCRUD.toggle} felder={['einheit','kategorie','beschreibung']}/>
           <div className="card" style={{marginTop:16,background:'#f8f5ef',border:'1.5px solid #e0ddd6'}}>
             <div style={{fontSize:13,color:'var(--gray-600)'}}>
-              <strong>Hinweis:</strong> Preise pro Dienstleister werden im Dienstleister-Tab unter Events eingetragen. Dort kannst du fuer jeden Artikel den Preis pro Dienstleister vergleichen.
+              <strong>Hinweis:</strong> Preise pro Dienstleister werden im Dienstleister-Tab unter Events eingetragen.
             </div>
           </div>
         </div>
       )}
-
-      {tab==='raenge' && (
-        <div>
-          <VerwaltungsBlock titel="Ränge (Freiwillige & Positionen)" items={raenge}
-            onSave={raengeCRUD.save} onDelete={raengeCRUD.delete} onToggle={raengeCRUD.toggle} felder={[]}/>
-          <div className="card" style={{marginTop:16,background:'#f8f5ef',border:'1.5px solid #e0ddd6'}}>
-            <div style={{fontSize:13,color:'var(--gray-600)'}}>
-              <strong>Hinweis:</strong> Diese Ränge werden bei Event-Positionen und der Freiwilligen-Zuordnung verwendet (z.B. Helfer, Teamleiter, Koordinator).
-            </div>
-          </div>
-        </div>
-      )}
-
-      {tab==='fk-kategorien' && (
-        <div>
-          <VerwaltungsBlock titel="Fähigkeits-Kategorien (Freiwillige)" items={fkKategorien}
-            onSave={fkKatCRUD.save} onDelete={fkKatCRUD.delete} onToggle={fkKatCRUD.toggle} felder={[]}/>
-          <div className="card" style={{marginTop:16,background:'#f8f5ef',border:'1.5px solid #e0ddd6'}}>
-            <div style={{fontSize:13,color:'var(--gray-600)'}}>
-              <strong>Hinweis:</strong> Diese Kategorien werden in der Freiwilligen-Verwaltung zur Gruppierung der Fähigkeiten verwendet. Fähigkeiten selbst werden direkt in der Freiwilligen-Seite angelegt.
-            </div>
-          </div>
-        </div>
-      )}
-
-      {tab==='pos-kategorien' && (
-        <div>
-          <VerwaltungsBlock titel="Positions-Kategorien (Events)" items={posKategorien}
-            onSave={posKatCRUD.save} onDelete={posKatCRUD.delete} onToggle={posKatCRUD.toggle} felder={[]}/>
-          <div className="card" style={{marginTop:16,background:'#f8f5ef',border:'1.5px solid #e0ddd6'}}>
-            <div style={{fontSize:13,color:'var(--gray-600)'}}>
-              <strong>Hinweis:</strong> Diese Kategorien können bei Event-Positionen als Typ verwendet werden um Positionen zu gruppieren (z.B. Einlass, Catering, Technik).
-            </div>
-          </div>
-        </div>
-      )}
-
-      {tab==='klauseln' && <KlauselnVerwaltung/>}
+      {tab==='raenge'        && <VerwaltungsBlock titel="Ränge" items={raenge} onSave={raengeCRUD.save} onDelete={raengeCRUD.delete} onToggle={raengeCRUD.toggle} felder={[]}/>}
+      {tab==='fk-kategorien' && <VerwaltungsBlock titel="Fähigkeits-Kategorien (Freiwillige)" items={fkKategorien} onSave={fkKatCRUD.save} onDelete={fkKatCRUD.delete} onToggle={fkKatCRUD.toggle} felder={[]}/>}
+      {tab==='pos-kategorien'&& <VerwaltungsBlock titel="Positions-Kategorien (Events)" items={posKategorien} onSave={posKatCRUD.save} onDelete={posKatCRUD.delete} onToggle={posKatCRUD.toggle} felder={[]}/>}
+      {tab==='klauseln'      && <KlauselnVerwaltung/>}
+      {tab==='mannschaften'  && <MannschaftenPanel/>}
+      {tab==='media-kat'     && <MediaKategorienPanel/>}
+      {tab==='hc-teams'      && <HCTeamsPanel/>}
 
       {tab==='info' && (
         <div className="card">
           <div className="section-title" style={{marginBottom:16}}>System-Information</div>
           <div style={{display:'grid',gap:12}}>
-            {[['CRM Version','2.1'],['Datenbank','Supabase (PostgreSQL)'],['Hosting','Vercel'],['Verein','HC Bremen']].map(([label,value]) => (
+            {[
+              ['CRM Version','2.2'],
+              ['Datenbank','Supabase (PostgreSQL)'],
+              ['Hosting','Vercel'],
+              ['Verein','HC Bremen'],
+              ['Media Hub','aktiv'],
+            ].map(([label,value]) => (
               <div key={label} style={{display:'flex',gap:16,padding:'10px 0',borderBottom:'1px solid var(--gray-100)'}}>
                 <span style={{fontSize:13,color:'var(--gray-600)',width:160,flexShrink:0}}>{label}</span>
                 <span style={{fontSize:13,fontWeight:500}}>{value}</span>
