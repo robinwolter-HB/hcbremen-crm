@@ -299,8 +299,22 @@ function PositionenTab({ ev, positionen=[], eventFreiwillige=[], freiwillige=[],
   )
 }
 
-function EventDetail({ ev, teilnahmen=[], todos=[], ablauf=[], dateien=[], kosten=[], dienstleister=[], kostenKategorien=[], personen=[], kontakte=[], positionen=[], eventFreiwillige=[], freiwillige=[], faehigkeiten=[], raenge=[], posKategorien=[], inventar=[], inventarBuchungen=[], onNewInventarBuchung, onVorlageAnwenden, onToggleZurueck, onDeleteBuchung, loadPositionen, onEdit, onDelete, onReload, loadDetails }) {
+function EventDetail({ ev, teilnahmen=[], todos=[], ablauf=[], dateien=[], kosten=[], dienstleister=[], kostenKategorien=[], personen=[], kontakte=[], positionen=[], eventFreiwillige=[], freiwillige=[], faehigkeiten=[], raenge=[], posKategorien=[], inventar=[], inventarBuchungen: initBuchungen=[], onNewInventarBuchung, onVorlageAnwenden, onDeleteBuchung, loadPositionen, onEdit, onDelete, onReload, loadDetails }) {
   const [tab, setTab] = useState('teilnehmer')
+  const [inventarBuchungen, setInventarBuchungen] = useState(initBuchungen)
+
+  useEffect(() => { setInventarBuchungen(initBuchungen) }, [initBuchungen])
+
+  async function toggleZurueck(id, val) {
+    await supabase.from('inventar_buchungen').update({ zurueckgegeben: val }).eq('id', id)
+    setInventarBuchungen(prev => prev.map(b => b.id === id ? { ...b, zurueckgegeben: val } : b))
+  }
+
+  async function deleteBuchung(id) {
+    if (!window.confirm('Buchung entfernen?')) return
+    await supabase.from('inventar_buchungen').delete().eq('id', id)
+    setInventarBuchungen(prev => prev.filter(b => b.id !== id))
+  }
   const [positionModal, setPositionModal] = useState(false)
   const [positionForm, setPositionForm] = useState({})
   const [freiwilligerModal, setFreiwilligerModal] = useState(false)
@@ -837,7 +851,7 @@ ${ev.notizen?`<h2>Notizen</h2><div style="background:#f8f5ef;padding:14px;border
                           <td style={{fontSize:12,color:'var(--gray-400)'}}>{inv?.lagerort||'–'}</td>
                           <td style={{fontSize:12,color:'var(--gray-500)'}}>{b.notiz||'–'}</td>
                           <td>
-                            <button onClick={()=>onToggleZurueck(b.id,!b.zurueckgegeben)}
+                            <button onClick={()=>toggleZurueck(b.id,!b.zurueckgegeben)}
                               style={{padding:'2px 10px',borderRadius:10,border:'1.5px solid',fontSize:12,fontWeight:600,cursor:'pointer',
                                 background:b.zurueckgegeben?'#e2efda':'var(--white)',
                                 borderColor:b.zurueckgegeben?'#3a8a5a':'var(--gray-200)',
@@ -846,7 +860,7 @@ ${ev.notizen?`<h2>Notizen</h2><div style="background:#f8f5ef;padding:14px;border
                             </button>
                           </td>
                           <td>
-                            <button className="btn btn-sm btn-danger" onClick={()=>onDeleteBuchung(b.id)}>X</button>
+                            <button className="btn btn-sm btn-danger" onClick={()=>deleteBuchung(b.id)}>X</button>
                           </td>
                         </tr>
                       )
@@ -1146,31 +1160,30 @@ export default function Events() {
   async function saveInventar() {
     if (!inventarForm.name?.trim()) { alert('Bitte einen Namen eingeben.'); return }
     setSaving(true)
-    const p = {
-      name: inventarForm.name,
-      beschreibung: inventarForm.beschreibung||null,
-      menge: parseInt(inventarForm.menge)||1,
-      einheit: inventarForm.einheit||'Stk',
-      lagerort: inventarForm.lagerort||null,
-      typ: inventarForm.typ||'Gekauft',
-      anschaffungsdatum: inventarForm.anschaffungsdatum||null,
-      anschaffungspreis: inventarForm.anschaffungspreis||null,
-      zustand: inventarForm.zustand||'Gut',
-      notizen: inventarForm.notizen||null,
-      aktiv: inventarForm.aktiv!==false
-    }
-    let error
+    // Build payload carefully - only include non-null values to avoid constraint issues
+    const p = { name: inventarForm.name.trim(), aktiv: inventarForm.aktiv!==false }
+    if (inventarForm.beschreibung) p.beschreibung = inventarForm.beschreibung
+    if (inventarForm.menge) p.menge = parseInt(inventarForm.menge)||1
+    if (inventarForm.einheit) p.einheit = inventarForm.einheit
+    if (inventarForm.lagerort) p.lagerort = inventarForm.lagerort
+    if (inventarForm.typ) p.typ = inventarForm.typ
+    if (inventarForm.anschaffungsdatum) p.anschaffungsdatum = inventarForm.anschaffungsdatum
+    if (inventarForm.anschaffungspreis) p.anschaffungspreis = parseFloat(inventarForm.anschaffungspreis)
+    if (inventarForm.zustand) p.zustand = inventarForm.zustand
+    if (inventarForm.notizen) p.notizen = inventarForm.notizen
+    console.log('Saving inventar:', p)
+    let error, data
     if (inventarForm.id) {
-      const r = await supabase.from('inventar').update(p).eq('id', inventarForm.id)
-      error = r.error
+      const r = await supabase.from('inventar').update(p).eq('id', inventarForm.id).select()
+      error = r.error; data = r.data
     } else {
-      const r = await supabase.from('inventar').insert(p)
-      error = r.error
+      const r = await supabase.from('inventar').insert(p).select()
+      error = r.error; data = r.data
     }
+    console.log('Result:', { error, data })
     setSaving(false)
     if (error) {
-      console.error('inventar save error:', error)
-      alert('Fehler beim Speichern: ' + (error.message || JSON.stringify(error)))
+      alert('Fehler: ' + error.message + ' (Code: ' + error.code + ')')
       return
     }
     setInventarModal(false)
@@ -1404,8 +1417,7 @@ export default function Events() {
                 inventar={inventar} inventarBuchungen={inventarBuchungen}
                 onNewInventarBuchung={()=>{ setInventarBuchungForm({menge:1,datum_von:selectedEvent?.datum||'',datum_bis:selectedEvent?.datum||''}); setInventarBuchungModal(true) }}
                 onVorlageAnwenden={()=>setVorlagenAnwenden(true)}
-                onToggleZurueck={async(id,val)=>{ await supabase.from('inventar_buchungen').update({zurueckgegeben:val}).eq('id',id); loadEventInventar(selectedEvent.id) }}
-                onDeleteBuchung={async(id)=>{ await supabase.from('inventar_buchungen').delete().eq('id',id); loadEventInventar(selectedEvent.id) }}
+
                 loadPositionen={loadPositionen}
                 onEdit={()=>{ setEventForm(selectedEvent); setEventModal(true) }}
                 onDelete={()=>deleteEvent(selectedEvent.id)}
