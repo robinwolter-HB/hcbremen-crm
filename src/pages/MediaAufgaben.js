@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 
@@ -9,7 +9,6 @@ const STATUS = {
   freigegeben:    { bg: '#e2efda', text: '#2d6b3a', label: 'Freigegeben' },
   abgelehnt:      { bg: '#fce4d6', text: '#8a3a1a', label: 'Abgelehnt' },
 }
-
 const PRIO = {
   niedrig:  { color: 'var(--gray-400)', label: '↓ Niedrig' },
   normal:   { color: 'var(--gray-600)', label: '→ Normal' },
@@ -19,44 +18,66 @@ const PRIO = {
 
 export default function MediaAufgaben() {
   const { profile } = useAuth()
+  const isAdmin = profile?.rolle === 'admin'
   const [aufgaben, setAufgaben] = useState([])
   const [mitglieder, setMitglieder] = useState([])
+  const [mannschaften, setMannschaften] = useState([])
+  const [kategorien, setKategorien] = useState([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('alle')
   const [showForm, setShowForm] = useState(false)
   const [selected, setSelected] = useState(null)
   const [kommentare, setKommentare] = useState([])
+  const [dateien, setDateien] = useState([])
   const [neuerKommentar, setNeuerKommentar] = useState('')
-  const [form, setForm] = useState({ titel: '', beschreibung: '', prioritaet: 'normal', zugewiesen_an: '', faellig_am: '' })
-  const isAdmin = profile?.rolle === 'admin'
+  const [uploading, setUploading] = useState(false)
+  const fileRef = useRef()
+  const [form, setForm] = useState({
+    titel: '', beschreibung: '', prioritaet: 'normal',
+    zugewiesen_an: '', faellig_am: '',
+    mannschaft_id: '', kategorie_id: '',
+  })
 
   useEffect(() => { load() }, [])
 
   async function load() {
     setLoading(true)
-    const [{ data: a }, { data: m }] = await Promise.all([
+    const [{ data: a }, { data: m }, { data: mn }, { data: k }] = await Promise.all([
       supabase.from('media_aufgaben')
-        .select('*, ersteller:erstellt_von(name), zugewiesener:zugewiesen_an(name), freigebender:freigegeben_von(name)')
+        .select('*, ersteller:erstellt_von(name), zugewiesener:zugewiesen_an(name), mannschaft:mannschaft_id(name,farbe), kategorie:kategorie_id(name)')
         .order('erstellt_am', { ascending: false }),
-      supabase.from('profile').select('id, name').in('rolle', ['admin', 'media'])
+      supabase.from('profile').select('id, name').in('rolle', ['admin','media']),
+      supabase.from('mannschaften').select('*').eq('aktiv', true).order('reihenfolge'),
+      supabase.from('media_kategorien').select('*').eq('aktiv', true).in('typ', ['aufgabe','allgemein']),
     ])
     setAufgaben(a || [])
     setMitglieder(m || [])
+    setMannschaften(mn || [])
+    setKategorien(k || [])
     setLoading(false)
   }
 
-  async function loadKommentare(id) {
-    const { data } = await supabase.from('media_aufgaben_kommentare')
-      .select('*, autor:autor_id(name)').eq('aufgabe_id', id).order('erstellt_am')
-    setKommentare(data || [])
+  async function loadDetail(a) {
+    setSelected(a)
+    const [{ data: k }, { data: d }] = await Promise.all([
+      supabase.from('media_aufgaben_kommentare').select('*, autor:autor_id(name)').eq('aufgabe_id', a.id).order('erstellt_am'),
+      supabase.from('media_aufgaben_dateien').select('*').eq('aufgabe_id', a.id).order('erstellt_am'),
+    ])
+    setKommentare(k || [])
+    setDateien(d || [])
   }
-
-  async function selectAufgabe(a) { setSelected(a); await loadKommentare(a.id) }
 
   async function speichern() {
     if (!form.titel.trim()) return
-    await supabase.from('media_aufgaben').insert({ ...form, zugewiesen_an: form.zugewiesen_an || null, faellig_am: form.faellig_am || null, erstellt_von: profile.id })
-    setForm({ titel: '', beschreibung: '', prioritaet: 'normal', zugewiesen_an: '', faellig_am: '' })
+    await supabase.from('media_aufgaben').insert({
+      ...form,
+      zugewiesen_an: form.zugewiesen_an || null,
+      faellig_am: form.faellig_am || null,
+      mannschaft_id: form.mannschaft_id || null,
+      kategorie_id: form.kategorie_id || null,
+      erstellt_von: profile.id,
+    })
+    setForm({ titel:'', beschreibung:'', prioritaet:'normal', zugewiesen_an:'', faellig_am:'', mannschaft_id:'', kategorie_id:'' })
     setShowForm(false)
     load()
   }
@@ -66,14 +87,38 @@ export default function MediaAufgaben() {
     if (status === 'freigegeben' || status === 'abgelehnt') update.freigegeben_von = profile.id
     await supabase.from('media_aufgaben').update(update).eq('id', id)
     load()
-    if (selected?.id === id) setSelected(p => ({ ...p, status, ...update }))
+    if (selected?.id === id) setSelected(p => ({ ...p, status }))
   }
 
   async function kommentarSenden() {
     if (!neuerKommentar.trim() || !selected) return
     await supabase.from('media_aufgaben_kommentare').insert({ aufgabe_id: selected.id, autor_id: profile.id, inhalt: neuerKommentar.trim() })
     setNeuerKommentar('')
-    loadKommentare(selected.id)
+    const { data } = await supabase.from('media_aufgaben_kommentare').select('*, autor:autor_id(name)').eq('aufgabe_id', selected.id).order('erstellt_am')
+    setKommentare(data || [])
+  }
+
+  async function dateiHochladen(e) {
+    const files = Array.from(e.target.files)
+    if (!files.length || !selected) return
+    setUploading(true)
+    for (const file of files) {
+      const ext = file.name.split('.').pop()
+      const pfad = `aufgaben/${selected.id}/${Date.now()}.${ext}`
+      const { error } = await supabase.storage.from('media-fotos').upload(pfad, file)
+      if (!error) {
+        const { data: { publicUrl } } = supabase.storage.from('media-fotos').getPublicUrl(pfad)
+        await supabase.from('media_aufgaben_dateien').insert({ aufgabe_id: selected.id, datei_url: publicUrl, datei_name: file.name, datei_groesse: file.size, hochgeladen_von: profile.id })
+      }
+    }
+    setUploading(false)
+    const { data } = await supabase.from('media_aufgaben_dateien').select('*').eq('aufgabe_id', selected.id)
+    setDateien(data || [])
+  }
+
+  async function dateiLoeschen(id) {
+    await supabase.from('media_aufgaben_dateien').delete().eq('id', id)
+    setDateien(p => p.filter(d => d.id !== id))
   }
 
   const gefiltert = aufgaben.filter(a => {
@@ -84,14 +129,13 @@ export default function MediaAufgaben() {
   })
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: selected ? '1fr 360px' : '1fr', gap: 20, alignItems: 'flex-start' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: selected ? '1fr 380px' : '1fr', gap: 20, alignItems: 'flex-start' }}>
       <div>
-        {/* Toolbar */}
         <div className="toolbar">
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
             {['alle','meine','offen','in_bearbeitung','zur_freigabe','freigegeben'].map(f => (
-              <button key={f} onClick={() => setFilter(f)} className={`btn btn-sm ${filter === f ? 'btn-primary' : 'btn-outline'}`}>
-                {f === 'alle' ? 'Alle' : f === 'meine' ? 'Meine' : STATUS[f]?.label || f}
+              <button key={f} onClick={() => setFilter(f)} className={`btn btn-sm ${filter===f?'btn-primary':'btn-outline'}`}>
+                {f==='alle'?'Alle':f==='meine'?'Meine':STATUS[f]?.label||f}
               </button>
             ))}
           </div>
@@ -100,9 +144,9 @@ export default function MediaAufgaben() {
 
         {showForm && (
           <div className="card">
-            <h3 style={{ fontSize: 16, marginBottom: 16, color: 'var(--navy)' }}>Neue Aufgabe</h3>
-            <div className="form-group"><label>Titel *</label><input value={form.titel} onChange={e=>setForm(p=>({...p,titel:e.target.value}))} placeholder="Aufgabentitel" /></div>
-            <div className="form-group"><label>Beschreibung</label><textarea value={form.beschreibung} onChange={e=>setForm(p=>({...p,beschreibung:e.target.value}))} rows={3} /></div>
+            <h3 style={{ fontSize:16, marginBottom:16, color:'var(--navy)' }}>Neue Media-Aufgabe</h3>
+            <div className="form-group"><label>Titel *</label><input value={form.titel} onChange={e=>setForm(p=>({...p,titel:e.target.value}))} /></div>
+            <div className="form-group"><label>Beschreibung</label><textarea value={form.beschreibung} onChange={e=>setForm(p=>({...p,beschreibung:e.target.value}))} rows={2} /></div>
             <div className="form-row">
               <div className="form-group"><label>Priorität</label>
                 <select value={form.prioritaet} onChange={e=>setForm(p=>({...p,prioritaet:e.target.value}))}>
@@ -113,44 +157,66 @@ export default function MediaAufgaben() {
               <div className="form-group"><label>Zuweisen an</label>
                 <select value={form.zugewiesen_an} onChange={e=>setForm(p=>({...p,zugewiesen_an:e.target.value}))}>
                   <option value="">Nicht zugewiesen</option>
-                  {mitglieder.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                  {mitglieder.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="form-row">
+              <div className="form-group"><label>Mannschaft</label>
+                <select value={form.mannschaft_id} onChange={e=>setForm(p=>({...p,mannschaft_id:e.target.value}))}>
+                  <option value="">Keine</option>
+                  {mannschaften.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}
+                </select>
+              </div>
+              <div className="form-group"><label>Kategorie</label>
+                <select value={form.kategorie_id} onChange={e=>setForm(p=>({...p,kategorie_id:e.target.value}))}>
+                  <option value="">Keine</option>
+                  {kategorien.map(k=><option key={k.id} value={k.id}>{k.name}</option>)}
                 </select>
               </div>
             </div>
             <div className="form-group"><label>Fällig am</label><input type="date" value={form.faellig_am} onChange={e=>setForm(p=>({...p,faellig_am:e.target.value}))} /></div>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display:'flex', gap:8 }}>
               <button onClick={speichern} className="btn btn-primary">Speichern</button>
               <button onClick={() => setShowForm(false)} className="btn btn-outline">Abbrechen</button>
             </div>
           </div>
         )}
 
-        {loading ? <div className="loading-center"><div className="spinner" /></div> : gefiltert.length === 0 ? (
+        {loading ? <div className="loading-center"><div className="spinner"/></div> : gefiltert.length===0 ? (
           <div className="empty-state"><p>Keine Aufgaben gefunden.</p></div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
             {gefiltert.map(a => {
-              const st = STATUS[a.status] || STATUS.offen
-              const pr = PRIO[a.prioritaet] || PRIO.normal
+              const st = STATUS[a.status]||STATUS.offen
+              const pr = PRIO[a.prioritaet]||PRIO.normal
               return (
-                <div key={a.id} onClick={() => selectAufgabe(a)} className="card" style={{ cursor: 'pointer', marginBottom: 0, border: selected?.id === a.id ? '2px solid var(--navy)' : '2px solid transparent', padding: 16 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text)', marginBottom: 6 }}>{a.titel}</div>
-                      {a.beschreibung && <div style={{ fontSize: 13, color: 'var(--gray-600)', marginBottom: 6 }}>{a.beschreibung.slice(0, 80)}{a.beschreibung.length > 80 ? '…' : ''}</div>}
-                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                        <span className="badge" style={{ background: st.bg, color: st.text }}>{st.label}</span>
-                        <span style={{ fontSize: 12, color: pr.color, fontWeight: 500 }}>{pr.label}</span>
-                        {a.zugewiesener && <span style={{ fontSize: 12, color: 'var(--gray-600)' }}>→ {a.zugewiesener.name}</span>}
-                        {a.faellig_am && <span style={{ fontSize: 12, color: 'var(--gray-400)' }}>📅 {new Date(a.faellig_am).toLocaleDateString('de-DE')}</span>}
+                <div key={a.id} onClick={() => loadDetail(a)} className="card"
+                  style={{ cursor:'pointer', padding:14, marginBottom:0, border:selected?.id===a.id?'2px solid var(--navy)':'2px solid transparent' }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:8 }}>
+                    <div style={{ flex:1 }}>
+                      <div style={{ display:'flex', gap:6, alignItems:'center', flexWrap:'wrap', marginBottom:4 }}>
+                        {a.mannschaft && (
+                          <span style={{ fontSize:10, padding:'1px 7px', borderRadius:10, background: (a.mannschaft.farbe||'#ccc')+'20', color: a.mannschaft.farbe||'var(--navy)', fontWeight:700, border:'1px solid '+(a.mannschaft.farbe||'#ccc')+'40' }}>{a.mannschaft.name}</span>
+                        )}
+                        {a.kategorie && (
+                          <span style={{ fontSize:10, padding:'1px 7px', borderRadius:10, background:'var(--gray-100)', color:'var(--gray-600)' }}>{a.kategorie.name}</span>
+                        )}
+                      </div>
+                      <div style={{ fontWeight:600, fontSize:14, color:'var(--text)', marginBottom:4 }}>{a.titel}</div>
+                      <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' }}>
+                        <span className="badge" style={{ background:st.bg, color:st.text }}>{st.label}</span>
+                        <span style={{ fontSize:12, color:pr.color, fontWeight:500 }}>{pr.label}</span>
+                        {a.zugewiesener && <span style={{ fontSize:12, color:'var(--gray-600)' }}>→ {a.zugewiesener.name}</span>}
+                        {a.faellig_am && <span style={{ fontSize:12, color:'var(--gray-400)' }}>📅 {new Date(a.faellig_am).toLocaleDateString('de-DE')}</span>}
                       </div>
                     </div>
-                    <div style={{ display: 'flex', gap: 4 }} onClick={e => e.stopPropagation()}>
-                      {a.status === 'offen' && <button onClick={() => statusAendern(a.id,'in_bearbeitung')} className="btn btn-sm btn-outline">Start</button>}
-                      {a.status === 'in_bearbeitung' && <button onClick={() => statusAendern(a.id,'zur_freigabe')} className="btn btn-sm btn-outline">Freigabe →</button>}
-                      {a.status === 'zur_freigabe' && isAdmin && <>
-                        <button onClick={() => statusAendern(a.id,'freigegeben')} className="btn btn-sm" style={{ background: '#e2efda', color: '#2d6b3a', border: 'none' }}>✓</button>
-                        <button onClick={() => statusAendern(a.id,'abgelehnt')} className="btn btn-sm btn-danger">✗</button>
+                    <div style={{ display:'flex', gap:4 }} onClick={e=>e.stopPropagation()}>
+                      {a.status==='offen' && <button onClick={()=>statusAendern(a.id,'in_bearbeitung')} className="btn btn-sm btn-outline">Start</button>}
+                      {a.status==='in_bearbeitung' && <button onClick={()=>statusAendern(a.id,'zur_freigabe')} className="btn btn-sm btn-outline">→ Freigabe</button>}
+                      {a.status==='zur_freigabe' && isAdmin && <>
+                        <button onClick={()=>statusAendern(a.id,'freigegeben')} className="btn btn-sm" style={{background:'#e2efda',color:'#2d6b3a',border:'none'}}>✓</button>
+                        <button onClick={()=>statusAendern(a.id,'abgelehnt')} className="btn btn-sm btn-danger">✗</button>
                       </>}
                     </div>
                   </div>
@@ -163,50 +229,85 @@ export default function MediaAufgaben() {
 
       {/* Detail Panel */}
       {selected && (
-        <div className="card" style={{ position: 'sticky', top: 80 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-            <h3 style={{ fontSize: 15, color: 'var(--navy)' }}>{selected.titel}</h3>
-            <button onClick={() => setSelected(null)} className="close-btn">×</button>
+        <div className="card" style={{ position:'sticky', top:80, maxHeight:'calc(100vh - 120px)', overflowY:'auto' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', marginBottom:12 }}>
+            <h3 style={{ fontSize:15, color:'var(--navy)', margin:0, flex:1 }}>{selected.titel}</h3>
+            <button onClick={()=>setSelected(null)} className="close-btn">×</button>
           </div>
-          {selected.beschreibung && <p style={{ fontSize: 13, color: 'var(--gray-600)', marginBottom: 12 }}>{selected.beschreibung}</p>}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+
+          {selected.beschreibung && <p style={{ fontSize:13, color:'var(--gray-600)', marginBottom:12 }}>{selected.beschreibung}</p>}
+
+          <div style={{ display:'flex', flexDirection:'column', gap:6, marginBottom:14, fontSize:13 }}>
             {[
-              ['Status', <span className="badge" style={{ background: STATUS[selected.status]?.bg, color: STATUS[selected.status]?.text }}>{STATUS[selected.status]?.label}</span>],
-              ['Priorität', <span style={{ color: PRIO[selected.prioritaet]?.color, fontWeight: 500 }}>{PRIO[selected.prioritaet]?.label}</span>],
+              ['Status', <span className="badge" style={{ background:STATUS[selected.status]?.bg, color:STATUS[selected.status]?.text }}>{STATUS[selected.status]?.label}</span>],
+              ['Priorität', <span style={{ color:PRIO[selected.prioritaet]?.color }}>{PRIO[selected.prioritaet]?.label}</span>],
               selected.zugewiesener && ['Zugewiesen', selected.zugewiesener.name],
-              selected.ersteller && ['Erstellt von', selected.ersteller.name],
               selected.faellig_am && ['Fällig', new Date(selected.faellig_am).toLocaleDateString('de-DE')],
-            ].filter(Boolean).map(([label, val]) => (
-              <div key={label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                <span style={{ color: 'var(--gray-400)' }}>{label}</span>
-                <span>{val}</span>
+            ].filter(Boolean).map(([l,v])=>(
+              <div key={l} style={{ display:'flex', justifyContent:'space-between' }}>
+                <span style={{ color:'var(--gray-400)' }}>{l}</span><span>{v}</span>
               </div>
             ))}
           </div>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
-            {selected.status === 'offen' && <button onClick={() => statusAendern(selected.id,'in_bearbeitung')} className="btn btn-sm btn-primary">In Bearbeitung</button>}
-            {selected.status === 'in_bearbeitung' && <button onClick={() => statusAendern(selected.id,'zur_freigabe')} className="btn btn-sm btn-outline">Zur Freigabe</button>}
-            {selected.status === 'zur_freigabe' && isAdmin && <>
-              <button onClick={() => statusAendern(selected.id,'freigegeben')} className="btn btn-sm" style={{ background: '#e2efda', color: '#2d6b3a', border: 'none' }}>✓ Freigeben</button>
-              <button onClick={() => statusAendern(selected.id,'abgelehnt')} className="btn btn-sm btn-danger">✗ Ablehnen</button>
+
+          {/* Status Aktionen */}
+          <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:14 }}>
+            {selected.status==='offen' && <button onClick={()=>statusAendern(selected.id,'in_bearbeitung')} className="btn btn-sm btn-primary">In Bearbeitung</button>}
+            {selected.status==='in_bearbeitung' && <button onClick={()=>statusAendern(selected.id,'zur_freigabe')} className="btn btn-sm btn-outline">Zur Freigabe</button>}
+            {selected.status==='zur_freigabe' && isAdmin && <>
+              <button onClick={()=>statusAendern(selected.id,'freigegeben')} className="btn btn-sm" style={{background:'#e2efda',color:'#2d6b3a',border:'none'}}>✓ Freigeben</button>
+              <button onClick={()=>statusAendern(selected.id,'abgelehnt')} className="btn btn-sm btn-danger">✗ Ablehnen</button>
             </>}
           </div>
-          <div style={{ borderTop: '1px solid var(--gray-200)', paddingTop: 12 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--gray-400)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 1 }}>Kommentare</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12, maxHeight: 240, overflowY: 'auto' }}>
-              {kommentare.length === 0 ? <p style={{ fontSize: 13, color: 'var(--gray-400)', textAlign: 'center' }}>Noch keine Kommentare</p> :
-                kommentare.map(k => (
-                  <div key={k.id} style={{ background: 'var(--gray-100)', borderRadius: 'var(--radius)', padding: '8px 10px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--navy)' }}>{k.autor?.name}</span>
-                      <span style={{ fontSize: 10, color: 'var(--gray-400)' }}>{new Date(k.erstellt_am).toLocaleString('de-DE', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })}</span>
-                    </div>
-                    <div style={{ fontSize: 13, color: 'var(--text)' }}>{k.inhalt}</div>
-                  </div>
-                ))}
+
+          {/* Dateien */}
+          <div style={{ borderTop:'1px solid var(--gray-200)', paddingTop:12, marginBottom:12 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+              <div style={{ fontSize:11, fontWeight:600, color:'var(--gray-400)', textTransform:'uppercase', letterSpacing:1 }}>Dateien</div>
+              <label className="btn btn-sm btn-outline" style={{ cursor:'pointer', fontSize:11 }}>
+                {uploading ? 'Hochladen…' : '+ Datei'}
+                <input ref={fileRef} type="file" accept="image/*,.pdf,.doc,.docx" multiple style={{ display:'none' }} onChange={dateiHochladen} />
+              </label>
             </div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <input value={neuerKommentar} onChange={e => setNeuerKommentar(e.target.value)} onKeyDown={e => e.key === 'Enter' && kommentarSenden()} placeholder="Kommentar…" style={{ flex: 1, padding: '8px 12px', border: '1.5px solid var(--gray-200)', borderRadius: 'var(--radius)', fontFamily: 'inherit', fontSize: 13 }} />
+            {dateien.length===0 ? <p style={{ fontSize:12, color:'var(--gray-400)' }}>Keine Dateien</p> : (
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6 }}>
+                {dateien.map(d => {
+                  const isImg = /\.(jpg|jpeg|png|gif|webp)$/i.test(d.datei_name)
+                  return (
+                    <div key={d.id} style={{ position:'relative', borderRadius:'var(--radius)', overflow:'hidden', border:'1px solid var(--gray-200)' }}>
+                      {isImg
+                        ? <img src={d.datei_url} alt={d.datei_name} style={{ width:'100%', aspectRatio:'4/3', objectFit:'cover', display:'block' }} />
+                        : <div style={{ padding:'10px 8px', background:'var(--gray-100)', fontSize:11, color:'var(--gray-600)' }}>📄 {d.datei_name}</div>
+                      }
+                      <div style={{ position:'absolute', top:4, right:4, display:'flex', gap:4 }}>
+                        <a href={d.datei_url} target="_blank" rel="noreferrer" style={{ background:'rgba(255,255,255,0.9)', borderRadius:4, padding:'2px 5px', fontSize:10, textDecoration:'none', color:'var(--navy)' }}>⬇</a>
+                        <button onClick={()=>dateiLoeschen(d.id)} style={{ background:'rgba(255,255,255,0.9)', border:'none', borderRadius:4, padding:'2px 5px', fontSize:10, color:'var(--red)', cursor:'pointer' }}>×</button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Kommentare */}
+          <div style={{ borderTop:'1px solid var(--gray-200)', paddingTop:12 }}>
+            <div style={{ fontSize:11, fontWeight:600, color:'var(--gray-400)', textTransform:'uppercase', letterSpacing:1, marginBottom:8 }}>Kommentare</div>
+            <div style={{ display:'flex', flexDirection:'column', gap:8, marginBottom:10, maxHeight:200, overflowY:'auto' }}>
+              {kommentare.length===0 ? <p style={{ fontSize:12, color:'var(--gray-400)' }}>Noch keine Kommentare</p> :
+                kommentare.map(k=>(
+                  <div key={k.id} style={{ background:'var(--gray-100)', borderRadius:'var(--radius)', padding:'8px 10px' }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3 }}>
+                      <span style={{ fontSize:11, fontWeight:600, color:'var(--navy)' }}>{k.autor?.name}</span>
+                      <span style={{ fontSize:10, color:'var(--gray-400)' }}>{new Date(k.erstellt_am).toLocaleString('de-DE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</span>
+                    </div>
+                    <div style={{ fontSize:13 }}>{k.inhalt}</div>
+                  </div>
+                ))
+              }
+            </div>
+            <div style={{ display:'flex', gap:6 }}>
+              <input value={neuerKommentar} onChange={e=>setNeuerKommentar(e.target.value)} onKeyDown={e=>e.key==='Enter'&&kommentarSenden()} placeholder="Kommentar…" style={{ flex:1, padding:'8px 12px', border:'1.5px solid var(--gray-200)', borderRadius:'var(--radius)', fontFamily:'inherit', fontSize:13 }} />
               <button onClick={kommentarSenden} className="btn btn-primary btn-sm">↑</button>
             </div>
           </div>
