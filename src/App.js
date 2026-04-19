@@ -160,6 +160,7 @@ function App() {
             <Route path="/einstellungen" element={<PrivateRoute><Einstellungen /></PrivateRoute>} />
             <Route path="/inbox" element={<PrivateRoute><Inbox /></PrivateRoute>} />
             <Route path="/ev" element={<PrivateRoute><EV /></PrivateRoute>} />
+            <Route path="/freiwillige" element={<PrivateRoute bereich="events"><Freiwillige /></PrivateRoute>} />
           </Routes>
         </div>
       </BrowserRouter>
