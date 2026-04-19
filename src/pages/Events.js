@@ -299,7 +299,7 @@ function PositionenTab({ ev, positionen=[], eventFreiwillige=[], freiwillige=[],
   )
 }
 
-function EventDetail({ ev, teilnahmen=[], todos=[], ablauf=[], dateien=[], kosten=[], dienstleister=[], kostenKategorien=[], personen=[], kontakte=[], positionen=[], eventFreiwillige=[], freiwillige=[], faehigkeiten=[], raenge=[], posKategorien=[], inventar=[], inventarBuchungen=[], onNewInventarBuchung, onToggleZurueck, onDeleteBuchung, loadPositionen, onEdit, onDelete, onReload, loadDetails }) {
+function EventDetail({ ev, teilnahmen=[], todos=[], ablauf=[], dateien=[], kosten=[], dienstleister=[], kostenKategorien=[], personen=[], kontakte=[], positionen=[], eventFreiwillige=[], freiwillige=[], faehigkeiten=[], raenge=[], posKategorien=[], inventar=[], inventarBuchungen=[], onNewInventarBuchung, onVorlageAnwenden, onToggleZurueck, onDeleteBuchung, loadPositionen, onEdit, onDelete, onReload, loadDetails }) {
   const [tab, setTab] = useState('teilnehmer')
   const [positionModal, setPositionModal] = useState(false)
   const [positionForm, setPositionForm] = useState({})
@@ -810,7 +810,10 @@ ${ev.notizen?`<h2>Notizen</h2><div style="background:#f8f5ef;padding:14px;border
         <div>
           <div className="toolbar">
             <span style={{fontSize:13,color:'var(--gray-500)'}}>{inventarBuchungen.length} Positionen eingeplant</span>
-            <button className="btn btn-primary" onClick={onNewInventarBuchung}>+ Equipment einplanen</button>
+            <div style={{display:'flex',gap:8}}>
+              <button className="btn btn-outline" onClick={onVorlageAnwenden}>📋 Vorlage anwenden</button>
+              <button className="btn btn-primary" onClick={onNewInventarBuchung}>+ Equipment einplanen</button>
+            </div>
           </div>
           {inventarBuchungen.length===0 ? (
             <div className="empty-state card"><p>Noch kein Equipment für dieses Event eingeplant.</p></div>
@@ -968,6 +971,11 @@ export default function Events() {
   const [inventarBuchungForm, setInventarBuchungForm] = useState({})
   const [selectedInventar, setSelectedInventar] = useState(null)
   const [inventarTab, setInventarTab] = useState('liste')
+  const [vorlagen, setVorlagen] = useState([])
+  const [vorlagenModal, setVorlagenModal] = useState(false)
+  const [vorlagenForm, setVorlagenForm] = useState({})
+  const [vorlagenPositionen, setVorlagenPositionen] = useState([])
+  const [vorlagenAnwenden, setVorlagenAnwenden] = useState(false)
   const [positionen, setPositionen] = useState([])
   const [eventFreiwillige, setEventFreiwillige] = useState([])
   const [positionModal, setPositionModal] = useState(false)
@@ -1093,6 +1101,48 @@ export default function Events() {
     setInventarBuchungen(data||[])
   }
 
+  async function saveVorlage() {
+    if (!vorlagenForm.name?.trim()) { alert('Bitte einen Namen eingeben.'); return }
+    setSaving(true)
+    let vorlagenId = vorlagenForm.id
+    if (vorlagenId) {
+      await supabase.from('inventar_vorlagen').update({ name:vorlagenForm.name, beschreibung:vorlagenForm.beschreibung||null }).eq('id', vorlagenId)
+      await supabase.from('inventar_vorlagen_positionen').delete().eq('vorlage_id', vorlagenId)
+    } else {
+      const { data } = await supabase.from('inventar_vorlagen').insert({ name:vorlagenForm.name, beschreibung:vorlagenForm.beschreibung||null }).select().single()
+      if (!data) { setSaving(false); alert('Fehler beim Anlegen der Vorlage'); return }
+      vorlagenId = data.id
+    }
+    for (const pos of vorlagenPositionen.filter(p => p.inventar_id)) {
+      await supabase.from('inventar_vorlagen_positionen').insert({ vorlage_id:vorlagenId, inventar_id:pos.inventar_id, menge:parseInt(pos.menge)||1, notiz:pos.notiz||null })
+    }
+    setSaving(false)
+    setVorlagenModal(false)
+    loadAll()
+  }
+
+  async function vorlageAnwenden(vorlage) {
+    if (!selectedEvent) { alert('Bitte zuerst ein Event auswählen.'); return }
+    if (!window.confirm('Vorlage "'+vorlage.name+'" für dieses Event einplanen?')) return
+    setSaving(true)
+    for (const pos of (vorlage.inventar_vorlagen_positionen||[])) {
+      await supabase.from('inventar_buchungen').insert({
+        inventar_id: pos.inventar_id,
+        event_id: selectedEvent.id,
+        event_name: selectedEvent.name,
+        menge: pos.menge||1,
+        datum_von: selectedEvent.datum||null,
+        datum_bis: selectedEvent.datum||null,
+        notiz: pos.notiz||null,
+        zurueckgegeben: false
+      })
+    }
+    setSaving(false)
+    loadEventInventar(selectedEvent.id)
+    setVorlagenAnwenden(false)
+    alert('Vorlage erfolgreich eingeplant!')
+  }
+
   async function saveInventar() {
     if (!inventarForm.name?.trim()) { alert('Bitte einen Namen eingeben.'); return }
     setSaving(true)
@@ -1118,7 +1168,11 @@ export default function Events() {
       error = r.error
     }
     setSaving(false)
-    if (error) { alert('Fehler: ' + error.message); return }
+    if (error) {
+      console.error('inventar save error:', error)
+      alert('Fehler beim Speichern: ' + (error.message || JSON.stringify(error)))
+      return
+    }
     setInventarModal(false)
     loadAll()
   }
@@ -1349,6 +1403,7 @@ export default function Events() {
                 positionen={positionen} eventFreiwillige={eventFreiwillige} freiwillige={freiwillige} faehigkeiten={faehigkeiten} raenge={raenge} posKategorien={posKategorien}
                 inventar={inventar} inventarBuchungen={inventarBuchungen}
                 onNewInventarBuchung={()=>{ setInventarBuchungForm({menge:1,datum_von:selectedEvent?.datum||'',datum_bis:selectedEvent?.datum||''}); setInventarBuchungModal(true) }}
+                onVorlageAnwenden={()=>setVorlagenAnwenden(true)}
                 onToggleZurueck={async(id,val)=>{ await supabase.from('inventar_buchungen').update({zurueckgegeben:val}).eq('id',id); loadEventInventar(selectedEvent.id) }}
                 onDeleteBuchung={async(id)=>{ await supabase.from('inventar_buchungen').delete().eq('id',id); loadEventInventar(selectedEvent.id) }}
                 loadPositionen={loadPositionen}
@@ -1413,7 +1468,7 @@ export default function Events() {
         <div>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
             <div className="tabs" style={{marginBottom:0}}>
-              {[['liste','Equipment-Liste'],['buchungen','Alle Buchungen']].map(([k,l])=>(
+              {[['liste','Equipment-Liste'],['vorlagen','📋 Vorlagen'],['buchungen','Alle Buchungen']].map(([k,l])=>(
                 <button key={k} className={'tab-btn'+(inventarTab===k?' active':'')} onClick={()=>setInventarTab(k)}>{l}</button>
               ))}
             </div>
@@ -1474,6 +1529,47 @@ export default function Events() {
 
           {inventarTab==='buchungen'&&(
             <AlleBuchungenTab inventar={inventar}/>
+          )}
+
+          {inventarTab==='vorlagen'&&(
+            <div>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+                <p style={{fontSize:13,color:'var(--gray-500)'}}>Lege Vorlagen an um Equipment-Sets schnell für Events einzuplanen.</p>
+                <button className="btn btn-primary" onClick={()=>{ setVorlagenForm({}); setVorlagenPositionen([{inventar_id:'',menge:1,notiz:''}]); setVorlagenModal(true) }}>+ Neue Vorlage</button>
+              </div>
+              {vorlagen.length===0 && <div className="empty-state card"><p>Noch keine Vorlagen angelegt.</p></div>}
+              <div style={{display:'grid',gap:10}}>
+                {vorlagen.map(v=>(
+                  <div key={v.id} className="card">
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}>
+                      <div>
+                        <strong style={{fontSize:15,color:'var(--navy)'}}>{v.name}</strong>
+                        {v.beschreibung&&<div style={{fontSize:12,color:'var(--gray-500)',marginTop:2}}>{v.beschreibung}</div>}
+                      </div>
+                      <div style={{display:'flex',gap:6}}>
+                        <button className="btn btn-sm btn-outline" onClick={()=>{
+                          setVorlagenForm(v)
+                          setVorlagenPositionen(v.inventar_vorlagen_positionen?.length>0 ? v.inventar_vorlagen_positionen.map(p=>({inventar_id:p.inventar_id,menge:p.menge,notiz:p.notiz||''})) : [{inventar_id:'',menge:1,notiz:''}])
+                          setVorlagenModal(true)
+                        }}>Bearb.</button>
+                        <button className="btn btn-sm btn-danger" onClick={async()=>{ if(!window.confirm('Vorlage loeschen?'))return; await supabase.from('inventar_vorlagen').delete().eq('id',v.id); loadAll() }}>X</button>
+                      </div>
+                    </div>
+                    <div style={{display:'grid',gap:4,marginBottom:10}}>
+                      {(v.inventar_vorlagen_positionen||[]).map((pos,i)=>(
+                        <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'6px 10px',background:'var(--gray-100)',borderRadius:'var(--radius)',fontSize:13}}>
+                          <span style={{fontWeight:600}}>{pos.menge}x</span>
+                          <span>{pos.inventar?.name||'–'}</span>
+                          <span style={{fontSize:11,color:'var(--gray-400)'}}>{pos.inventar?.einheit}</span>
+                          {pos.notiz&&<span style={{fontSize:11,color:'var(--gray-500)',fontStyle:'italic'}}>· {pos.notiz}</span>}
+                        </div>
+                      ))}
+                      {(!v.inventar_vorlagen_positionen||v.inventar_vorlagen_positionen.length===0)&&<p style={{fontSize:12,color:'var(--gray-400)'}}>Keine Positionen.</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
         </div>
       )}
@@ -1890,6 +1986,87 @@ export default function Events() {
             <div className="modal-footer">
               <button className="btn btn-outline" onClick={()=>setInventarModal(false)}>Abbrechen</button>
               <button className="btn btn-primary" onClick={saveInventar} disabled={saving}>{saving?'Speichern...':'Speichern'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {vorlagenAnwenden&&(
+        <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setVorlagenAnwenden(false)}>
+          <div className="modal" style={{maxWidth:560}}>
+            <div className="modal-header">
+              <span className="modal-title">Vorlage anwenden: {selectedEvent?.name}</span>
+              <button className="close-btn" onClick={()=>setVorlagenAnwenden(false)}>x</button>
+            </div>
+            <div className="modal-body">
+              {vorlagen.length===0 ? (
+                <p style={{color:'var(--gray-400)',fontSize:13}}>Noch keine Vorlagen angelegt. Wechsle zum Inventar-Tab um Vorlagen zu erstellen.</p>
+              ) : (
+                <div style={{display:'grid',gap:10}}>
+                  {vorlagen.map(v=>(
+                    <div key={v.id} style={{padding:14,border:'1.5px solid var(--gray-200)',borderRadius:'var(--radius)'}}>
+                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
+                        <div>
+                          <strong style={{fontSize:14}}>{v.name}</strong>
+                          {v.beschreibung&&<div style={{fontSize:12,color:'var(--gray-500)'}}>{v.beschreibung}</div>}
+                        </div>
+                        <button className="btn btn-primary btn-sm" onClick={()=>vorlageAnwenden(v)} disabled={saving}>
+                          {saving?'...':'Anwenden'}
+                        </button>
+                      </div>
+                      <div style={{display:'grid',gap:4}}>
+                        {(v.inventar_vorlagen_positionen||[]).map((pos,i)=>(
+                          <div key={i} style={{fontSize:12,color:'var(--gray-600)',padding:'4px 8px',background:'var(--gray-100)',borderRadius:4}}>
+                            {pos.menge}x {pos.inventar?.name} {pos.notiz&&<span style={{color:'var(--gray-400)'}}>· {pos.notiz}</span>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={()=>setVorlagenAnwenden(false)}>Schliessen</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {vorlagenModal&&(
+        <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setVorlagenModal(false)}>
+          <div className="modal" style={{maxWidth:640}}>
+            <div className="modal-header">
+              <span className="modal-title">{vorlagenForm.id?'Vorlage bearbeiten':'Neue Vorlage'}</span>
+              <button className="close-btn" onClick={()=>setVorlagenModal(false)}>x</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-group"><label>Name *</label><input value={vorlagenForm.name||''} onChange={e=>setVorlagenForm(f=>({...f,name:e.target.value}))} autoFocus placeholder="z.B. Standard Heimspiel, Sponsoren-Abend..."/></div>
+              <div className="form-group"><label>Beschreibung</label><input value={vorlagenForm.beschreibung||''} onChange={e=>setVorlagenForm(f=>({...f,beschreibung:e.target.value}))}/></div>
+              <div style={{marginTop:16}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+                  <strong style={{fontSize:13,color:'var(--navy)'}}>Equipment-Positionen</strong>
+                  <button className="btn btn-sm btn-outline" onClick={()=>setVorlagenPositionen(p=>[...p,{inventar_id:'',menge:1,notiz:''}])}>+ Position</button>
+                </div>
+                <div style={{display:'grid',gap:8}}>
+                  {vorlagenPositionen.map((pos,i)=>(
+                    <div key={i} style={{display:'grid',gridTemplateColumns:'1fr 80px 1fr auto',gap:8,alignItems:'center'}}>
+                      <select value={pos.inventar_id||''} onChange={e=>setVorlagenPositionen(pp=>pp.map((p,j)=>j===i?{...p,inventar_id:e.target.value}:p))}>
+                        <option value="">-- Equipment --</option>
+                        {inventar.map(inv=><option key={inv.id} value={inv.id}>{inv.name}</option>)}
+                      </select>
+                      <input type="number" min="1" value={pos.menge||1} onChange={e=>setVorlagenPositionen(pp=>pp.map((p,j)=>j===i?{...p,menge:e.target.value}:p))} placeholder="Menge" style={{padding:'8px 10px',border:'1.5px solid var(--gray-200)',borderRadius:'var(--radius)',fontSize:13}}/>
+                      <input value={pos.notiz||''} onChange={e=>setVorlagenPositionen(pp=>pp.map((p,j)=>j===i?{...p,notiz:e.target.value}:p))} placeholder="Notiz (optional)" style={{padding:'8px 10px',border:'1.5px solid var(--gray-200)',borderRadius:'var(--radius)',fontSize:13}}/>
+                      <button onClick={()=>setVorlagenPositionen(pp=>pp.filter((_,j)=>j!==i))} style={{background:'none',border:'none',cursor:'pointer',color:'var(--red)',fontSize:18,lineHeight:1,padding:'4px 8px'}}>×</button>
+                    </div>
+                  ))}
+                  {vorlagenPositionen.length===0&&<p style={{fontSize:12,color:'var(--gray-400)'}}>Noch keine Positionen. Klicke "+ Position".</p>}
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={()=>setVorlagenModal(false)}>Abbrechen</button>
+              <button className="btn btn-primary" onClick={saveVorlage} disabled={saving}>{saving?'Speichern...':'Speichern'}</button>
             </div>
           </div>
         </div>
