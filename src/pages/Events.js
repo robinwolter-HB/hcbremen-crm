@@ -136,9 +136,9 @@ const EF_STATUS_COLORS = {
   'Nicht erschienen':{ bg:'#ececec',color:'#555' },
 }
 
-function PositionenTab({ ev, positionen, eventFreiwillige, freiwillige, faehigkeiten, onNewPosition, onEditPosition, onDeletePosition, onOpenPosition, onUpdateFreiwilligerStatus, onRemoveFreiwilliger }) {
-  const gesamtBenoetigt = positionen.reduce((s,p)=>s+(p.anzahl_benoetigt||1),0)
-  const gesamtZugeordnet = eventFreiwillige.filter(ef=>ef.status!=='Abgesagt').length
+function PositionenTab({ ev, positionen=[], eventFreiwillige=[], freiwillige=[], faehigkeiten=[], onNewPosition, onEditPosition, onDeletePosition, onOpenPosition, onUpdateFreiwilligerStatus, onRemoveFreiwilliger }) {
+  const gesamtBenoetigt = (positionen||[]).reduce((s,p)=>s+(p.anzahl_benoetigt||1),0)
+  const gesamtZugeordnet = (eventFreiwillige||[]).filter(ef=>ef.status!=='Abgesagt').length
 
   return (
     <div>
@@ -219,7 +219,7 @@ function PositionenTab({ ev, positionen, eventFreiwillige, freiwillige, faehigke
   )
 }
 
-function EventDetail({ ev, teilnahmen, todos, ablauf, dateien, kosten, dienstleister, kostenKategorien, personen, kontakte, positionen, eventFreiwillige, freiwillige, faehigkeiten, onOpenPosition, onNewPosition, onEditPosition, onDeletePosition, onUpdateFreiwilligerStatus, onRemoveFreiwilliger, onEdit, onDelete, onReload, loadDetails }) {
+function EventDetail({ ev, teilnahmen=[], todos=[], ablauf=[], dateien=[], kosten=[], dienstleister=[], kostenKategorien=[], personen=[], kontakte=[], positionen=[], eventFreiwillige=[], freiwillige=[], faehigkeiten=[], onOpenPosition, onNewPosition, onEditPosition, onDeletePosition, onUpdateFreiwilligerStatus, onRemoveFreiwilliger, onEdit, onDelete, onReload, loadDetails }) {
   const [tab, setTab] = useState('teilnehmer')
   const [statusFilter, setStatusFilter] = useState('')
   const [saving, setSaving] = useState(false)
