@@ -43,6 +43,85 @@ function Modal({ open, onClose, title, children, footer }) {
   )
 }
 
+function AlleBuchungenTab({ inventar }) {
+  const [buchungen, setBuchungen] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [filter, setFilter] = useState('alle')
+
+  useEffect(() => {
+    supabase.from('inventar_buchungen')
+      .select('*,inventar(name,einheit,typ)')
+      .order('datum_von', { ascending: false })
+      .then(({ data }) => { setBuchungen(data||[]); setLoading(false) })
+  }, [])
+
+  const filtered = buchungen.filter(b => {
+    if (filter === 'ausstehend') return !b.zurueckgegeben
+    if (filter === 'zurueck') return b.zurueckgegeben
+    return true
+  })
+
+  const geliehen = buchungen.filter(b => !b.zurueckgegeben && b.inventar?.typ === 'Geliehen')
+
+  if (loading) return <div className="loading-center"><div className="spinner"/></div>
+
+  return (
+    <div>
+      {geliehen.length > 0 && (
+        <div className="card" style={{marginBottom:16,background:'#fff8f0',border:'1.5px solid #f5c97a'}}>
+          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:8}}>
+            <span style={{fontSize:16}}>⚠️</span>
+            <strong style={{fontSize:14,color:'#8a6a00'}}>Geliehenes Equipment noch nicht zurückgegeben ({geliehen.length})</strong>
+          </div>
+          <div style={{display:'grid',gap:6}}>
+            {geliehen.map(b=>(
+              <div key={b.id} style={{fontSize:13,color:'#8a6a00'}}>
+                <strong>{b.inventar?.name}</strong> — {b.event_name} ({b.menge} {b.inventar?.einheit})
+                {b.datum_bis&&<span style={{marginLeft:8,fontSize:11}}>bis {new Date(b.datum_bis).toLocaleDateString('de-DE')}</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      <div style={{display:'flex',gap:8,marginBottom:16}}>
+        {[['alle','Alle'],['ausstehend','Ausstehend'],['zurueck','Zurückgegeben']].map(([k,l])=>(
+          <button key={k} onClick={()=>setFilter(k)}
+            style={{padding:'6px 14px',borderRadius:'var(--radius)',border:'1.5px solid',fontSize:13,fontWeight:600,cursor:'pointer',
+              background:filter===k?'var(--navy)':'var(--white)',
+              borderColor:filter===k?'var(--navy)':'var(--gray-200)',
+              color:filter===k?'white':'var(--gray-600)'}}>
+            {l}
+          </button>
+        ))}
+      </div>
+      {filtered.length===0 ? <div className="empty-state card"><p>Keine Buchungen gefunden.</p></div> : (
+        <div className="card">
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>Equipment</th><th>Typ</th><th>Event</th><th>Menge</th><th>Zeitraum</th><th>Status</th></tr></thead>
+              <tbody>
+                {filtered.map(b=>(
+                  <tr key={b.id}>
+                    <td><strong style={{fontSize:13}}>{b.inventar?.name||'–'}</strong></td>
+                    <td><span style={{fontSize:11,padding:'1px 8px',borderRadius:10,fontWeight:600,background:b.inventar?.typ==='Geliehen'?'#fff3cd':'#e2efda',color:b.inventar?.typ==='Geliehen'?'#8a6a00':'#2d6b3a'}}>{b.inventar?.typ||'–'}</span></td>
+                    <td style={{fontSize:13}}>{b.event_name||'–'}</td>
+                    <td style={{fontWeight:600}}>{b.menge} {b.inventar?.einheit}</td>
+                    <td style={{fontSize:12,color:'var(--gray-500)'}}>
+                      {b.datum_von&&new Date(b.datum_von).toLocaleDateString('de-DE')}
+                      {b.datum_bis&&b.datum_bis!==b.datum_von&&<span> – {new Date(b.datum_bis).toLocaleDateString('de-DE')}</span>}
+                    </td>
+                    <td><span style={{fontSize:11,padding:'1px 8px',borderRadius:10,fontWeight:600,background:b.zurueckgegeben?'#e2efda':'#fff3cd',color:b.zurueckgegeben?'#2d6b3a':'#8a6a00'}}>{b.zurueckgegeben?'Zurückgegeben':'Ausstehend'}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function PreisVergleichArtikel({ artikel }) {
   const [preise, setPreise] = useState([])
   useEffect(() => {
@@ -220,7 +299,7 @@ function PositionenTab({ ev, positionen=[], eventFreiwillige=[], freiwillige=[],
   )
 }
 
-function EventDetail({ ev, teilnahmen=[], todos=[], ablauf=[], dateien=[], kosten=[], dienstleister=[], kostenKategorien=[], personen=[], kontakte=[], positionen=[], eventFreiwillige=[], freiwillige=[], faehigkeiten=[], raenge=[], posKategorien=[], loadPositionen, onEdit, onDelete, onReload, loadDetails }) {
+function EventDetail({ ev, teilnahmen=[], todos=[], ablauf=[], dateien=[], kosten=[], dienstleister=[], kostenKategorien=[], personen=[], kontakte=[], positionen=[], eventFreiwillige=[], freiwillige=[], faehigkeiten=[], raenge=[], posKategorien=[], inventar=[], inventarBuchungen=[], onNewInventarBuchung, onToggleZurueck, onDeleteBuchung, loadPositionen, onEdit, onDelete, onReload, loadDetails }) {
   const [tab, setTab] = useState('teilnehmer')
   const [positionModal, setPositionModal] = useState(false)
   const [positionForm, setPositionForm] = useState({})
@@ -406,7 +485,7 @@ ${ev.notizen?`<h2>Notizen</h2><div style="background:#f8f5ef;padding:14px;border
       </div>
 
       <div className="tabs" style={{marginBottom:16}}>
-        {[['teilnehmer','Teilnehmer ('+teilnahmen.length+')'],['positionen','👥 Positionen'],['todos','ToDos ('+todos.length+')'],['ablauf','Ablaufplan'],['agenda','Agenda'],['notizen','Notizen'],['dateien','Dateien ('+dateien.length+')'],['kosten','Kosten']].map(([k,l])=>(
+        {[['teilnehmer','Teilnehmer ('+teilnahmen.length+')'],['positionen','👥 Positionen'],['todos','ToDos ('+todos.length+')'],['ablauf','Ablaufplan'],['agenda','Agenda'],['notizen','Notizen'],['dateien','Dateien ('+dateien.length+')'],['kosten','Kosten'],['inventar','🗄️ Inventar']].map(([k,l])=>(
           <button key={k} className={'tab-btn'+(tab===k?' active':'')} onClick={()=>setTab(k)}>{l}</button>
         ))}
       </div>
@@ -727,6 +806,56 @@ ${ev.notizen?`<h2>Notizen</h2><div style="background:#f8f5ef;padding:14px;border
         </div>
       )}
 
+      {tab==='inventar'&&(
+        <div>
+          <div className="toolbar">
+            <span style={{fontSize:13,color:'var(--gray-500)'}}>{inventarBuchungen.length} Positionen eingeplant</span>
+            <button className="btn btn-primary" onClick={onNewInventarBuchung}>+ Equipment einplanen</button>
+          </div>
+          {inventarBuchungen.length===0 ? (
+            <div className="empty-state card"><p>Noch kein Equipment für dieses Event eingeplant.</p></div>
+          ) : (
+            <div className="card">
+              <div className="table-wrap">
+                <table>
+                  <thead><tr><th>Equipment</th><th>Typ</th><th>Menge</th><th>Zeitraum</th><th>Lagerort</th><th>Notiz</th><th>Zurück</th><th></th></tr></thead>
+                  <tbody>
+                    {inventarBuchungen.map(b=>{
+                      const inv=b.inventar
+                      return (
+                        <tr key={b.id} style={{opacity:b.zurueckgegeben?0.6:1}}>
+                          <td><strong style={{fontSize:13}}>{inv?.name||'–'}</strong></td>
+                          <td><span style={{fontSize:11,padding:'1px 8px',borderRadius:10,background:inv?.typ==='Geliehen'?'#fff3cd':'#e2efda',color:inv?.typ==='Geliehen'?'#8a6a00':'#2d6b3a',fontWeight:600}}>{inv?.typ||'Gekauft'}</span></td>
+                          <td style={{fontWeight:600}}>{b.menge} {inv?.einheit||'Stk'}</td>
+                          <td style={{fontSize:12,color:'var(--gray-500)'}}>
+                            {b.datum_von&&new Date(b.datum_von).toLocaleDateString('de-DE')}
+                            {b.datum_bis&&b.datum_bis!==b.datum_von&&<span> – {new Date(b.datum_bis).toLocaleDateString('de-DE')}</span>}
+                          </td>
+                          <td style={{fontSize:12,color:'var(--gray-400)'}}>{inv?.lagerort||'–'}</td>
+                          <td style={{fontSize:12,color:'var(--gray-500)'}}>{b.notiz||'–'}</td>
+                          <td>
+                            <button onClick={()=>onToggleZurueck(b.id,!b.zurueckgegeben)}
+                              style={{padding:'2px 10px',borderRadius:10,border:'1.5px solid',fontSize:12,fontWeight:600,cursor:'pointer',
+                                background:b.zurueckgegeben?'#e2efda':'var(--white)',
+                                borderColor:b.zurueckgegeben?'#3a8a5a':'var(--gray-200)',
+                                color:b.zurueckgegeben?'#2d6b3a':'var(--gray-500)'}}>
+                              {b.zurueckgegeben?'✓ Zurück':'Ausstehend'}
+                            </button>
+                          </td>
+                          <td>
+                            <button className="btn btn-sm btn-danger" onClick={()=>onDeleteBuchung(b.id)}>X</button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <Modal open={tModal} onClose={()=>setTModal(false)} title={tForm.id?'Teilnehmer bearbeiten':'Teilnehmer hinzufuegen'}
         footer={<><button className="btn btn-outline" onClick={()=>setTModal(false)}>Abbrechen</button><button className="btn btn-primary" onClick={saveTeilnahme} disabled={saving}>{saving?'Speichern...':'Speichern'}</button></>}>
         <div className="form-row">
@@ -831,6 +960,14 @@ export default function Events() {
   const [faehigkeiten, setFaehigkeiten] = useState([])
   const [raenge, setRaenge] = useState([])
   const [posKategorien, setPosKategorien] = useState([])
+  const [inventar, setInventar] = useState([])
+  const [inventarModal, setInventarModal] = useState(false)
+  const [inventarForm, setInventarForm] = useState({})
+  const [inventarBuchungen, setInventarBuchungen] = useState([])
+  const [inventarBuchungModal, setInventarBuchungModal] = useState(false)
+  const [inventarBuchungForm, setInventarBuchungForm] = useState({})
+  const [selectedInventar, setSelectedInventar] = useState(null)
+  const [inventarTab, setInventarTab] = useState('liste')
   const [positionen, setPositionen] = useState([])
   const [eventFreiwillige, setEventFreiwillige] = useState([])
   const [positionModal, setPositionModal] = useState(false)
@@ -897,6 +1034,7 @@ export default function Events() {
       setTodos(td||[])
     } catch { setTodos([]) }
     loadPositionen(id)
+    loadEventInventar(id)
   }
 
   function openNewEvent() {
@@ -945,6 +1083,74 @@ export default function Events() {
     if (dlForm.id) { await supabase.from('dienstleister').update(p).eq('id', dlForm.id); if (selectedDL?.id===dlForm.id) setSelectedDL(d=>({...d,...p})) }
     else { const { data } = await supabase.from('dienstleister').insert(p).select().single(); if (data) { setSelectedDL(data); loadDLHistorie(data.id) } }
     setDlModal(false); setSaving(false); loadAll()
+  }
+
+  async function loadInventarBuchungen(inventarId) {
+    const { data } = await supabase.from('inventar_buchungen')
+      .select('*')
+      .eq('inventar_id', inventarId)
+      .order('datum_von', { ascending: false })
+    setInventarBuchungen(data||[])
+  }
+
+  async function saveInventar() {
+    if (!inventarForm.name?.trim()) { alert('Bitte einen Namen eingeben.'); return }
+    setSaving(true)
+    const p = {
+      name: inventarForm.name,
+      beschreibung: inventarForm.beschreibung||null,
+      menge: parseInt(inventarForm.menge)||1,
+      einheit: inventarForm.einheit||'Stk',
+      lagerort: inventarForm.lagerort||null,
+      typ: inventarForm.typ||'Gekauft',
+      anschaffungsdatum: inventarForm.anschaffungsdatum||null,
+      anschaffungspreis: inventarForm.anschaffungspreis||null,
+      zustand: inventarForm.zustand||'Gut',
+      notizen: inventarForm.notizen||null,
+      aktiv: inventarForm.aktiv!==false
+    }
+    let error
+    if (inventarForm.id) {
+      const r = await supabase.from('inventar').update(p).eq('id', inventarForm.id)
+      error = r.error
+    } else {
+      const r = await supabase.from('inventar').insert(p)
+      error = r.error
+    }
+    setSaving(false)
+    if (error) { alert('Fehler: ' + error.message); return }
+    setInventarModal(false)
+    loadAll()
+  }
+
+  async function saveInventarBuchung() {
+    if (!inventarBuchungForm.inventar_id) { alert('Bitte Inventar auswählen.'); return }
+    if (!selectedEvent) { alert('Kein Event ausgewählt.'); return }
+    setSaving(true)
+    const inv = inventar.find(i => i.id === inventarBuchungForm.inventar_id)
+    const p = {
+      inventar_id: inventarBuchungForm.inventar_id,
+      event_id: selectedEvent.id,
+      event_name: selectedEvent.name,
+      menge: parseInt(inventarBuchungForm.menge)||1,
+      datum_von: inventarBuchungForm.datum_von||selectedEvent.datum||null,
+      datum_bis: inventarBuchungForm.datum_bis||selectedEvent.datum||null,
+      notiz: inventarBuchungForm.notiz||null,
+      zurueckgegeben: false
+    }
+    const { error } = await supabase.from('inventar_buchungen').insert(p)
+    setSaving(false)
+    if (error) { alert('Fehler: ' + error.message); return }
+    setInventarBuchungModal(false)
+    loadEventInventar(selectedEvent.id)
+  }
+
+  async function loadEventInventar(eventId) {
+    const { data } = await supabase.from('inventar_buchungen')
+      .select('*,inventar(id,name,menge,einheit,lagerort,typ)')
+      .eq('event_id', eventId)
+      .order('erstellt_am')
+    setInventarBuchungen(data||[])
   }
 
   async function loadPositionen(eventId) {
@@ -1095,7 +1301,7 @@ export default function Events() {
       <p className="page-subtitle">Veranstaltungen, Kostenkalkulation und Dienstleister</p>
 
       <div className="tabs" style={{marginBottom:20}}>
-        {[['events','Veranstaltungen'],['dashboard','Kosten-Dashboard'],['dienstleister','Dienstleister'],['artikel','📦 Artikel']].map(([k,l])=>(
+        {[['events','Veranstaltungen'],['dashboard','Kosten-Dashboard'],['dienstleister','Dienstleister'],['artikel','📦 Artikel'],['inventar','🗄️ Inventar']].map(([k,l])=>(
           <button key={k} className={'tab-btn'+(hauptTab===k?' active':'')} onClick={()=>setHauptTab(k)}>{l}</button>
         ))}
       </div>
@@ -1141,6 +1347,10 @@ export default function Events() {
                 teilnahmen={teilnahmen} todos={todos} ablauf={ablauf} dateien={dateien} kosten={kosten}
                 dienstleister={dienstleister} kostenKategorien={kostenKategorien} personen={personen} kontakte={kontakte}
                 positionen={positionen} eventFreiwillige={eventFreiwillige} freiwillige={freiwillige} faehigkeiten={faehigkeiten} raenge={raenge} posKategorien={posKategorien}
+                inventar={inventar} inventarBuchungen={inventarBuchungen}
+                onNewInventarBuchung={()=>{ setInventarBuchungForm({menge:1,datum_von:selectedEvent?.datum||'',datum_bis:selectedEvent?.datum||''}); setInventarBuchungModal(true) }}
+                onToggleZurueck={async(id,val)=>{ await supabase.from('inventar_buchungen').update({zurueckgegeben:val}).eq('id',id); loadEventInventar(selectedEvent.id) }}
+                onDeleteBuchung={async(id)=>{ await supabase.from('inventar_buchungen').delete().eq('id',id); loadEventInventar(selectedEvent.id) }}
                 loadPositionen={loadPositionen}
                 onEdit={()=>{ setEventForm(selectedEvent); setEventModal(true) }}
                 onDelete={()=>deleteEvent(selectedEvent.id)}
@@ -1195,6 +1405,75 @@ export default function Events() {
                 ))}
               </div>
             </div>
+          )}
+        </div>
+      )}
+
+      {hauptTab==='inventar' && (
+        <div>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+            <div className="tabs" style={{marginBottom:0}}>
+              {[['liste','Equipment-Liste'],['buchungen','Alle Buchungen']].map(([k,l])=>(
+                <button key={k} className={'tab-btn'+(inventarTab===k?' active':'')} onClick={()=>setInventarTab(k)}>{l}</button>
+              ))}
+            </div>
+            <button className="btn btn-primary" onClick={()=>{ setInventarForm({menge:1,einheit:'Stk',typ:'Gekauft',zustand:'Gut',aktiv:true}); setInventarModal(true) }}>+ Neues Equipment</button>
+          </div>
+
+          {inventarTab==='liste'&&(
+            <div style={{display:'grid',gap:8}}>
+              {inventar.length===0&&<div className="empty-state card"><p>Noch kein Equipment angelegt.</p></div>}
+              {inventar.map(item=>(
+                <div key={item.id} style={{padding:14,border:'1.5px solid var(--gray-200)',borderRadius:'var(--radius)',background:'var(--white)',opacity:item.aktiv?1:0.6}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12}}>
+                    <div style={{flex:1}}>
+                      <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:4}}>
+                        <strong style={{fontSize:15,color:'var(--navy)'}}>{item.name}</strong>
+                        <span style={{fontSize:11,padding:'1px 8px',borderRadius:10,fontWeight:600,background:item.typ==='Geliehen'?'#fff3cd':'#e2efda',color:item.typ==='Geliehen'?'#8a6a00':'#2d6b3a'}}>{item.typ}</span>
+                        <span style={{fontSize:11,padding:'1px 8px',borderRadius:10,background:'var(--gray-100)',color:'var(--gray-600)'}}>{item.zustand}</span>
+                      </div>
+                      <div style={{display:'flex',gap:20,fontSize:13,color:'var(--gray-600)',flexWrap:'wrap'}}>
+                        <span>Bestand: <strong style={{color:'var(--navy)'}}>{item.menge} {item.einheit}</strong></span>
+                        {item.lagerort&&<span>📍 {item.lagerort}</span>}
+                        {item.anschaffungspreis&&<span>💶 {Number(item.anschaffungspreis).toLocaleString('de-DE')} EUR</span>}
+                        {item.anschaffungsdatum&&<span>📅 {new Date(item.anschaffungsdatum).toLocaleDateString('de-DE')}</span>}
+                      </div>
+                      {item.beschreibung&&<div style={{fontSize:12,color:'var(--gray-400)',marginTop:4}}>{item.beschreibung}</div>}
+                      {item.notizen&&<div style={{fontSize:12,color:'var(--gray-500)',marginTop:4,fontStyle:'italic'}}>{item.notizen}</div>}
+                    </div>
+                    <div style={{display:'flex',gap:6,flexShrink:0}}>
+                      <button className="btn btn-sm btn-outline" onClick={()=>{ setSelectedInventar(item); loadInventarBuchungen(item.id) }}>Buchungen</button>
+                      <button className="btn btn-sm btn-outline" onClick={()=>{ setInventarForm(item); setInventarModal(true) }}>Bearb.</button>
+                      <button className="btn btn-sm btn-outline" onClick={async()=>{ await supabase.from('inventar').update({aktiv:!item.aktiv}).eq('id',item.id); loadAll() }}>{item.aktiv?'Deaktiv.':'Aktiv'}</button>
+                      <button className="btn btn-sm btn-danger" onClick={async()=>{ if(!window.confirm('Equipment loeschen?'))return; await supabase.from('inventar').delete().eq('id',item.id); loadAll() }}>X</button>
+                    </div>
+                  </div>
+                  {selectedInventar?.id===item.id&&(
+                    <div style={{marginTop:12,paddingTop:12,borderTop:'1px solid var(--gray-100)'}}>
+                      <div style={{fontSize:12,fontWeight:600,color:'var(--gray-500)',textTransform:'uppercase',marginBottom:8}}>Buchungshistorie</div>
+                      {inventarBuchungen.length===0 ? <p style={{fontSize:13,color:'var(--gray-400)'}}>Noch keine Buchungen.</p> : (
+                        <div style={{display:'grid',gap:6}}>
+                          {inventarBuchungen.map(b=>(
+                            <div key={b.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 12px',background:b.zurueckgegeben?'#f0f9f4':'#fff8f0',borderRadius:'var(--radius)',fontSize:13}}>
+                              <div>
+                                <strong>{b.event_name||'Event'}</strong>
+                                <span style={{marginLeft:8,color:'var(--gray-500)'}}>{b.menge} {item.einheit} · {b.datum_von?new Date(b.datum_von).toLocaleDateString('de-DE'):''}{b.datum_bis&&b.datum_bis!==b.datum_von?' – '+new Date(b.datum_bis).toLocaleDateString('de-DE'):''}</span>
+                                {b.notiz&&<span style={{marginLeft:8,color:'var(--gray-400)',fontStyle:'italic'}}>{b.notiz}</span>}
+                              </div>
+                              <span style={{fontSize:11,padding:'1px 8px',borderRadius:10,fontWeight:600,background:b.zurueckgegeben?'#e2efda':'#fff3cd',color:b.zurueckgegeben?'#2d6b3a':'#8a6a00'}}>{b.zurueckgegeben?'Zurückgegeben':'Ausgeliehen'}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {inventarTab==='buchungen'&&(
+            <AlleBuchungenTab inventar={inventar}/>
           )}
         </div>
       )}
@@ -1565,6 +1844,84 @@ export default function Events() {
             <div className="modal-footer">
               <button className="btn btn-outline" onClick={()=>setFreiwilligerModal(false)}>Abbrechen</button>
               <button className="btn btn-primary" onClick={saveFreiwilligerZuordnung} disabled={saving}>{saving?'Speichern...':'Zuordnen'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {inventarModal&&(
+        <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setInventarModal(false)}>
+          <div className="modal" style={{maxWidth:680}}>
+            <div className="modal-header">
+              <span className="modal-title">{inventarForm.id?'Equipment bearbeiten':'Neues Equipment'}</span>
+              <button className="close-btn" onClick={()=>setInventarModal(false)}>x</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-row">
+                <div className="form-group" style={{flex:2}}><label>Name *</label><input value={inventarForm.name||''} onChange={e=>setInventarForm(f=>({...f,name:e.target.value}))} autoFocus/></div>
+                <div className="form-group"><label>Typ</label>
+                  <select value={inventarForm.typ||'Gekauft'} onChange={e=>setInventarForm(f=>({...f,typ:e.target.value}))}>
+                    {['Gekauft','Geliehen','Gesponsert','Sonstiges'].map(t=><option key={t}>{t}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="form-group"><label>Menge</label><input type="number" min="1" value={inventarForm.menge||1} onChange={e=>setInventarForm(f=>({...f,menge:e.target.value}))}/></div>
+                <div className="form-group"><label>Einheit</label>
+                  <select value={inventarForm.einheit||'Stk'} onChange={e=>setInventarForm(f=>({...f,einheit:e.target.value}))}>
+                    {['Stk','Set','Paar','Kiste','Palette','Rolle','m','kg'].map(u=><option key={u}>{u}</option>)}
+                  </select>
+                </div>
+                <div className="form-group"><label>Zustand</label>
+                  <select value={inventarForm.zustand||'Gut'} onChange={e=>setInventarForm(f=>({...f,zustand:e.target.value}))}>
+                    {['Neu','Gut','Gebraucht','Defekt'].map(z=><option key={z}>{z}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="form-group"><label>Lagerort</label><input value={inventarForm.lagerort||''} onChange={e=>setInventarForm(f=>({...f,lagerort:e.target.value}))} placeholder="z.B. Keller Sportzentrum, Raum 3..."/></div>
+              <div className="form-row">
+                <div className="form-group"><label>Anschaffungsdatum</label><input type="date" value={inventarForm.anschaffungsdatum||''} onChange={e=>setInventarForm(f=>({...f,anschaffungsdatum:e.target.value}))}/></div>
+                <div className="form-group"><label>Anschaffungspreis (EUR)</label><input type="number" value={inventarForm.anschaffungspreis||''} onChange={e=>setInventarForm(f=>({...f,anschaffungspreis:e.target.value}))}/></div>
+              </div>
+              <div className="form-group"><label>Beschreibung</label><textarea value={inventarForm.beschreibung||''} onChange={e=>setInventarForm(f=>({...f,beschreibung:e.target.value}))} style={{minHeight:60}}/></div>
+              <div className="form-group"><label>Notizen (intern)</label><textarea value={inventarForm.notizen||''} onChange={e=>setInventarForm(f=>({...f,notizen:e.target.value}))} style={{minHeight:60}} placeholder="Interne Notizen zu Zustand, Verleih, etc."/></div>
+              <div className="form-group"><label style={{display:'flex',alignItems:'center',gap:8,fontSize:14,cursor:'pointer',textTransform:'none'}}><input type="checkbox" checked={inventarForm.aktiv!==false} onChange={e=>setInventarForm(f=>({...f,aktiv:e.target.checked}))}/>Aktiv / verfügbar</label></div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={()=>setInventarModal(false)}>Abbrechen</button>
+              <button className="btn btn-primary" onClick={saveInventar} disabled={saving}>{saving?'Speichern...':'Speichern'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {inventarBuchungModal&&(
+        <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setInventarBuchungModal(false)}>
+          <div className="modal" style={{maxWidth:580}}>
+            <div className="modal-header">
+              <span className="modal-title">Equipment einplanen für: {selectedEvent?.name}</span>
+              <button className="close-btn" onClick={()=>setInventarBuchungModal(false)}>x</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-group">
+                <label>Equipment *</label>
+                <select value={inventarBuchungForm.inventar_id||''} onChange={e=>setInventarBuchungForm(f=>({...f,inventar_id:e.target.value}))}>
+                  <option value="">-- Equipment wählen --</option>
+                  {inventar.filter(i=>i.aktiv).map(i=>(
+                    <option key={i.id} value={i.id}>{i.name} ({i.menge} {i.einheit} verfügbar{i.lagerort?' · '+i.lagerort:''})</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-row">
+                <div className="form-group"><label>Menge benötigt</label><input type="number" min="1" value={inventarBuchungForm.menge||1} onChange={e=>setInventarBuchungForm(f=>({...f,menge:e.target.value}))}/></div>
+                <div className="form-group"><label>Von</label><input type="date" value={inventarBuchungForm.datum_von||''} onChange={e=>setInventarBuchungForm(f=>({...f,datum_von:e.target.value}))}/></div>
+                <div className="form-group"><label>Bis</label><input type="date" value={inventarBuchungForm.datum_bis||''} onChange={e=>setInventarBuchungForm(f=>({...f,datum_bis:e.target.value}))}/></div>
+              </div>
+              <div className="form-group"><label>Notiz</label><textarea value={inventarBuchungForm.notiz||''} onChange={e=>setInventarBuchungForm(f=>({...f,notiz:e.target.value}))} style={{minHeight:60}} placeholder="z.B. Aufbau am Vortag, Abholung durch Thomas..."/></div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={()=>setInventarBuchungModal(false)}>Abbrechen</button>
+              <button className="btn btn-primary" onClick={saveInventarBuchung} disabled={saving}>{saving?'Speichern...':'Einplanen'}</button>
             </div>
           </div>
         </div>
