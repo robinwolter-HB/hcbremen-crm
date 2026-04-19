@@ -10,7 +10,7 @@ const STATUS_COLORS = {
   'Erschienen':{ bg:'#c6efce', color:'#1a5a2a' },
   'Nicht erschienen':{ bg:'#ececec', color:'#555' },
 }
-const EVENT_TYPEN = ['Networking-Event','Heimspiel','Sponsoren-Abend','Sponsoren-Meeting','Turnier','Training','Pressekonferenz','Praesentation','Sonstiges']
+const EVENT_TYPEN = ['Networking-Event','Heimspiel','Sponsoren-Abend','Sponsoren-Meeting','Kontor 8','Turnier','Training','Pressekonferenz','Praesentation','Sonstiges']
 const EVENT_STATUS = ['Planung','Bestaetigt','Laufend','Abgeschlossen','Abgesagt']
 const TODO_STATUS = ['Offen','In Bearbeitung','Erledigt']
 const TODO_PRIO = ['Niedrig','Normal','Hoch','Dringend']
