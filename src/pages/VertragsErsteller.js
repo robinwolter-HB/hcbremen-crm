@@ -56,6 +56,9 @@ export default function VertragsErsteller({ vorgeladenerVertragId }) {
   const [gerichtsstand, setGerichtsstand] = useState('Bremen')
   const [ausgewaehlteKlauseln, setAusgewaehlteKlauseln] = useState([])
   const [sonderklausel, setSonderklausel] = useState('')
+  const [rabattProzent, setRabattProzent] = useState('')
+  const [rabattBetrag, setRabattBetrag] = useState('')
+  const [rabattBezeichnung, setRabattBezeichnung] = useState('')
   const [ansprechpartnerHCB, setAnsprechpartnerHCB] = useState('')
   const [ansprechpartnerSponsor, setAnsprechpartnerSponsor] = useState('')
 
@@ -104,6 +107,9 @@ export default function VertragsErsteller({ vorgeladenerVertragId }) {
     const saison = v.saisons?.name?.replace('/', '-') || new Date().getFullYear()
     const firma = v.kontakte?.firma?.slice(0, 3).toUpperCase() || 'SPO'
     setVertragsNr(v.vertragsnummer || `HCB-${saison}-${firma}`)
+    setRabattProzent(v.rabatt_prozent || '')
+    setRabattBetrag(v.rabatt_betrag || '')
+    setRabattBezeichnung(v.rabatt_bezeichnung || '')
 
     // Klauseln aus DB vorauswählen (Standard)
     if (kld && kld.length > 0) {
@@ -378,13 +384,32 @@ export default function VertragsErsteller({ vorgeladenerVertragId }) {
 
 <div class="paragraph">
   <div class="paragraph-titel">Paragraph 4 - Sponsoringsumme und Zahlungsmodalitaeten</div>
+  ${(rabattProzent||rabattBetrag) ? `
+  <div style="background:#f8f5ef;border:1.5px solid #e0ddd6;border-radius:4px;padding:12px 16px;margin:12px 0;display:flex;justify-content:space-between;align-items:center">
+    <div>
+      <div style="font-size:10pt;color:#9a9590;font-family:Arial">${rabattBezeichnung||'Rabatt'}</div>
+      ${rabattProzent?`<div style="font-size:9pt;color:#d94f4f;font-family:Arial">${rabattProzent}% Nachlass</div>`:''}
+      ${rabattBetrag?`<div style="font-size:9pt;color:#d94f4f;font-family:Arial">Festbetrag: ${Number(rabattBetrag).toLocaleString('de-DE')} EUR</div>`:''}
+    </div>
+    <div style="text-align:right;font-family:Arial">
+      ${rabattProzent&&!rabattBetrag?`<div style="font-size:14pt;font-weight:700;color:#d94f4f">-${Number(gesamtbetrag*rabattProzent/100).toLocaleString('de-DE')} EUR</div>`:''}
+      ${rabattBetrag&&!rabattProzent?`<div style="font-size:14pt;font-weight:700;color:#d94f4f">-${Number(rabattBetrag).toLocaleString('de-DE')} EUR</div>`:''}
+      ${rabattProzent&&rabattBetrag?`<div style="font-size:14pt;font-weight:700;color:#d94f4f">-${Number(gesamtbetrag*rabattProzent/100+Number(rabattBetrag)).toLocaleString('de-DE')} EUR</div>`:''}
+    </div>
+  </div>` : ''}
   <div class="betrag-box">
     <div>
       <div class="betrag-label">Gesamte Sponsoringsumme (${liga})</div>
       <div class="betrag-sub">zzgl. gesetzlicher Mehrwertsteuer, sofern anwendbar</div>
     </div>
     <div style="text-align:right">
-      <div class="betrag-wert">${Number(gesamtbetrag).toLocaleString('de-DE')} EUR</div>
+      <div class="betrag-wert">${(() => {
+      let final = Number(gesamtbetrag)
+      if (rabattProzent) final -= final * Number(rabattProzent) / 100
+      if (rabattBetrag) final -= Number(rabattBetrag)
+      return final.toLocaleString('de-DE')
+    })()} EUR</div>
+    ${(rabattProzent||rabattBetrag)?`<div style="font-size:8.5pt;opacity:0.6;text-decoration:line-through">${Number(gesamtbetrag).toLocaleString('de-DE')} EUR (vor Rabatt)</div>`:''}
       <div class="betrag-sub">${zahlungsrhythmus}</div>
     </div>
   </div>
@@ -641,7 +666,15 @@ ${sonderklausel.trim() ? `
                   </select>
                 </div>
               </div>
-              <div className="form-group"><label>Zahlungsrhythmus</label>
+              <div style={{border:'1.5px solid #e0ddd6',borderRadius:'var(--radius)',marginBottom:12,overflow:'hidden'}}>
+              <div style={{background:'#f8f5ef',padding:'8px 14px',fontWeight:600,fontSize:13,color:'var(--navy)'}}>Rabatt (optional)</div>
+              <div style={{padding:'14px',display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12}}>
+                <div className="form-group" style={{margin:0}}><label style={{fontSize:12}}>Rabatt %</label><input type="number" min="0" max="100" step="0.5" value={rabattProzent} onChange={e=>setRabattProzent(e.target.value)} placeholder="z.B. 10"/></div>
+                <div className="form-group" style={{margin:0}}><label style={{fontSize:12}}>Festbetrag (EUR)</label><input type="number" min="0" value={rabattBetrag} onChange={e=>setRabattBetrag(e.target.value)} placeholder="z.B. 500"/></div>
+                <div className="form-group" style={{margin:0}}><label style={{fontSize:12}}>Bezeichnung</label><input value={rabattBezeichnung} onChange={e=>setRabattBezeichnung(e.target.value)} placeholder="z.B. Treuerabatt"/></div>
+              </div>
+            </div>
+            <div className="form-group"><label>Zahlungsrhythmus</label>
                 <select value={zahlungsrhythmus} onChange={e=>setZahlungsrhythmus(e.target.value)}>
                   {ZAHLUNGSRHYTHMUS.map(o=><option key={o}>{o}</option>)}
                 </select>
