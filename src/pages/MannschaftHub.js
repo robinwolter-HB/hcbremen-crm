@@ -27,7 +27,7 @@ export default function MannschaftHub() {
 
       <div className="tabs">
         {TABS.map(tab => (
-          <NavLink key={tab.path} to={tab.path}
+          <NavLink key={tab.path} to={tab.path} end={tab.path === 'uebersicht'}
             className={({ isActive }) => `tab-btn${isActive ? ' active' : ''}`}>
             {tab.label}
           </NavLink>
