@@ -108,8 +108,273 @@ function addToQueue(item) { const q = getQueue(); q.push(item); localStorage.set
 function clearQueue() { localStorage.removeItem(QUEUE_KEY) }
 
 
+
+// ── VORBEREITUNG TAB ─────────────────────────────────────────
+function VorbereitungsTab({ spiel, spieler, aufstellung, onUpdate, isStaff }) {
+  const { profile } = useAuth()
+  const [videos, setVideos]     = useState([])
+  const [dateien, setDateien]   = useState([])
+  const [editNotizen, setEditNotizen] = useState(false)
+  const [notizForm, setNotizForm] = useState({ spielidee: spiel?.spielidee||'', agenda: spiel?.agenda||'', taktische_hinweise: spiel?.taktische_hinweise||'' })
+  const [showVideoForm, setShowVideoForm] = useState(false)
+  const [videoForm, setVideoForm] = useState({ typ:'vorbereitung', titel:'', youtube_url:'', beschreibung:'' })
+  const [showStarting, setShowStarting] = useState(false)
+  const [startingSeven, setStartingSeven] = useState(spiel?.starting_seven||[])
+  const [saving, setSaving]     = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const uploadRef = useRef()
+
+  useEffect(() => { loadMedia() }, [spiel?.id])
+
+  async function loadMedia() {
+    const [{ data: v }, { data: d }] = await Promise.all([
+      supabase.from('spiel_videos').select('*').eq('spiel_id', spiel.id).order('reihenfolge'),
+      supabase.from('spiel_dateien').select('*').eq('spiel_id', spiel.id).order('erstellt_am'),
+    ])
+    setVideos(v||[]); setDateien(d||[])
+  }
+
+  async function notizSpeichern() {
+    setSaving(true)
+    await supabase.from('spiele').update({ spielidee: notizForm.spielidee||null, agenda: notizForm.agenda||null, taktische_hinweise: notizForm.taktische_hinweise||null }).eq('id', spiel.id)
+    setSaving(false); setEditNotizen(false); onUpdate()
+  }
+
+  async function videoHinzufuegen() {
+    if (!videoForm.titel.trim()||!videoForm.youtube_url) return
+    setSaving(true)
+    const ytId = extractYoutubeId(videoForm.youtube_url)
+    await supabase.from('spiel_videos').insert({ ...videoForm, spiel_id:spiel.id, youtube_id:ytId||null, erstellt_von:profile.id, reihenfolge:videos.length })
+    setSaving(false); setShowVideoForm(false); setVideoForm({ typ:'vorbereitung', titel:'', youtube_url:'', beschreibung:'' }); loadMedia()
+  }
+
+  async function videoLoeschen(id) { await supabase.from('spiel_videos').delete().eq('id', id); loadMedia() }
+
+  async function dateiHochladen(e) {
+    const file = e.target.files[0]; if (!file) return
+    setUploading(true)
+    const pfad = `spiele/${spiel.id}/${Date.now()}_${file.name}`
+    const { error } = await supabase.storage.from('spiel-dateien').upload(pfad, file)
+    if (!error) {
+      const { data:{ publicUrl } } = supabase.storage.from('spiel-dateien').getPublicUrl(pfad)
+      const ext = file.name.split('.').pop().toLowerCase()
+      const typ = ext==='pdf'?'praesentation':'sonstiges'
+      await supabase.from('spiel_dateien').insert({ spiel_id:spiel.id, typ, name:file.name, datei_url:publicUrl, datei_groesse:file.size, sichtbar_fuer_spieler:true, hochgeladen_von:profile.id })
+      loadMedia()
+    }
+    setUploading(false)
+  }
+
+  async function dateiLoeschen(id) { await supabase.from('spiel_dateien').delete().eq('id', id); loadMedia() }
+
+  async function startingSpeichern() {
+    setSaving(true)
+    await supabase.from('spiele').update({ starting_seven: startingSeven }).eq('id', spiel.id)
+    setSaving(false); setShowStarting(false); onUpdate()
+  }
+
+  const TYPEN = { vorbereitung:'🎬 Vorbereitung', spiel:'🏐 Spiel', analyse:'📊 Analyse', sonstiges:'📎 Sonstiges' }
+  const DATEI_ICONS = { praesentation:'📊', spielplan:'📋', taktik:'🎯', sonstiges:'📎' }
+
+  return (
+    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, alignItems:'flex-start' }}>
+
+      {/* LINKE SEITE */}
+      <div>
+        {/* Spielidee & Agenda */}
+        <div className="card" style={{ marginBottom:12 }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+            <div style={{ fontWeight:700, fontSize:14, color:'var(--navy)' }}>📋 Spielvorbereitung</div>
+            {isStaff && <button onClick={()=>{ setNotizForm({ spielidee:spiel?.spielidee||'', agenda:spiel?.agenda||'', taktische_hinweise:spiel?.taktische_hinweise||'' }); setEditNotizen(!editNotizen) }} className={`btn btn-sm ${editNotizen?'btn-primary':'btn-outline'}`}>{editNotizen?'Abbrechen':'Bearbeiten'}</button>}
+          </div>
+
+          {editNotizen && isStaff ? (
+            <div>
+              <div className="form-group"><label>💡 Spielidee / Taktik</label><textarea value={notizForm.spielidee} onChange={e=>setNotizForm(p=>({...p,spielidee:e.target.value}))} rows={4} placeholder="Welche taktische Idee verfolgen wir? Welches System spielen wir?" /></div>
+              <div className="form-group"><label>📅 Agenda / Ablauf</label><textarea value={notizForm.agenda} onChange={e=>setNotizForm(p=>({...p,agenda:e.target.value}))} rows={4} placeholder="z.B. 17:30 Treff, 18:00 Einwärmen, 18:15 Besprechung, 18:30 Spiel" /></div>
+              <div className="form-group"><label>🎯 Taktische Hinweise</label><textarea value={notizForm.taktische_hinweise} onChange={e=>setNotizForm(p=>({...p,taktische_hinweise:e.target.value}))} rows={4} placeholder="Stärken/Schwächen des Gegners, besondere Hinweise..." /></div>
+              <div style={{ display:'flex', gap:8 }}>
+                <button onClick={notizSpeichern} className="btn btn-primary btn-sm" disabled={saving}>{saving?'Speichern…':'Speichern'}</button>
+                <button onClick={()=>setEditNotizen(false)} className="btn btn-outline btn-sm">Abbrechen</button>
+              </div>
+            </div>
+          ) : (
+            <div>
+              {spiel?.spielidee ? (
+                <div style={{ marginBottom:12 }}>
+                  <div style={{ fontSize:11, fontWeight:700, color:'var(--gray-400)', textTransform:'uppercase', letterSpacing:1, marginBottom:4 }}>💡 Spielidee</div>
+                  <div style={{ fontSize:13, color:'var(--text)', lineHeight:1.6, whiteSpace:'pre-wrap' }}>{spiel.spielidee}</div>
+                </div>
+              ) : null}
+              {spiel?.agenda ? (
+                <div style={{ marginBottom:12 }}>
+                  <div style={{ fontSize:11, fontWeight:700, color:'var(--gray-400)', textTransform:'uppercase', letterSpacing:1, marginBottom:4 }}>📅 Agenda</div>
+                  <div style={{ fontSize:13, color:'var(--text)', lineHeight:1.6, whiteSpace:'pre-wrap' }}>{spiel.agenda}</div>
+                </div>
+              ) : null}
+              {spiel?.taktische_hinweise ? (
+                <div>
+                  <div style={{ fontSize:11, fontWeight:700, color:'var(--gray-400)', textTransform:'uppercase', letterSpacing:1, marginBottom:4 }}>🎯 Taktische Hinweise</div>
+                  <div style={{ fontSize:13, color:'var(--text)', lineHeight:1.6, whiteSpace:'pre-wrap' }}>{spiel.taktische_hinweise}</div>
+                </div>
+              ) : null}
+              {!spiel?.spielidee && !spiel?.agenda && !spiel?.taktische_hinweise && (
+                <p style={{ fontSize:13, color:'var(--gray-400)' }}>{isStaff ? 'Noch keine Vorbereitung eingetragen.' : 'Spielvorbereitung folgt.'}</p>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Dateien */}
+        <div className="card">
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+            <div style={{ fontWeight:700, fontSize:14, color:'var(--navy)' }}>📁 Dateien & Präsentationen</div>
+            {isStaff && (
+              <label className="btn btn-sm btn-outline" style={{ cursor:'pointer' }}>
+                {uploading ? 'Hochladen…' : '+ Datei'}
+                <input type="file" accept=".pdf,.ppt,.pptx,.jpg,.jpeg,.png" style={{ display:'none' }} onChange={dateiHochladen} />
+              </label>
+            )}
+          </div>
+          {dateien.length===0 ? <p style={{ fontSize:13, color:'var(--gray-400)' }}>Noch keine Dateien.</p> : (
+            <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+              {dateien.map(d=>(
+                <div key={d.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px', background:'var(--gray-100)', borderRadius:'var(--radius)' }}>
+                  <span style={{ fontSize:20, flexShrink:0 }}>{DATEI_ICONS[d.typ]||'📎'}</span>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <a href={d.datei_url} target="_blank" rel="noreferrer" style={{ fontSize:13, fontWeight:600, color:'var(--navy)', textDecoration:'none', display:'block', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{d.name}</a>
+                    <div style={{ fontSize:11, color:'var(--gray-400)' }}>{d.datei_groesse ? Math.round(d.datei_groesse/1024)+'KB' : ''}</div>
+                  </div>
+                  <a href={d.datei_url} target="_blank" rel="noreferrer" style={{ fontSize:11, background:'#ddeaff', color:'#1a4a8a', padding:'3px 8px', borderRadius:4, textDecoration:'none', flexShrink:0 }}>⬇ Öffnen</a>
+                  {isStaff && <button onClick={()=>dateiLoeschen(d.id)} style={{ background:'none', border:'none', color:'var(--red)', cursor:'pointer', fontSize:16, flexShrink:0 }}>×</button>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* RECHTE SEITE */}
+      <div>
+        {/* Starting Seven */}
+        <div className="card" style={{ marginBottom:12 }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+            <div style={{ fontWeight:700, fontSize:14, color:'var(--navy)' }}>🏐 Starting Seven</div>
+            {isStaff && <button onClick={()=>setShowStarting(!showStarting)} className={`btn btn-sm ${showStarting?'btn-primary':'btn-outline'}`}>{showStarting?'Abbrechen':'Bearbeiten'}</button>}
+          </div>
+
+          {showStarting && isStaff ? (
+            <div>
+              <p style={{ fontSize:12, color:'var(--gray-400)', marginBottom:10 }}>Wähle 7 Spieler für die Startaufstellung (klicken = togglen)</p>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:6, marginBottom:12 }}>
+                {spieler.map(sp=>{
+                  const istStarting = startingSeven.includes(sp.id)
+                  return (
+                    <button key={sp.id} onClick={()=>setStartingSeven(p=>p.includes(sp.id)?p.filter(x=>x!==sp.id):[...p,sp.id])}
+                      style={{ padding:'8px 6px', borderRadius:'var(--radius)', border:`2px solid ${istStarting?'var(--gold)':'var(--gray-200)'}`, background:istStarting?'#fff8e8':'var(--white)', cursor:'pointer', fontWeight:istStarting?700:400, fontSize:11, textAlign:'center' }}>
+                      <div style={{ fontWeight:700, color:istStarting?'var(--gold)':'var(--gray-300)', fontFamily:'monospace' }}>#{sp.trikotnummer||'?'}</div>
+                      <div style={{ fontSize:10 }}>{sp.vorname?.[0]}. {sp.nachname}</div>
+                    </button>
+                  )
+                })}
+              </div>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+                <span style={{ fontSize:12, color:startingSeven.length===7?'var(--green)':'var(--orange)', fontWeight:600 }}>{startingSeven.length}/7 gewählt</span>
+                <div style={{ display:'flex', gap:8 }}>
+                  <button onClick={()=>setStartingSeven([])} className="btn btn-sm btn-outline" style={{ fontSize:11 }}>Leeren</button>
+                  <button onClick={startingSpeichern} className="btn btn-sm btn-gold" disabled={saving}>{saving?'…':'Speichern'}</button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div>
+              {startingSeven.length===0 ? (
+                <p style={{ fontSize:13, color:'var(--gray-400)' }}>{isStaff ? 'Noch keine Starting Seven definiert.' : 'Startaufstellung folgt.'}</p>
+              ) : (
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(90px,1fr))', gap:8 }}>
+                  {spieler.filter(sp=>startingSeven.includes(sp.id)).map(sp=>(
+                    <div key={sp.id} style={{ textAlign:'center', padding:'10px 6px', background:'#fff8e8', borderRadius:'var(--radius)', border:'2px solid var(--gold)' }}>
+                      {sp.foto_url
+                        ? <img src={sp.foto_url} alt="" style={{ width:40, height:40, borderRadius:'50%', objectFit:'cover', margin:'0 auto 4px', display:'block', border:'2px solid var(--gold)' }} />
+                        : <div style={{ width:40, height:40, borderRadius:'50%', background:'var(--navy)', display:'flex', alignItems:'center', justifyContent:'center', color:'white', fontWeight:900, fontSize:14, fontFamily:'monospace', margin:'0 auto 4px' }}>#{sp.trikotnummer||'?'}</div>
+                      }
+                      <div style={{ fontSize:11, fontWeight:700 }}>{sp.vorname?.[0]}. {sp.nachname}</div>
+                      <div style={{ fontSize:10, color:'var(--gray-400)' }}>{sp.position?.split(' ').pop()||''}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Videos */}
+        <div className="card">
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+            <div style={{ fontWeight:700, fontSize:14, color:'var(--navy)' }}>📹 Videos</div>
+            {isStaff && <button onClick={()=>setShowVideoForm(!showVideoForm)} className={`btn btn-sm ${showVideoForm?'btn-primary':'btn-outline'}`}>+ Video</button>}
+          </div>
+
+          {showVideoForm && isStaff && (
+            <div style={{ marginBottom:12, padding:12, background:'var(--gray-100)', borderRadius:'var(--radius)' }}>
+              <div className="form-group"><label>Typ</label>
+                <select value={videoForm.typ} onChange={e=>setVideoForm(p=>({...p,typ:e.target.value}))}>
+                  {Object.entries(TYPEN).map(([k,v])=><option key={k} value={k}>{v}</option>)}
+                </select>
+              </div>
+              <div className="form-group"><label>Titel *</label><input value={videoForm.titel} onChange={e=>setVideoForm(p=>({...p,titel:e.target.value}))} placeholder="z.B. Taktikbesprechung" autoFocus /></div>
+              <div className="form-group"><label>YouTube URL *</label>
+                <input value={videoForm.youtube_url} onChange={e=>setVideoForm(p=>({...p,youtube_url:e.target.value}))} placeholder="https://www.youtube.com/watch?v=…" />
+                {videoForm.youtube_url && extractYoutubeId(videoForm.youtube_url) && <div style={{ fontSize:11, color:'var(--green)', marginTop:3 }}>✓ Video erkannt</div>}
+                {videoForm.youtube_url && !extractYoutubeId(videoForm.youtube_url) && <div style={{ fontSize:11, color:'var(--red)', marginTop:3 }}>⚠️ Ungültige URL</div>}
+              </div>
+              <div className="form-group"><label>Beschreibung</label><textarea value={videoForm.beschreibung} onChange={e=>setVideoForm(p=>({...p,beschreibung:e.target.value}))} rows={2} /></div>
+              <div style={{ display:'flex', gap:8 }}>
+                <button onClick={videoHinzufuegen} className="btn btn-sm btn-primary" disabled={saving||!videoForm.titel||!videoForm.youtube_url}>{saving?'…':'Hinzufügen'}</button>
+                <button onClick={()=>setShowVideoForm(false)} className="btn btn-sm btn-outline">Abbrechen</button>
+              </div>
+            </div>
+          )}
+
+          {videos.length===0 ? <p style={{ fontSize:13, color:'var(--gray-400)' }}>Noch keine Videos.</p> : (
+            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+              {videos.map(v=>{
+                const thumb = v.youtube_id ? `https://img.youtube.com/vi/${v.youtube_id}/mqdefault.jpg` : null
+                return (
+                  <div key={v.id} style={{ borderRadius:'var(--radius)', overflow:'hidden', border:'1px solid var(--gray-200)' }}>
+                    {thumb && (
+                      <div style={{ position:'relative', paddingBottom:'56.25%', background:'#000' }}>
+                        <img src={thumb} alt="" style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', opacity:0.8 }} />
+                        <a href={v.youtube_url} target="_blank" rel="noreferrer"
+                          style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', textDecoration:'none' }}>
+                          <div style={{ width:50, height:50, borderRadius:'50%', background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', color:'white', fontSize:20 }}>▶</div>
+                        </a>
+                      </div>
+                    )}
+                    <div style={{ padding:'8px 12px', display:'flex', alignItems:'center', gap:8 }}>
+                      <div style={{ flex:1 }}>
+                        <div style={{ fontSize:11, fontWeight:700, color:'var(--gray-400)', textTransform:'uppercase' }}>{TYPEN[v.typ]}</div>
+                        <div style={{ fontSize:13, fontWeight:600 }}>{v.titel}</div>
+                        {v.beschreibung && <div style={{ fontSize:11, color:'var(--gray-500)', marginTop:2 }}>{v.beschreibung}</div>}
+                      </div>
+                      <a href={v.youtube_url} target="_blank" rel="noreferrer" className="btn btn-sm btn-outline" style={{ fontSize:11, flexShrink:0 }}>▶ Öffnen</a>
+                      {isStaff && <button onClick={()=>videoLoeschen(v.id)} style={{ background:'none', border:'none', color:'var(--red)', cursor:'pointer', fontSize:16, flexShrink:0 }}>×</button>}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── VIDEO TAB ────────────────────────────────────────────────
-function VideoTab({ spiel, onUpdate }) {
+function VideoTab({ spiel, onUpdate, isStaff: isStaffProp }) {
+  const { profile } = useAuth()
+  const isStaff = isStaffProp || profile?.rolle==='admin' || (profile?.bereiche||[]).includes('mannschaft')
   const { profile } = useAuth()
   const isStaff = profile?.rolle === 'admin' || (profile?.bereiche||[]).includes('mannschaft')
   const isSpieler = profile?.rolle === 'spieler'
@@ -943,9 +1208,14 @@ function SpielDetail() {
         </div>
       )}
 
+      {/* TAB: VORBEREITUNG */}
+      {tab==='vorbereitung' && (
+        <VorbereitungsTab spiel={spiel} spieler={alleSpieler} aufstellung={aufstellung} onUpdate={load} isStaff={isStaff} />
+      )}
+
       {/* TAB: VIDEO */}
       {tab==='video' && (
-        <VideoTab spiel={spiel} onUpdate={load} />
+        <VideoTab spiel={spiel} onUpdate={load} isStaff={isStaff} />
       )}
 
       {/* TAB: AUSWERTUNG */}
