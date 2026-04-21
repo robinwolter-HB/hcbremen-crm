@@ -340,6 +340,117 @@ function HCTeamsPanel() {
   )
 }
 
+
+function BehandlerPanel() {
+  const ROLLEN = ['arzt','physio','athletiktrainer','osteopath','psychologe','sonstiges']
+  const ROLLEN_LABEL = { arzt:'🏥 Arzt', physio:'💆 Physio', athletiktrainer:'🏃 Athletiktrainer', osteopath:'🤲 Osteopath', psychologe:'🧠 Psychologe', sonstiges:'📎 Sonstiges' }
+  const [liste, setListe] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [modal, setModal] = useState(false)
+  const [form, setForm] = useState({ vorname:'', nachname:'', rolle:'physio', spezialisierung:'', praxis:'', email:'', telefon:'', adresse:'', notizen:'' })
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => { load() }, [])
+  async function load() {
+    setLoading(true)
+    const { data } = await supabase.from('behandler').select('*').order('nachname')
+    setListe(data||[])
+    setLoading(false)
+  }
+
+  async function speichern() {
+    if (!form.vorname.trim() || !form.nachname.trim()) return
+    setSaving(true)
+    if (form.id) await supabase.from('behandler').update(form).eq('id', form.id)
+    else await supabase.from('behandler').insert({ ...form, aktiv: true })
+    setSaving(false); setModal(false); load()
+  }
+
+  async function toggleAktiv(id, aktiv) {
+    await supabase.from('behandler').update({ aktiv: !aktiv }).eq('id', id); load()
+  }
+  async function loeschen(id) {
+    if(!window.confirm('Behandler wirklich löschen?')) return
+    await supabase.from('behandler').delete().eq('id', id); load()
+  }
+
+  return (
+    <div>
+      <div className="card" style={{ marginBottom:16 }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
+          <div>
+            <div className="section-title" style={{ margin:0 }}>Behandler</div>
+            <p style={{ fontSize:12, color:'var(--gray-400)', marginTop:4 }}>Ärzte, Physios, Athletiktrainer und weitere medizinische Betreuer</p>
+          </div>
+          <button className="btn btn-primary btn-sm" onClick={()=>{ setForm({ vorname:'', nachname:'', rolle:'physio', spezialisierung:'', praxis:'', email:'', telefon:'', adresse:'', notizen:'' }); setModal(true) }}>+ Neu</button>
+        </div>
+        {loading ? <div className="loading-center"><div className="spinner"/></div> : (
+          <div style={{ display:'grid', gap:8 }}>
+            {liste.length===0 && <p style={{ fontSize:13, color:'var(--gray-400)' }}>Noch keine Behandler.</p>}
+            {liste.map(b => (
+              <div key={b.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 14px', border:'1.5px solid var(--gray-200)', borderRadius:'var(--radius)', opacity:b.aktiv?1:0.5, background:'var(--white)' }}>
+                <div style={{ flex:1 }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:2 }}>
+                    <strong style={{ fontSize:14 }}>{b.vorname} {b.nachname}</strong>
+                    <span style={{ fontSize:11, background:'var(--gray-100)', color:'var(--gray-600)', padding:'1px 8px', borderRadius:10 }}>{ROLLEN_LABEL[b.rolle]||b.rolle}</span>
+                    {b.spezialisierung && <span style={{ fontSize:11, color:'var(--gray-400)' }}>{b.spezialisierung}</span>}
+                  </div>
+                  <div style={{ fontSize:12, color:'var(--gray-500)', display:'flex', gap:12 }}>
+                    {b.praxis && <span>{b.praxis}</span>}
+                    {b.email && <a href={"mailto:"+b.email} style={{ color:'var(--navy)' }}>{b.email}</a>}
+                    {b.telefon && <a href={"tel:"+b.telefon} style={{ color:'var(--navy)' }}>{b.telefon}</a>}
+                  </div>
+                </div>
+                <div style={{ display:'flex', gap:6 }}>
+                  <button className="btn btn-sm btn-outline" onClick={()=>{ setForm(b); setModal(true) }}>Bearb.</button>
+                  <button className="btn btn-sm btn-outline" onClick={()=>toggleAktiv(b.id,b.aktiv)}>{b.aktiv?'Deaktivieren':'Aktivieren'}</button>
+                  <button className="btn btn-sm btn-danger" onClick={()=>loeschen(b.id)}>X</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {modal && (
+        <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setModal(false)}>
+          <div className="modal" style={{ maxWidth:560 }}>
+            <div className="modal-header">
+              <span className="modal-title">{form.id?'Behandler bearbeiten':'Neuer Behandler'}</span>
+              <button className="close-btn" onClick={()=>setModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-row">
+                <div className="form-group"><label>Vorname *</label><input value={form.vorname||''} onChange={e=>setForm(p=>({...p,vorname:e.target.value}))} autoFocus /></div>
+                <div className="form-group"><label>Nachname *</label><input value={form.nachname||''} onChange={e=>setForm(p=>({...p,nachname:e.target.value}))} /></div>
+              </div>
+              <div className="form-row">
+                <div className="form-group"><label>Rolle</label>
+                  <select value={form.rolle||'physio'} onChange={e=>setForm(p=>({...p,rolle:e.target.value}))}>
+                    {ROLLEN.map(r=><option key={r} value={r}>{ROLLEN_LABEL[r]}</option>)}
+                  </select>
+                </div>
+                <div className="form-group"><label>Spezialisierung</label><input value={form.spezialisierung||''} onChange={e=>setForm(p=>({...p,spezialisierung:e.target.value}))} placeholder="z.B. Sportorthopädie" /></div>
+              </div>
+              <div className="form-group"><label>Praxis / Institution</label><input value={form.praxis||''} onChange={e=>setForm(p=>({...p,praxis:e.target.value}))} /></div>
+              <div className="form-row">
+                <div className="form-group"><label>E-Mail</label><input type="email" value={form.email||''} onChange={e=>setForm(p=>({...p,email:e.target.value}))} /></div>
+                <div className="form-group"><label>Telefon</label><input value={form.telefon||''} onChange={e=>setForm(p=>({...p,telefon:e.target.value}))} /></div>
+              </div>
+              <div className="form-group"><label>Adresse</label><input value={form.adresse||''} onChange={e=>setForm(p=>({...p,adresse:e.target.value}))} /></div>
+              <div className="form-group"><label>Notizen</label><textarea value={form.notizen||''} onChange={e=>setForm(p=>({...p,notizen:e.target.value}))} rows={2} /></div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={()=>setModal(false)}>Abbrechen</button>
+              <button className="btn btn-primary" onClick={speichern} disabled={saving}>{saving?'Speichern...':'Speichern'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── HAUPT-KOMPONENTE ────────────────────────────────────────
 
 const GRUPPEN = [
@@ -369,6 +480,12 @@ const GRUPPEN = [
       { key:'mannschaften', label:'Mannschaften' },
       { key:'media-kat',    label:'Media Kategorien' },
       { key:'hc-teams',     label:'HC Teams' },
+    ]
+  },
+  {
+    key: 'mannschaft', label: '🏐 Mannschaft', farbe: '#0f2240',
+    tabs: [
+      { key:'behandler', label:'👨‍⚕️ Behandler' },
     ]
   },
   {
@@ -512,6 +629,8 @@ export default function Einstellungen() {
         {tab==='hc-teams'     && <HCTeamsPanel/>}
 
         {/* System */}
+        {tab==='behandler'  && <BehandlerPanel/>}
+
         {tab==='info' && (
           <div className="card">
             <div className="section-title" style={{marginBottom:16}}>System-Information</div>
