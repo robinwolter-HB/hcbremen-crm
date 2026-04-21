@@ -226,14 +226,25 @@ export default function GegnerTagging() {
 
   // YouTube IFrame API laden
   useEffect(() => {
-    if (!window.YT) {
+    // Script nur einmal laden
+    if (!document.getElementById('yt-iframe-api')) {
       const tag = document.createElement('script')
+      tag.id = 'yt-iframe-api'
       tag.src = 'https://www.youtube.com/iframe_api'
       document.head.appendChild(tag)
     }
-    window.onYouTubeIframeAPIReady = initPlayer
-    return () => { if (playerInterval) clearInterval(playerInterval) }
-  }, [])
+    // Polling bis API bereit ist
+    const poll = setInterval(() => {
+      if (window.YT && window.YT.Player) {
+        clearInterval(poll)
+        if (spiel?.youtube_id) initPlayer()
+      }
+    }, 200)
+    return () => {
+      clearInterval(poll)
+      if (playerInterval) clearInterval(playerInterval)
+    }
+  }, [spiel?.youtube_id])
 
   async function load() {
     setLoading(true)
@@ -263,30 +274,37 @@ export default function GegnerTagging() {
   }
 
   function initPlayer() {
-    if (!spiel?.youtube_id && !window._pendingYTId) return
     const ytId = spiel?.youtube_id || window._pendingYTId
+    if (!ytId || !window.YT?.Player) return
     if (!playerDivRef.current) return
-    if (playerRef.current) { playerRef.current.destroy(); playerRef.current = null }
-    playerRef.current = new window.YT.Player(playerDivRef.current, {
+    // Alten Player aufräumen
+    try { if (playerRef.current) { playerRef.current.destroy() } } catch(e) {}
+    playerRef.current = null
+    // Neuen Container div erstellen (YT.Player ersetzt das Element)
+    const container = playerDivRef.current
+    playerRef.current = new window.YT.Player(container, {
+      width: '100%',
+      height: '100%',
       videoId: ytId,
-      playerVars: { rel:0, modestbranding:1 },
+      playerVars: { rel:0, modestbranding:1, origin: window.location.origin },
       events: {
-        onReady: () => {
+        onReady: (event) => {
           setPlayerReady(true)
           const interval = setInterval(() => {
-            if (playerRef.current?.getCurrentTime) {
-              setVideoSekunde(Math.floor(playerRef.current.getCurrentTime()))
-            }
+            try {
+              if (playerRef.current?.getCurrentTime) {
+                setVideoSekunde(Math.floor(playerRef.current.getCurrentTime()))
+              }
+            } catch(e) {}
           }, 500)
           setPlayerInterval(interval)
-        }
+        },
+        onError: (e) => console.error('YT Player Error:', e.data)
       }
     })
   }
 
-  useEffect(() => {
-    if (spiel?.youtube_id && window.YT?.Player) initPlayer()
-  }, [spiel?.youtube_id])
+  // initPlayer wird jetzt vom Polling-useEffect ausgelöst
 
   function getAktuelleZeit() {
     if (manuelleMinute) return parseInt(manuelleMinute) * 60
