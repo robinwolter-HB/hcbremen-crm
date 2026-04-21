@@ -379,6 +379,7 @@ function SpielerDetail() {
         <button onClick={() => setAktiveVerletzung(null)} className="back-btn">← Zurück zur Spielermappe</button>
         <VerletzungsAkte
           verletzungId={aktiveVerletzung.id}
+          spielerId={id}
           spielerName={`${spieler.vorname} ${spieler.nachname}`}
           onClose={() => { setAktiveVerletzung(null); load() }}
         />
