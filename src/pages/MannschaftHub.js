@@ -1,6 +1,7 @@
 import { Routes, Route, NavLink, Navigate } from 'react-router-dom'
 import MannschaftKader from './MannschaftKader'
 import MannschaftScouting from './MannschaftScouting'
+import GegnerTagging from './GegnerTagging'
 import MannschaftVerletzungen from './MannschaftVerletzungen'
 import MannschaftStatistiken from './MannschaftStatistiken'
 import MannschaftUebersicht from './MannschaftUebersicht'
@@ -43,6 +44,7 @@ export default function MannschaftHub() {
         <Route path="verletzungen" element={<MannschaftVerletzungen />} />
         <Route path="statistiken"  element={<MannschaftStatistiken />} />
         <Route path="scouting"     element={<MannschaftScouting />} />
+        <Route path="scouting/:id"  element={<GegnerTagging />} />
         <Route path="training/*"   element={<MannschaftTraining />} />
         <Route path="spieltracking/*" element={<SpielTracking />} />
         <Route path="auswertung"      element={<MannschaftAuswertung />} />
