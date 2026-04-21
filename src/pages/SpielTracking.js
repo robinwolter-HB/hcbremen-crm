@@ -375,8 +375,6 @@ function VorbereitungsTab({ spiel, spieler, aufstellung, onUpdate, isStaff }) {
 function VideoTab({ spiel, onUpdate, isStaff: isStaffProp }) {
   const { profile } = useAuth()
   const isStaff = isStaffProp || profile?.rolle==='admin' || (profile?.bereiche||[]).includes('mannschaft')
-  const { profile } = useAuth()
-  const isStaff = profile?.rolle === 'admin' || (profile?.bereiche||[]).includes('mannschaft')
   const isSpieler = profile?.rolle === 'spieler'
   const [url, setUrl] = useState(spiel?.youtube_url || '')
   const [saving, setSaving] = useState(false)
