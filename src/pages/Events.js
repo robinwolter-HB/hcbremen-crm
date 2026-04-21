@@ -499,7 +499,7 @@ ${ev.notizen?`<h2>Notizen</h2><div style="background:#f8f5ef;padding:14px;border
       </div>
 
       <div className="tabs" style={{marginBottom:16}}>
-        {[['teilnehmer','Teilnehmer ('+teilnahmen.length+')'],['positionen','👥 Positionen'],['todos','ToDos ('+todos.length+')'],['ablauf','Ablaufplan'],['agenda','Agenda'],['notizen','Notizen'],['dateien','Dateien ('+dateien.length+')'],['kosten','Kosten'],['inventar','🗄️ Inventar']].map(([k,l])=>(
+{[['teilnehmer','Teilnehmer ('+teilnahmen.length+')'],['positionen','👥 Positionen'],['todos','ToDos ('+todos.length+')'],['ablauf','Ablaufplan'],['agenda','Agenda'],['notizen','Notizen'],['dateien','Dateien ('+dateien.length+')'],['kosten','Kosten'],['inventar','🗄️ Inventar'],['history','📋 History']].map(([k,l])=>(
           <button key={k} className={'tab-btn'+(tab===k?' active':'')} onClick={()=>setTab(k)}>{l}</button>
         ))}
       </div>
