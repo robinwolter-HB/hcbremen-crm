@@ -383,6 +383,276 @@ function SpielerstatusPanel() {
 }
 
 
+function TrainingsKonfigPanel() {
+  const [aktiveSektion, setAktiveSektion] = useState('typen')
+  return (
+    <div>
+      <div style={{ display:'flex', gap:8, marginBottom:16 }}>
+        {[['typen','Trainingstypen'],['orte','Trainingsorte'],['uebungen','Übungsbibliothek'],['reha','Reha-Bibliothek']].map(([k,l])=>(
+          <button key={k} onClick={()=>setAktiveSektion(k)} className={`btn btn-sm ${aktiveSektion===k?'btn-primary':'btn-outline'}`}>{l}</button>
+        ))}
+      </div>
+      {aktiveSektion==='typen'   && <TrainingstypenSektion/>}
+      {aktiveSektion==='orte'    && <TrainingsOrteSektion/>}
+      {aktiveSektion==='uebungen'&& <UebungsBibliothekSektion/>}
+      {aktiveSektion==='reha'    && <RehaBibliothekSektion/>}
+    </div>
+  )
+}
+
+function TrainingsOrteSektion() {
+  const [liste, setListe] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [modal, setModal] = useState(false)
+  const [form, setForm] = useState({ name:'', adresse:'', beschreibung:'', farbe:'#2d6fa3' })
+  const [saving, setSaving] = useState(false)
+
+  useEffect(()=>{ load() },[])
+  async function load() { setLoading(true); const { data }=await supabase.from('trainings_orte').select('*').order('reihenfolge'); setListe(data||[]); setLoading(false) }
+  async function speichern() {
+    if (!form.name.trim()) return; setSaving(true)
+    if (form.id) await supabase.from('trainings_orte').update({ name:form.name, adresse:form.adresse, beschreibung:form.beschreibung, farbe:form.farbe }).eq('id', form.id)
+    else await supabase.from('trainings_orte').insert({ name:form.name, adresse:form.adresse, beschreibung:form.beschreibung, farbe:form.farbe, aktiv:true })
+    setSaving(false); setModal(false); load()
+  }
+  async function loeschen(id) { if(!window.confirm('Ort löschen?')) return; await supabase.from('trainings_orte').delete().eq('id',id); load() }
+  async function toggleAktiv(id, aktiv) { await supabase.from('trainings_orte').update({aktiv:!aktiv}).eq('id',id); load() }
+
+  return (
+    <div className="card">
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
+        <div><div className="section-title" style={{ margin:0 }}>Trainingsorte</div><p style={{ fontSize:12, color:'var(--gray-400)', marginTop:4 }}>Hallen, Plätze und weitere Trainingslocations</p></div>
+        <button className="btn btn-primary btn-sm" onClick={()=>{ setForm({name:'',adresse:'',beschreibung:'',farbe:'#2d6fa3'}); setModal(true) }}>+ Neu</button>
+      </div>
+      {loading ? <div className="loading-center"><div className="spinner"/></div> : (
+        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+          {liste.map(o=>(
+            <div key={o.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 14px', border:'1.5px solid var(--gray-200)', borderRadius:'var(--radius)', opacity:o.aktiv?1:0.5 }}>
+              <div style={{ width:14, height:14, borderRadius:4, background:o.farbe||'#ccc', flexShrink:0 }}/>
+              <div style={{ flex:1 }}>
+                <strong style={{ fontSize:14 }}>{o.name}</strong>
+                {o.adresse && <div style={{ fontSize:12, color:'var(--gray-400)', marginTop:2 }}>{o.adresse}</div>}
+                {o.beschreibung && <div style={{ fontSize:12, color:'var(--gray-400)' }}>{o.beschreibung}</div>}
+              </div>
+              <div style={{ display:'flex', gap:6 }}>
+                <button className="btn btn-sm btn-outline" onClick={()=>{ setForm(o); setModal(true) }}>Bearb.</button>
+                <button className="btn btn-sm btn-outline" onClick={()=>toggleAktiv(o.id,o.aktiv)}>{o.aktiv?'Deaktiv.':'Aktivieren'}</button>
+                <button className="btn btn-sm btn-danger" onClick={()=>loeschen(o.id)}>X</button>
+              </div>
+            </div>
+          ))}
+          {liste.length===0 && <p style={{ fontSize:13, color:'var(--gray-400)' }}>Noch keine Orte angelegt.</p>}
+        </div>
+      )}
+      {modal && (
+        <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setModal(false)}>
+          <div className="modal" style={{ maxWidth:440 }}>
+            <div className="modal-header"><span className="modal-title">{form.id?'Ort bearbeiten':'Neuer Ort'}</span><button className="close-btn" onClick={()=>setModal(false)}>×</button></div>
+            <div className="modal-body">
+              <div className="form-row">
+                <div className="form-group" style={{ flex:1 }}><label>Name *</label><input value={form.name||''} onChange={e=>setForm(p=>({...p,name:e.target.value}))} autoFocus /></div>
+                <div className="form-group" style={{ width:80, flexShrink:0 }}><label>Farbe</label><input type="color" value={form.farbe||'#2d6fa3'} onChange={e=>setForm(p=>({...p,farbe:e.target.value}))} style={{ width:'100%', height:38, padding:2, border:'1.5px solid var(--gray-200)', borderRadius:'var(--radius)', cursor:'pointer' }} /></div>
+              </div>
+              <div className="form-group"><label>Adresse</label><input value={form.adresse||''} onChange={e=>setForm(p=>({...p,adresse:e.target.value}))} /></div>
+              <div className="form-group"><label>Beschreibung</label><input value={form.beschreibung||''} onChange={e=>setForm(p=>({...p,beschreibung:e.target.value}))} /></div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={()=>setModal(false)}>Abbrechen</button>
+              <button className="btn btn-primary" onClick={speichern} disabled={saving}>{saving?'Speichern...':'Speichern'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function UebungsBibliothekSektion() {
+  const [liste, setListe] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [typen, setTypen] = useState([])
+  const [modal, setModal] = useState(false)
+  const [form, setForm] = useState({ titel:'', beschreibung:'', block:'hauptteil', dauer_minuten:'', material:'', schwierigkeit:'mittel' })
+  const [saving, setSaving] = useState(false)
+
+  useEffect(()=>{ load() },[])
+  async function load() {
+    setLoading(true)
+    const [{ data },{ data: ty }] = await Promise.all([
+      supabase.from('uebungs_bibliothek').select('*, typ:typ_id(name,farbe)').eq('aktiv', true).order('titel'),
+      supabase.from('trainingstypen').select('*').eq('aktiv', true).order('reihenfolge'),
+    ])
+    setListe(data||[]); setTypen(ty||[]); setLoading(false)
+  }
+  async function speichern() {
+    if (!form.titel.trim()) return; setSaving(true)
+    const payload = { ...form, dauer_minuten:form.dauer_minuten?parseInt(form.dauer_minuten):null, typ_id:form.typ_id||null, aktiv:true }
+    if (form.id) await supabase.from('uebungs_bibliothek').update(payload).eq('id', form.id)
+    else await supabase.from('uebungs_bibliothek').insert(payload)
+    setSaving(false); setModal(false); load()
+  }
+  async function loeschen(id) { if(!window.confirm('Übung löschen?')) return; await supabase.from('uebungs_bibliothek').update({aktiv:false}).eq('id',id); load() }
+
+  const BLOCK_LABEL_KURZ = { aufwaermen:'🔥 Aufwärmen', hauptteil:'💪 Hauptteil', abwaermen:'🧊 Abkühlen', sonstiges:'📎' }
+
+  return (
+    <div className="card">
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
+        <div><div className="section-title" style={{ margin:0 }}>Übungsbibliothek</div><p style={{ fontSize:12, color:'var(--gray-400)', marginTop:4 }}>Wiederverwendbare Übungen für Trainingseinheiten</p></div>
+        <button className="btn btn-primary btn-sm" onClick={()=>{ setForm({titel:'',beschreibung:'',block:'hauptteil',dauer_minuten:'',material:'',schwierigkeit:'mittel',typ_id:''}); setModal(true) }}>+ Neu</button>
+      </div>
+      {loading ? <div className="loading-center"><div className="spinner"/></div> : (
+        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+          {liste.length===0 && <p style={{ fontSize:13, color:'var(--gray-400)' }}>Noch keine Übungen in der Bibliothek.</p>}
+          {liste.map(u=>(
+            <div key={u.id} style={{ display:'flex', alignItems:'flex-start', gap:12, padding:'10px 14px', border:'1.5px solid var(--gray-200)', borderRadius:'var(--radius)' }}>
+              <div style={{ flex:1 }}>
+                <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:4, flexWrap:'wrap' }}>
+                  <strong style={{ fontSize:14 }}>{u.titel}</strong>
+                  <span style={{ fontSize:10, background:'var(--gray-100)', color:'var(--gray-500)', padding:'1px 7px', borderRadius:10 }}>{BLOCK_LABEL_KURZ[u.block]}</span>
+                  {u.typ && <span style={{ fontSize:10, padding:'1px 7px', borderRadius:10, fontWeight:700, background:(u.typ.farbe||'#ccc')+'22', color:u.typ.farbe }}>{u.typ.name}</span>}
+                  {u.dauer_minuten && <span style={{ fontSize:11, color:'var(--gray-400)' }}>⏱ {u.dauer_minuten} Min.</span>}
+                </div>
+                {u.beschreibung && <div style={{ fontSize:12, color:'var(--gray-500)', lineHeight:1.4 }}>{u.beschreibung.slice(0,120)}{u.beschreibung.length>120?'…':''}</div>}
+                {u.material && <div style={{ fontSize:11, color:'var(--gray-400)', marginTop:2 }}>📦 {u.material}</div>}
+              </div>
+              <div style={{ display:'flex', gap:6, flexShrink:0 }}>
+                <button className="btn btn-sm btn-outline" onClick={()=>{ setForm({...u,dauer_minuten:u.dauer_minuten||''}); setModal(true) }}>Bearb.</button>
+                <button className="btn btn-sm btn-danger" onClick={()=>loeschen(u.id)}>X</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {modal && (
+        <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setModal(false)}>
+          <div className="modal" style={{ maxWidth:560 }}>
+            <div className="modal-header"><span className="modal-title">{form.id?'Übung bearbeiten':'Neue Übung'}</span><button className="close-btn" onClick={()=>setModal(false)}>×</button></div>
+            <div className="modal-body">
+              <div className="form-group"><label>Titel *</label><input value={form.titel||''} onChange={e=>setForm(p=>({...p,titel:e.target.value}))} autoFocus /></div>
+              <div className="form-row">
+                <div className="form-group"><label>Block</label>
+                  <select value={form.block||'hauptteil'} onChange={e=>setForm(p=>({...p,block:e.target.value}))}>
+                    {Object.entries(BLOCK_LABEL_KURZ).map(([k,v])=><option key={k} value={k}>{v}</option>)}
+                  </select>
+                </div>
+                <div className="form-group"><label>Typ</label>
+                  <select value={form.typ_id||''} onChange={e=>setForm(p=>({...p,typ_id:e.target.value}))}>
+                    <option value="">Kein Typ</option>
+                    {typen.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="form-group"><label>Beschreibung / Anweisung</label><textarea value={form.beschreibung||''} onChange={e=>setForm(p=>({...p,beschreibung:e.target.value}))} rows={3} /></div>
+              <div className="form-row">
+                <div className="form-group"><label>Dauer (Min.)</label><input type="number" value={form.dauer_minuten||''} onChange={e=>setForm(p=>({...p,dauer_minuten:e.target.value}))} /></div>
+                <div className="form-group"><label>Material</label><input value={form.material||''} onChange={e=>setForm(p=>({...p,material:e.target.value}))} /></div>
+                <div className="form-group"><label>Schwierigkeit</label>
+                  <select value={form.schwierigkeit||'mittel'} onChange={e=>setForm(p=>({...p,schwierigkeit:e.target.value}))}>
+                    <option value="leicht">Leicht</option><option value="mittel">Mittel</option><option value="schwer">Schwer</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={()=>setModal(false)}>Abbrechen</button>
+              <button className="btn btn-primary" onClick={speichern} disabled={saving}>{saving?'Speichern...':'Speichern'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function RehaBibliothekSektion() {
+  const [liste, setListe] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [modal, setModal] = useState(false)
+  const [form, setForm] = useState({ titel:'', beschreibung:'', typ:'uebung', koerperteil:'', wiederholungen:'', haeufigkeit:'', dauer_wochen:'', schwierigkeit:'mittel' })
+  const [saving, setSaving] = useState(false)
+  const REHA_TYPEN = { uebung:'🏋️ Übung', dehnung:'🧘 Dehnung', kraft:'💪 Kraft', ausdauer:'🏃 Ausdauer', koordination:'🎯 Koordination', sonstiges:'📎 Sonstiges' }
+
+  useEffect(()=>{ load() },[])
+  async function load() { setLoading(true); const { data }=await supabase.from('reha_bibliothek').select('*').eq('aktiv',true).order('titel'); setListe(data||[]); setLoading(false) }
+  async function speichern() {
+    if (!form.titel.trim()) return; setSaving(true)
+    const payload = { ...form, dauer_wochen:form.dauer_wochen?parseInt(form.dauer_wochen):null, aktiv:true }
+    if (form.id) await supabase.from('reha_bibliothek').update(payload).eq('id', form.id)
+    else await supabase.from('reha_bibliothek').insert(payload)
+    setSaving(false); setModal(false); load()
+  }
+  async function loeschen(id) { if(!window.confirm('Aufgabe löschen?')) return; await supabase.from('reha_bibliothek').update({aktiv:false}).eq('id',id); load() }
+
+  return (
+    <div className="card">
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
+        <div><div className="section-title" style={{ margin:0 }}>Reha-Bibliothek</div><p style={{ fontSize:12, color:'var(--gray-400)', marginTop:4 }}>Wiederverwendbare Reha- und Übungsaufgaben für Verletzungsaktivitäten</p></div>
+        <button className="btn btn-primary btn-sm" onClick={()=>{ setForm({titel:'',beschreibung:'',typ:'uebung',koerperteil:'',wiederholungen:'',haeufigkeit:'',dauer_wochen:'',schwierigkeit:'mittel'}); setModal(true) }}>+ Neu</button>
+      </div>
+      {loading ? <div className="loading-center"><div className="spinner"/></div> : (
+        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+          {liste.length===0 && <p style={{ fontSize:13, color:'var(--gray-400)' }}>Noch keine Einträge in der Reha-Bibliothek.</p>}
+          {liste.map(r=>(
+            <div key={r.id} style={{ display:'flex', alignItems:'flex-start', gap:12, padding:'10px 14px', border:'1.5px solid var(--gray-200)', borderRadius:'var(--radius)' }}>
+              <div style={{ flex:1 }}>
+                <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:4, flexWrap:'wrap' }}>
+                  <strong style={{ fontSize:14 }}>{r.titel}</strong>
+                  <span style={{ fontSize:10, background:'var(--gray-100)', color:'var(--gray-500)', padding:'1px 7px', borderRadius:10 }}>{REHA_TYPEN[r.typ]}</span>
+                  {r.koerperteil && <span style={{ fontSize:10, background:'#ddeaff', color:'#1a4a8a', padding:'1px 7px', borderRadius:10 }}>📍 {r.koerperteil}</span>}
+                </div>
+                {r.beschreibung && <div style={{ fontSize:12, color:'var(--gray-500)', lineHeight:1.4 }}>{r.beschreibung.slice(0,100)}{r.beschreibung.length>100?'…':''}</div>}
+                <div style={{ display:'flex', gap:10, fontSize:11, color:'var(--gray-400)', marginTop:4 }}>
+                  {r.wiederholungen && <span>🔁 {r.wiederholungen}</span>}
+                  {r.haeufigkeit && <span>📅 {r.haeufigkeit}</span>}
+                  {r.dauer_wochen && <span>⏱ {r.dauer_wochen} Wo.</span>}
+                </div>
+              </div>
+              <div style={{ display:'flex', gap:6, flexShrink:0 }}>
+                <button className="btn btn-sm btn-outline" onClick={()=>{ setForm({...r,dauer_wochen:r.dauer_wochen||''}); setModal(true) }}>Bearb.</button>
+                <button className="btn btn-sm btn-danger" onClick={()=>loeschen(r.id)}>X</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {modal && (
+        <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setModal(false)}>
+          <div className="modal" style={{ maxWidth:540 }}>
+            <div className="modal-header"><span className="modal-title">{form.id?'Bearbeiten':'Neue Reha-Aufgabe'}</span><button className="close-btn" onClick={()=>setModal(false)}>×</button></div>
+            <div className="modal-body">
+              <div className="form-row">
+                <div className="form-group"><label>Titel *</label><input value={form.titel||''} onChange={e=>setForm(p=>({...p,titel:e.target.value}))} autoFocus /></div>
+                <div className="form-group"><label>Typ</label>
+                  <select value={form.typ||'uebung'} onChange={e=>setForm(p=>({...p,typ:e.target.value}))}>
+                    {Object.entries(REHA_TYPEN).map(([k,v])=><option key={k} value={k}>{v}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="form-group"><label>Beschreibung / Anweisung</label><textarea value={form.beschreibung||''} onChange={e=>setForm(p=>({...p,beschreibung:e.target.value}))} rows={3} /></div>
+              <div className="form-row">
+                <div className="form-group"><label>Körperteil</label><input value={form.koerperteil||''} onChange={e=>setForm(p=>({...p,koerperteil:e.target.value}))} placeholder="z.B. Knie, Schulter" /></div>
+                <div className="form-group"><label>Wiederholungen</label><input value={form.wiederholungen||''} onChange={e=>setForm(p=>({...p,wiederholungen:e.target.value}))} placeholder="z.B. 3x15" /></div>
+              </div>
+              <div className="form-row">
+                <div className="form-group"><label>Häufigkeit</label><input value={form.haeufigkeit||''} onChange={e=>setForm(p=>({...p,haeufigkeit:e.target.value}))} placeholder="z.B. täglich" /></div>
+                <div className="form-group"><label>Dauer (Wochen)</label><input type="number" value={form.dauer_wochen||''} onChange={e=>setForm(p=>({...p,dauer_wochen:e.target.value}))} /></div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={()=>setModal(false)}>Abbrechen</button>
+              <button className="btn btn-primary" onClick={speichern} disabled={saving}>{saving?'Speichern...':'Speichern'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+
+function TrainingstypenSektion() { return <TrainingstypenPanel/> }
+
 function TrainingstypenPanel() {
   const [liste, setListe] = useState([])
   const [loading, setLoading] = useState(true)
@@ -723,7 +993,7 @@ const GRUPPEN = [
     key: 'mannschaft', label: '🏐 Mannschaft', farbe: '#0f2240',
     tabs: [
       { key:'mannschaften-verw', label:'🏐 Mannschaften' },
-      { key:'trainingstypen',    label:'🏃 Trainingstypen' },
+      { key:'training-konf',     label:'🏃 Training' },
       { key:'spielerstatus',     label:'⚡ Spielerstatus' },
       { key:'verletzungsstatus',  label:'🏥 Verletzungsstatus' },
       { key:'behandler',         label:'👨‍⚕️ Behandler' },
@@ -872,7 +1142,7 @@ export default function Einstellungen() {
         {/* System */}
         {tab==='mannschaften-verw' && <MannschaftenPanel/>}
         {tab==='spielerstatus'     && <SpielerstatusPanel/>}
-        {tab==='trainingstypen'     && <TrainingstypenPanel/>}
+        {tab==='training-konf'      && <TrainingsKonfigPanel/>}
         {tab==='verletzungsstatus'  && <VerletzungsstatusPanel/>}
         {tab==='behandler'         && <BehandlerPanel/>}
 
