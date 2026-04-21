@@ -848,6 +848,147 @@ function VerletzungsstatusPanel() {
 }
 
 
+function ScoutingKategorienPanel() {
+  const TYPEN = { note:'⭐ Note', text:'📝 Text', note_und_text:'⭐📝 Note + Text', ja_nein:'✓ Ja/Nein' }
+  const [kategorien, setKategorien] = useState([])
+  const [kontext, setKontext]       = useState([])
+  const [loading, setLoading]       = useState(true)
+  const [aktiveSektion, setAktiveSektion] = useState('kategorien')
+  const [modal, setModal]           = useState(false)
+  const [modalTyp, setModalTyp]     = useState('kategorie')
+  const [form, setForm]             = useState({ name:'', beschreibung:'', bewertungstyp:'note_und_text', min_wert:1, max_wert:10, reihenfolge:0 })
+  const [kontextForm, setKontextForm] = useState({ name:'', icon:'👁' })
+  const [saving, setSaving]         = useState(false)
+
+  useEffect(()=>{ load() },[])
+  async function load() {
+    setLoading(true)
+    const [{ data: k },{ data: kt }] = await Promise.all([
+      supabase.from('scouting_kategorien').select('*').order('reihenfolge'),
+      supabase.from('scouting_kontext_typen').select('*').order('reihenfolge'),
+    ])
+    setKategorien(k||[]); setKontext(kt||[]); setLoading(false)
+  }
+
+  async function speichern() {
+    setSaving(true)
+    if (modalTyp==='kategorie') {
+      if (form.id) await supabase.from('scouting_kategorien').update({ name:form.name, beschreibung:form.beschreibung, bewertungstyp:form.bewertungstyp, min_wert:parseInt(form.min_wert)||1, max_wert:parseInt(form.max_wert)||10, reihenfolge:form.reihenfolge||0 }).eq('id', form.id)
+      else await supabase.from('scouting_kategorien').insert({ name:form.name, beschreibung:form.beschreibung, bewertungstyp:form.bewertungstyp, min_wert:parseInt(form.min_wert)||1, max_wert:parseInt(form.max_wert)||10, reihenfolge:kategorien.length, aktiv:true })
+    } else {
+      if (kontextForm.id) await supabase.from('scouting_kontext_typen').update({ name:kontextForm.name, icon:kontextForm.icon }).eq('id', kontextForm.id)
+      else await supabase.from('scouting_kontext_typen').insert({ name:kontextForm.name, icon:kontextForm.icon, reihenfolge:kontext.length, aktiv:true })
+    }
+    setSaving(false); setModal(false); load()
+  }
+
+  async function loeschen(table, id) { if(!window.confirm('Löschen?')) return; await supabase.from(table).delete().eq('id', id); load() }
+  async function toggleAktiv(table, id, aktiv) { await supabase.from(table).update({ aktiv:!aktiv }).eq('id', id); load() }
+
+  return (
+    <div>
+      <div style={{ display:'flex', gap:8, marginBottom:16 }}>
+        <button onClick={()=>setAktiveSektion('kategorien')} className={`btn btn-sm ${aktiveSektion==='kategorien'?'btn-primary':'btn-outline'}`}>Bewertungskategorien</button>
+        <button onClick={()=>setAktiveSektion('kontext')} className={`btn btn-sm ${aktiveSektion==='kontext'?'btn-primary':'btn-outline'}`}>Kontext-Typen</button>
+      </div>
+
+      {aktiveSektion==='kategorien' && (
+        <div className="card">
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
+            <div><div className="section-title" style={{ margin:0 }}>Bewertungskategorien</div><p style={{ fontSize:12, color:'var(--gray-400)', marginTop:4 }}>Kriterien für Scouting-Berichte (z.B. Athletik, Technik, Taktik)</p></div>
+            <button className="btn btn-primary btn-sm" onClick={()=>{ setModalTyp('kategorie'); setForm({ name:'', beschreibung:'', bewertungstyp:'note_und_text', min_wert:1, max_wert:10, reihenfolge:kategorien.length }); setModal(true) }}>+ Neu</button>
+          </div>
+          {loading ? <div className="loading-center"><div className="spinner"/></div> : (
+            <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+              {kategorien.map(k=>(
+                <div key={k.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 14px', border:'1.5px solid var(--gray-200)', borderRadius:'var(--radius)', opacity:k.aktiv?1:0.5 }}>
+                  <div style={{ flex:1 }}>
+                    <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                      <strong style={{ fontSize:14 }}>{k.name}</strong>
+                      <span style={{ fontSize:11, background:'var(--gray-100)', color:'var(--gray-500)', padding:'1px 8px', borderRadius:10 }}>{TYPEN[k.bewertungstyp]}</span>
+                      {(k.bewertungstyp==='note'||k.bewertungstyp==='note_und_text') && <span style={{ fontSize:11, color:'var(--gray-400)' }}>{k.min_wert}–{k.max_wert}</span>}
+                    </div>
+                    {k.beschreibung && <div style={{ fontSize:12, color:'var(--gray-400)', marginTop:2 }}>{k.beschreibung}</div>}
+                  </div>
+                  <div style={{ display:'flex', gap:6 }}>
+                    <button className="btn btn-sm btn-outline" onClick={()=>{ setModalTyp('kategorie'); setForm({...k}); setModal(true) }}>Bearb.</button>
+                    <button className="btn btn-sm btn-outline" onClick={()=>toggleAktiv('scouting_kategorien',k.id,k.aktiv)}>{k.aktiv?'Deaktiv.':'Aktivieren'}</button>
+                    <button className="btn btn-sm btn-danger" onClick={()=>loeschen('scouting_kategorien',k.id)}>X</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {aktiveSektion==='kontext' && (
+        <div className="card">
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
+            <div><div className="section-title" style={{ margin:0 }}>Kontext-Typen</div><p style={{ fontSize:12, color:'var(--gray-400)', marginTop:4 }}>In welchem Rahmen wurde der Spieler beobachtet?</p></div>
+            <button className="btn btn-primary btn-sm" onClick={()=>{ setModalTyp('kontext'); setKontextForm({ name:'', icon:'👁' }); setModal(true) }}>+ Neu</button>
+          </div>
+          {loading ? <div className="loading-center"><div className="spinner"/></div> : (
+            <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+              {kontext.map(k=>(
+                <div key={k.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 14px', border:'1.5px solid var(--gray-200)', borderRadius:'var(--radius)', opacity:k.aktiv?1:0.5 }}>
+                  <span style={{ fontSize:24, flexShrink:0 }}>{k.icon}</span>
+                  <div style={{ flex:1 }}><strong style={{ fontSize:14 }}>{k.name}</strong></div>
+                  <div style={{ display:'flex', gap:6 }}>
+                    <button className="btn btn-sm btn-outline" onClick={()=>{ setModalTyp('kontext'); setKontextForm({...k}); setModal(true) }}>Bearb.</button>
+                    <button className="btn btn-sm btn-outline" onClick={()=>toggleAktiv('scouting_kontext_typen',k.id,k.aktiv)}>{k.aktiv?'Deaktiv.':'Aktivieren'}</button>
+                    <button className="btn btn-sm btn-danger" onClick={()=>loeschen('scouting_kontext_typen',k.id)}>X</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {modal && (
+        <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setModal(false)}>
+          <div className="modal" style={{ maxWidth:480 }}>
+            <div className="modal-header">
+              <span className="modal-title">{modalTyp==='kategorie'?(form.id?'Kategorie bearbeiten':'Neue Kategorie'):(kontextForm.id?'Kontext bearbeiten':'Neuer Kontext')}</span>
+              <button className="close-btn" onClick={()=>setModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              {modalTyp==='kategorie' ? (
+                <>
+                  <div className="form-group"><label>Name *</label><input value={form.name||''} onChange={e=>setForm(p=>({...p,name:e.target.value}))} autoFocus /></div>
+                  <div className="form-group"><label>Beschreibung</label><input value={form.beschreibung||''} onChange={e=>setForm(p=>({...p,beschreibung:e.target.value}))} /></div>
+                  <div className="form-group"><label>Bewertungstyp</label>
+                    <select value={form.bewertungstyp||'note_und_text'} onChange={e=>setForm(p=>({...p,bewertungstyp:e.target.value}))}>
+                      {Object.entries(TYPEN).map(([k,v])=><option key={k} value={k}>{v}</option>)}
+                    </select>
+                  </div>
+                  {(form.bewertungstyp==='note'||form.bewertungstyp==='note_und_text') && (
+                    <div className="form-row">
+                      <div className="form-group"><label>Min-Wert</label><input type="number" value={form.min_wert||1} onChange={e=>setForm(p=>({...p,min_wert:e.target.value}))} /></div>
+                      <div className="form-group"><label>Max-Wert</label><input type="number" value={form.max_wert||10} onChange={e=>setForm(p=>({...p,max_wert:e.target.value}))} /></div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div className="form-group"><label>Name *</label><input value={kontextForm.name||''} onChange={e=>setKontextForm(p=>({...p,name:e.target.value}))} autoFocus /></div>
+                  <div className="form-group"><label>Icon (Emoji)</label><input value={kontextForm.icon||'👁'} onChange={e=>setKontextForm(p=>({...p,icon:e.target.value}))} maxLength={2} /></div>
+                </>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={()=>setModal(false)}>Abbrechen</button>
+              <button className="btn btn-primary" onClick={speichern} disabled={saving}>{saving?'Speichern...':'Speichern'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+
 function GegnerTabPanel() {
   const navigate = useNavigate()
   return (
@@ -1015,6 +1156,7 @@ const GRUPPEN = [
       { key:'verletzungsstatus',  label:'🏥 Verletzungsstatus' },
       { key:'behandler',         label:'👨‍⚕️ Behandler' },
       { key:'gegner',            label:'🔵 Gegner-Datenbank' },
+      { key:'scouting-kat',      label:'📋 Scouting-Kategorien' },
     ]
   },
   {
@@ -1164,6 +1306,7 @@ export default function Einstellungen() {
         {tab==='verletzungsstatus'  && <VerletzungsstatusPanel/>}
         {tab==='behandler'         && <BehandlerPanel/>}
         {tab==='gegner'            && <GegnerTabPanel/>}
+        {tab==='scouting-kat'      && <ScoutingKategorienPanel/>}
 
         {tab==='info' && (
           <div className="card">
