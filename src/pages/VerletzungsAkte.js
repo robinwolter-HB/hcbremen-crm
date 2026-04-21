@@ -1,3 +1,49 @@
+function RehaBibliothekPicker({ koerperteil, onSelect, onClose }) {
+  const [liste, setListe] = useState([])
+  const [filter, setFilter] = useState(koerperteil||'')
+  const [loading, setLoading] = useState(true)
+  const REHA_TYPEN = { uebung:'🏋️', dehnung:'🧘', kraft:'💪', ausdauer:'🏃', koordination:'🎯', sonstiges:'📎' }
+
+  useEffect(() => {
+    supabase.from('reha_bibliothek').select('*').eq('aktiv',true).order('titel').then(({data})=>{ setListe(data||[]); setLoading(false) })
+  }, [])
+
+  const gefiltert = liste.filter(r => !filter || r.titel.toLowerCase().includes(filter.toLowerCase()) || (r.koerperteil||'').toLowerCase().includes(filter.toLowerCase()) || (r.beschreibung||'').toLowerCase().includes(filter.toLowerCase()))
+
+  return (
+    <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div className="modal" style={{ maxWidth:580 }}>
+        <div className="modal-header"><span className="modal-title">📚 Reha-Bibliothek</span><button className="close-btn" onClick={onClose}>×</button></div>
+        <div className="modal-body">
+          <input placeholder="Suchen nach Titel, Körperteil…" value={filter} onChange={e=>setFilter(e.target.value)} style={{ width:'100%', marginBottom:12 }} autoFocus />
+          {loading ? <div className="loading-center"><div className="spinner"/></div> : (
+            <div style={{ display:'flex', flexDirection:'column', gap:8, maxHeight:380, overflowY:'auto' }}>
+              {gefiltert.length===0 && <p style={{ color:'var(--gray-400)', fontSize:13 }}>Keine Aufgaben gefunden.</p>}
+              {gefiltert.map(r=>(
+                <div key={r.id} onClick={()=>onSelect(r)} className="card" style={{ padding:12, marginBottom:0, cursor:'pointer' }}
+                  onMouseEnter={e=>e.currentTarget.style.boxShadow='var(--shadow-lg)'}
+                  onMouseLeave={e=>e.currentTarget.style.boxShadow='var(--shadow)'}>
+                  <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:4, flexWrap:'wrap' }}>
+                    <span>{REHA_TYPEN[r.typ]||'📎'}</span>
+                    <span style={{ fontWeight:600, fontSize:13 }}>{r.titel}</span>
+                    {r.koerperteil && <span style={{ fontSize:10, background:'#ddeaff', color:'#1a4a8a', padding:'1px 7px', borderRadius:10 }}>📍 {r.koerperteil}</span>}
+                  </div>
+                  {r.beschreibung && <div style={{ fontSize:12, color:'var(--gray-500)', lineHeight:1.4 }}>{r.beschreibung.slice(0,100)}{r.beschreibung.length>100?'…':''}</div>}
+                  <div style={{ display:'flex', gap:10, fontSize:11, color:'var(--gray-400)', marginTop:4 }}>
+                    {r.wiederholungen && <span>🔁 {r.wiederholungen}</span>}
+                    {r.haeufigkeit && <span>📅 {r.haeufigkeit}</span>}
+                    {r.dauer_wochen && <span>⏱ {r.dauer_wochen} Wo.</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
@@ -49,6 +95,7 @@ export default function VerletzungsAkte({ verletzungId, spielerId, spielerName, 
   const [showBerichtForm, setShowBerichtForm] = useState(false)
   const [showBehandlerForm, setShowBehandlerForm] = useState(false)
   const [showRehaForm, setShowRehaForm]     = useState(false)
+  const [showRehaBiblio, setShowRehaBiblio] = useState(false)
   const [showEditForm, setShowEditForm]     = useState(false)
   const [uploading, setUploading]           = useState(false)
   const [saving, setSaving]                 = useState(false)
@@ -435,8 +482,21 @@ export default function VerletzungsAkte({ verletzungId, spielerId, spielerName, 
             <div>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
                 <h3 style={{ fontSize:16, color:'var(--navy)', margin:0 }}>Reha & Trainingsaufgaben</h3>
+                <div style={{ display:'flex', gap:8 }}>
+                <button onClick={()=>setShowRehaBiblio(true)} className="btn btn-outline">📚 Aus Bibliothek</button>
                 <button onClick={()=>setShowRehaForm(true)} className="btn btn-primary">+ Aufgabe hinzufügen</button>
               </div>
+              </div>
+              {showRehaBiblio && (
+                <RehaBibliothekPicker
+                  koerperteil={verletzung?.koerperteil}
+                  onSelect={async r => {
+                    await supabase.from('verletzungs_reha_aufgaben').insert({ titel:r.titel, beschreibung:r.beschreibung||null, typ:r.typ, wiederholungen:r.wiederholungen||null, haeufigkeit:r.haeufigkeit||null, dauer_wochen:r.dauer_wochen||null, verletzung_id:verletzungId, reihenfolge:rehaAufgaben.length, erstellt_von:profile.id })
+                    setShowRehaBiblio(false); load()
+                  }}
+                  onClose={()=>setShowRehaBiblio(false)}
+                />
+              )}
               {showRehaForm && (
                 <div className="card" style={{ marginBottom:16, borderLeft:'4px solid var(--orange)' }}>
                   <h4 style={{ fontSize:14, color:'var(--navy)', marginBottom:14 }}>Neue Reha-Aufgabe</h4>
@@ -500,6 +560,7 @@ export default function VerletzungsAkte({ verletzungId, spielerId, spielerName, 
                               <input type="file" accept="image/*,.pdf" multiple style={{ display:'none' }} onChange={e=>rehaDateiHochladen(e,a.id)} />
                             </label>
                           </div>
+                          <button onClick={async()=>{ await supabase.from('reha_bibliothek').insert({ titel:a.titel, beschreibung:a.beschreibung||null, typ:a.typ, wiederholungen:a.wiederholungen||null, haeufigkeit:a.haeufigkeit||null, dauer_wochen:a.dauer_wochen||null, aktiv:true }); alert('✓ In Bibliothek gespeichert') }} title="In Bibliothek speichern" style={{ background:'none', border:'1px solid var(--gray-200)', borderRadius:6, cursor:'pointer', padding:'4px 8px', fontSize:12, color:'var(--gray-500)' }}>📚</button>
                           <button onClick={async()=>{ await supabase.from('verletzungs_reha_aufgaben').delete().eq('id',a.id); load() }}
                             style={{ background:'none', border:'none', color:'var(--red)', cursor:'pointer', fontSize:18, flexShrink:0 }}>×</button>
                         </div>
