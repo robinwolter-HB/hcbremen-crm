@@ -71,8 +71,8 @@ export default function VerletzungsAkte({ verletzungId, spielerId, spielerName, 
     const sid = spielerId
     const [{ data: v }, { data: av }, { data: b }, { data: d }, { data: bl },
            { data: z }, { data: sl }, { data: ra }, { data: rd }] = await Promise.all([
-      supabase.from('spieler_verletzungen').select('*, status:status_id(id,name,farbe)').eq('id', verletzungId).single(),
-      supabase.from('spieler_verletzungen').select('*').eq('spieler_id', sid),
+      supabase.from('spieler_verletzungen').select('*, status:status_id(id,name,farbe), ursache:ursache_verletzung_id(diagnose,datum_verletzung)').eq('id', verletzungId).single(),
+      supabase.from('spieler_verletzungen').select('*, status:status_id(name,farbe), ursache:ursache_verletzung_id(diagnose,datum_verletzung)').eq('spieler_id', sid),
       supabase.from('verletzungs_berichte')
         .select('*, behandler:behandler_id(vorname,nachname,rolle), autor:autor_id(name)')
         .eq('verletzung_id', verletzungId).order('datum', { ascending: false }),
@@ -113,6 +113,7 @@ export default function VerletzungsAkte({ verletzungId, spielerId, spielerName, 
       behandlung: editForm.behandlung || null,
       arzt: editForm.arzt || null,
       notizen: editForm.notizen || null,
+      ursache_verletzung_id: editForm.ursache_verletzung_id || null,
     }
     await supabase.from('spieler_verletzungen').update(payload).eq('id', verletzungId)
     setSaving(false); setShowEditForm(false); load()
@@ -243,6 +244,7 @@ export default function VerletzungsAkte({ verletzungId, spielerId, spielerName, 
               {verletzung.koerperteil && <span>📍 {verletzung.koerperteil}</span>}
               <span>📅 seit {new Date(verletzung.datum_verletzung).toLocaleDateString('de-DE')} ({tageSeit} Tage)</span>
               {verletzung.datum_genesung && <span>✅ Genesen: {new Date(verletzung.datum_genesung).toLocaleDateString('de-DE')}</span>}
+              {verletzung.ursache && <span style={{ color:'var(--orange)', fontWeight:600 }}>⚠️ Folgeverletzung von: {verletzung.ursache.diagnose}</span>}
             </div>
 
             {/* Status + Rückkehr-Datum */}
@@ -284,6 +286,7 @@ export default function VerletzungsAkte({ verletzungId, spielerId, spielerName, 
           <div style={{ display:'flex', gap:8, flexShrink:0, flexWrap:'wrap', justifyContent:'flex-end' }}>
             <button onClick={()=>setShowEditForm(!showEditForm)} className={`btn btn-sm ${showEditForm?'btn-primary':'btn-outline'}`}>✏️ Bearbeiten</button>
             {aktiv && !isBehandler && <button onClick={verletzungHeilen} className="btn btn-sm" style={{ background:'#e2efda', color:'#2d6b3a', border:'none' }}>✓ Als geheilt markieren</button>}
+            {!aktiv && !isBehandler && <button onClick={async()=>{ await supabase.from('spieler_verletzungen').update({ datum_genesung:null }).eq('id',verletzungId); await supabase.from('spieler').update({ status:'verletzt' }).eq('id',verletzung.spieler_id); load() }} className="btn btn-sm btn-outline" style={{ color:'var(--orange)' }}>↩ Genesen rückgängig</button>}
             {onClose && <button onClick={onClose} className="close-btn">×</button>}
           </div>
         </div>
@@ -306,6 +309,15 @@ export default function VerletzungsAkte({ verletzungId, spielerId, spielerName, 
               </div>
             </div>
             <div className="form-group"><label>Erste Behandlungsnotiz</label><textarea value={editForm.behandlung||''} onChange={e=>setEditForm(p=>({...p,behandlung:e.target.value}))} rows={2} /></div>
+              <div className="form-group">
+                <label>Folgeverletzung von (optional)</label>
+                <select value={editForm.ursache_verletzung_id||''} onChange={e=>setEditForm(p=>({...p,ursache_verletzung_id:e.target.value}))}>
+                  <option value="">Keine Vorerkrankung</option>
+                  {alleVerletzungen.filter(v=>v.id!==verletzungId).map(v=>(
+                    <option key={v.id} value={v.id}>{v.diagnose} ({new Date(v.datum_verletzung).toLocaleDateString('de-DE')}){v.datum_genesung?' ✅':' 🏥'}</option>
+                  ))}
+                </select>
+              </div>
             <div style={{ display:'flex', gap:8 }}>
               <button onClick={verletzungSpeichern} className="btn btn-primary btn-sm" disabled={saving}>{saving?'Speichern…':'Speichern'}</button>
               <button onClick={()=>setShowEditForm(false)} className="btn btn-outline btn-sm">Abbrechen</button>
