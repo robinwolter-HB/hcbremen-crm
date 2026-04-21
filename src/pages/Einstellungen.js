@@ -383,6 +383,112 @@ function SpielerstatusPanel() {
 }
 
 
+function VerletzungsstatusPanel() {
+  const [liste, setListe] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [modal, setModal] = useState(false)
+  const [form, setForm] = useState({ name:'', beschreibung:'', farbe:'#d94f4f', reihenfolge:0 })
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => { load() }, [])
+  async function load() {
+    setLoading(true)
+    const { data } = await supabase.from('verletzungs_status').select('*').order('reihenfolge')
+    setListe(data||[])
+    setLoading(false)
+  }
+
+  async function speichern() {
+    if (!form.name.trim()) return
+    setSaving(true)
+    if (form.id) {
+      await supabase.from('verletzungs_status').update({ name:form.name, beschreibung:form.beschreibung, farbe:form.farbe, reihenfolge:form.reihenfolge }).eq('id', form.id)
+    } else {
+      await supabase.from('verletzungs_status').insert({ name:form.name, beschreibung:form.beschreibung, farbe:form.farbe, reihenfolge:form.reihenfolge||0, aktiv:true })
+    }
+    setSaving(false); setModal(false); load()
+  }
+
+  async function loeschen(id) {
+    if (!window.confirm('Status wirklich löschen? Bereits zugeordnete Verletzungen verlieren diesen Status.')) return
+    await supabase.from('verletzungs_status').delete().eq('id', id); load()
+  }
+
+  async function toggleAktiv(id, aktiv) {
+    await supabase.from('verletzungs_status').update({ aktiv: !aktiv }).eq('id', id); load()
+  }
+
+  return (
+    <div>
+      <div className="card" style={{ marginBottom:16 }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
+          <div>
+            <div className="section-title" style={{ margin:0 }}>Verletzungsstatus</div>
+            <p style={{ fontSize:12, color:'var(--gray-400)', marginTop:4 }}>Konfigurierbare Status-Stufen für Verletzungen (z.B. Akut, Reha, Belastungsaufbau)</p>
+          </div>
+          <button className="btn btn-primary btn-sm" onClick={()=>{ setForm({ name:'', beschreibung:'', farbe:'#d94f4f', reihenfolge: liste.length }); setModal(true) }}>+ Neu</button>
+        </div>
+        {loading ? <div className="loading-center"><div className="spinner"/></div> : (
+          <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+            {liste.length===0 && <p style={{ fontSize:13, color:'var(--gray-400)' }}>Noch keine Status angelegt.</p>}
+            {liste.map((s, i) => (
+              <div key={s.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 14px', border:'1.5px solid var(--gray-200)', borderRadius:'var(--radius)', opacity:s.aktiv?1:0.5, background:'var(--white)' }}>
+                <div style={{ width:18, height:18, borderRadius:'50%', background:s.farbe, flexShrink:0, boxShadow:'0 1px 4px rgba(0,0,0,0.15)' }}/>
+                <div style={{ flex:1 }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                    <strong style={{ fontSize:14 }}>{s.name}</strong>
+                    {!s.aktiv && <span style={{ fontSize:11, color:'var(--gray-400)' }}>(inaktiv)</span>}
+                  </div>
+                  {s.beschreibung && <div style={{ fontSize:12, color:'var(--gray-400)', marginTop:2 }}>{s.beschreibung}</div>}
+                </div>
+                <div style={{ display:'flex', alignItems:'center', gap:4 }}>
+                  <button onClick={async()=>{ if(i>0){ await supabase.from('verletzungs_status').update({reihenfolge:s.reihenfolge-1}).eq('id',s.id); await supabase.from('verletzungs_status').update({reihenfolge:liste[i-1].reihenfolge+1}).eq('id',liste[i-1].id); load() } }} style={{ background:'none', border:'1px solid var(--gray-200)', borderRadius:4, cursor:'pointer', padding:'2px 6px', fontSize:11, opacity:i===0?0.3:1 }}>↑</button>
+                  <button onClick={async()=>{ if(i<liste.length-1){ await supabase.from('verletzungs_status').update({reihenfolge:s.reihenfolge+1}).eq('id',s.id); await supabase.from('verletzungs_status').update({reihenfolge:liste[i+1].reihenfolge-1}).eq('id',liste[i+1].id); load() } }} style={{ background:'none', border:'1px solid var(--gray-200)', borderRadius:4, cursor:'pointer', padding:'2px 6px', fontSize:11, opacity:i===liste.length-1?0.3:1 }}>↓</button>
+                </div>
+                <div style={{ display:'flex', gap:6 }}>
+                  <button className="btn btn-sm btn-outline" onClick={()=>{ setForm(s); setModal(true) }}>Bearb.</button>
+                  <button className="btn btn-sm btn-outline" onClick={()=>toggleAktiv(s.id,s.aktiv)}>{s.aktiv?'Deaktiv.':'Aktivieren'}</button>
+                  <button className="btn btn-sm btn-danger" onClick={()=>loeschen(s.id)}>X</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {modal && (
+        <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setModal(false)}>
+          <div className="modal" style={{ maxWidth:460 }}>
+            <div className="modal-header">
+              <span className="modal-title">{form.id?'Status bearbeiten':'Neuer Status'}</span>
+              <button className="close-btn" onClick={()=>setModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-row">
+                <div className="form-group" style={{ flex:1 }}><label>Name *</label><input value={form.name||''} onChange={e=>setForm(p=>({...p,name:e.target.value}))} autoFocus placeholder="z.B. Belastungsaufbau" /></div>
+                <div className="form-group" style={{ flexShrink:0, width:100 }}>
+                  <label>Farbe</label>
+                  <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                    <input type="color" value={form.farbe||'#d94f4f'} onChange={e=>setForm(p=>({...p,farbe:e.target.value}))} style={{ width:44, height:38, padding:2, borderRadius:'var(--radius)', border:'1.5px solid var(--gray-200)', cursor:'pointer' }} />
+                    <span style={{ fontSize:11, color:'var(--gray-400)' }}>{form.farbe}</span>
+                  </div>
+                </div>
+              </div>
+              <div className="form-group"><label>Beschreibung</label><input value={form.beschreibung||''} onChange={e=>setForm(p=>({...p,beschreibung:e.target.value}))} placeholder="Kurze Erklärung des Status" /></div>
+              <div className="form-group"><label>Reihenfolge</label><input type="number" value={form.reihenfolge||0} onChange={e=>setForm(p=>({...p,reihenfolge:parseInt(e.target.value)||0}))} /></div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={()=>setModal(false)}>Abbrechen</button>
+              <button className="btn btn-primary" onClick={speichern} disabled={saving}>{saving?'Speichern...':'Speichern'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+
 function BehandlerPanel() {
   const ROLLEN = ['arzt','physio','athletiktrainer','osteopath','psychologe','sonstiges']
   const ROLLEN_LABEL = { arzt:'🏥 Arzt', physio:'💆 Physio', athletiktrainer:'🏃 Athletiktrainer', osteopath:'🤲 Osteopath', psychologe:'🧠 Psychologe', sonstiges:'📎 Sonstiges' }
@@ -529,6 +635,7 @@ const GRUPPEN = [
     tabs: [
       { key:'mannschaften-verw', label:'🏐 Mannschaften' },
       { key:'spielerstatus',     label:'⚡ Spielerstatus' },
+      { key:'verletzungsstatus',  label:'🏥 Verletzungsstatus' },
       { key:'behandler',         label:'👨‍⚕️ Behandler' },
     ]
   },
@@ -675,6 +782,7 @@ export default function Einstellungen() {
         {/* System */}
         {tab==='mannschaften-verw' && <MannschaftenPanel/>}
         {tab==='spielerstatus'     && <SpielerstatusPanel/>}
+        {tab==='verletzungsstatus'  && <VerletzungsstatusPanel/>}
         {tab==='behandler'         && <BehandlerPanel/>}
 
         {tab==='info' && (
