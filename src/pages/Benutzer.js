@@ -3,16 +3,18 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 
 const ALLE_BEREICHE = [
-  { key: 'kontakte',       label: 'Kontakte',         gruppe: 'crm' },
-  { key: 'historie',       label: 'Kontakthistorie',  gruppe: 'crm' },
-  { key: 'veranstaltungen',label: 'Veranstaltungen',  gruppe: 'events' },
-  { key: 'sponsoring',     label: 'Sponsoring',       gruppe: 'crm' },
-  { key: 'aufgaben',       label: 'Aufgaben',         gruppe: 'crm' },
-  { key: 'berichte',       label: 'Berichte',         gruppe: 'crm' },
-  { key: 'media',          label: 'Media Hub',        gruppe: 'media' },
+  { key: 'kontakte',             label: 'Kontakte',              gruppe: 'crm' },
+  { key: 'historie',             label: 'Kontakthistorie',       gruppe: 'crm' },
+  { key: 'veranstaltungen',      label: 'Veranstaltungen',       gruppe: 'events' },
+  { key: 'sponsoring',           label: 'Sponsoring',            gruppe: 'crm' },
+  { key: 'aufgaben',             label: 'Aufgaben',              gruppe: 'crm' },
+  { key: 'berichte',             label: 'Berichte',              gruppe: 'crm' },
+  { key: 'media',                label: 'Media Hub',             gruppe: 'media' },
+  { key: 'mannschaft',           label: 'Mannschaft',            gruppe: 'mannschaft' },
+  { key: 'mannschaft_manager',   label: 'Mannschaft Manager',    gruppe: 'mannschaft', info: 'Sieht Vertrags- und Gehaltsdaten' },
 ]
 
-const GRUPPEN_LABEL = { crm:'👥 CRM', events:'📅 Events', media:'📸 Media' }
+const GRUPPEN_LABEL = { crm:'👥 CRM', events:'📅 Events', media:'📸 Media', mannschaft:'🏐 Mannschaft' }
 
 const ROLLEN = [
   { key: 'admin',      label: 'Admin',        beschreibung: 'Voller Zugriff inkl. Benutzerverwaltung' },
@@ -79,6 +81,7 @@ function BereicheToggles({ bereiche, onChange, rolle }) {
                     <div>
                       <span style={{ fontSize:14, fontWeight:500 }}>{b.label}</span>
                       {isMediaLocked && <span style={{ fontSize:11, color:'var(--gold)', marginLeft:8 }}>⚡ Standard für Media-Rolle</span>}
+                      {b.info && <div style={{ fontSize:11, color:'var(--gray-400)', marginTop:2 }}>{b.info}</div>}
                     </div>
                     <Toggle checked={hat} onChange={() => !isMediaLocked && toggle(b.key)} />
                   </div>
@@ -140,6 +143,7 @@ export default function Benutzer() {
   function standardBereiche(rolle) {
     if (rolle === 'admin') return ALLE_BEREICHE.map(b=>b.key)
     if (rolle === 'media') return ['media']
+    if (rolle === 'mannschaft') return ['mannschaft']
     return ['kontakte','historie','veranstaltungen','sponsoring','aufgaben']
   }
 
@@ -330,6 +334,12 @@ export default function Benutzer() {
                   <BereicheToggles bereiche={editForm.bereiche||[]} rolle={editForm.rolle} onChange={bereiche=>setEditForm(f=>({...f,bereiche}))}/>
                 </div>
               )}
+              <div className="form-group" style={{marginTop:8}}>
+                <label style={{display:'flex',alignItems:'center',gap:10,textTransform:'none',fontSize:14,cursor:'pointer',fontWeight:600}}>
+                  <input type="checkbox" style={{width:18,height:18}} checked={editForm.ist_manager||false} onChange={e=>setEditForm(f=>({...f,ist_manager:e.target.checked}))}/>
+                  💼 Manager (sieht Vertrags- und Gehaltsdaten)
+                </label>
+              </div>
             </div>
             <div className="modal-footer">
               <button className="btn btn-outline" onClick={()=>setEditModal(false)}>Abbrechen</button>
