@@ -848,6 +848,24 @@ function VerletzungsstatusPanel() {
 }
 
 
+function GegnerTabPanel() {
+  return (
+    <div className="card">
+      <div style={{ textAlign:'center', padding:'32px 20px' }}>
+        <div style={{ fontSize:48, marginBottom:12 }}>🔵</div>
+        <div style={{ fontSize:18, fontWeight:700, color:'var(--navy)', marginBottom:8 }}>Gegner-Datenbank</div>
+        <p style={{ fontSize:14, color:'var(--gray-500)', maxWidth:400, margin:'0 auto 20px' }}>
+          Gegner-Teams mit Logo, Vereinsfarben und vollständigem Kader verwalten. Grundlage für das Analyse- und Tagging-System.
+        </p>
+        <a href="/einstellungen/gegner" style={{ display:'inline-block' }}>
+          <button className="btn btn-primary">→ Zur Gegner-Datenbank</button>
+        </a>
+      </div>
+    </div>
+  )
+}
+
+
 function BehandlerPanel() {
   const ROLLEN = ['arzt','physio','athletiktrainer','osteopath','psychologe','sonstiges']
   const ROLLEN_LABEL = { arzt:'🏥 Arzt', physio:'💆 Physio', athletiktrainer:'🏃 Athletiktrainer', osteopath:'🤲 Osteopath', psychologe:'🧠 Psychologe', sonstiges:'📎 Sonstiges' }
@@ -997,6 +1015,7 @@ const GRUPPEN = [
       { key:'spielerstatus',     label:'⚡ Spielerstatus' },
       { key:'verletzungsstatus',  label:'🏥 Verletzungsstatus' },
       { key:'behandler',         label:'👨‍⚕️ Behandler' },
+      { key:'gegner',            label:'🔵 Gegner-Datenbank' },
     ]
   },
   {
@@ -1145,6 +1164,7 @@ export default function Einstellungen() {
         {tab==='training-konf'      && <TrainingsKonfigPanel/>}
         {tab==='verletzungsstatus'  && <VerletzungsstatusPanel/>}
         {tab==='behandler'         && <BehandlerPanel/>}
+        {tab==='gegner'            && <GegnerTabPanel/>}
 
         {tab==='info' && (
           <div className="card">
