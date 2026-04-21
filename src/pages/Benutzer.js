@@ -63,7 +63,7 @@ function BereicheToggles({ bereiche, onChange, rolle }) {
   }
 
   // Gruppiere nach Bereichen
-  const gruppen = ['crm','events','media']
+  const gruppen = ['crm','events','media','mannschaft']
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
@@ -260,7 +260,7 @@ export default function Benutzer() {
               <div style={{ paddingTop:12, borderTop:'1px solid var(--gray-100)' }}>
                 <div style={{ fontSize:11, color:'var(--gray-400)', marginBottom:10, textTransform:'uppercase', letterSpacing:'0.3px' }}>Zugriffsrechte</div>
                 <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-                  {['crm','events','media'].map(gKey => {
+                  {['crm','events','media','mannschaft'].map(gKey => {
                     const items = ALLE_BEREICHE.filter(b=>b.gruppe===gKey)
                     const aktive = items.filter(b => u.rolle==='admin' || (u.bereiche||[]).includes(b.key))
                     if (aktive.length===0) return null
