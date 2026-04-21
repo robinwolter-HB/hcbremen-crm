@@ -1039,10 +1039,12 @@ function SpielDetail() {
 
       {/* TABS */}
       <div className="tabs" style={{ marginBottom:12 }}>
-        <button className={`tab-btn${tab==='tracking'?'  active':''}`} onClick={()=>setTab('tracking')}>📊 Live-Tracking</button>
+        <button className={`tab-btn${tab==='vorbereitung'?' active':''}`} onClick={()=>setTab('vorbereitung')}>📋 Vorbereitung</button>
+        <button className={`tab-btn${tab==='tracking'?' active':''}`} onClick={()=>setTab('tracking')}>📊 Live-Tracking</button>
         <button className={`tab-btn${tab==='aufstellung'?' active':''}`} onClick={()=>setTab('aufstellung')}>👥 Aufstellung ({aufstellung.length})</button>
         <button className={`tab-btn${tab==='timeline'?' active':''}`} onClick={()=>setTab('timeline')}>📋 Timeline ({ereignisse.length})</button>
         <button className={`tab-btn${tab==='auswertung'?' active':''}`} onClick={()=>setTab('auswertung')}>📈 Auswertung</button>
+        <button className={`tab-btn${tab==='video'?' active':''}`} onClick={()=>setTab('video')}>📹 Video</button>
       </div>
 
       {/* Spieler Picker */}
