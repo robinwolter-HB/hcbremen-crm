@@ -1482,6 +1482,8 @@ function SpielAuswertung({ ereignisse, alleSpieler }) {
     </div>
   )
 }
+
+export default function SpielTracking() {
   return (
     <ErrorBoundary>
       <Routes>
