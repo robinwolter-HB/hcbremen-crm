@@ -383,6 +383,95 @@ function SpielerstatusPanel() {
 }
 
 
+function TrainingstypenPanel() {
+  const [liste, setListe] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [modal, setModal] = useState(false)
+  const [form, setForm] = useState({ name:'', beschreibung:'', farbe:'#2d6fa3', reihenfolge:0 })
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => { load() }, [])
+  async function load() {
+    setLoading(true)
+    const { data } = await supabase.from('trainingstypen').select('*').order('reihenfolge')
+    setListe(data||[])
+    setLoading(false)
+  }
+
+  async function speichern() {
+    if (!form.name.trim()) return
+    setSaving(true)
+    if (form.id) await supabase.from('trainingstypen').update({ name:form.name, beschreibung:form.beschreibung, farbe:form.farbe, reihenfolge:form.reihenfolge||0 }).eq('id', form.id)
+    else await supabase.from('trainingstypen').insert({ name:form.name, beschreibung:form.beschreibung, farbe:form.farbe, reihenfolge:form.reihenfolge||0, aktiv:true })
+    setSaving(false); setModal(false); load()
+  }
+
+  async function loeschen(id) {
+    if (!window.confirm('Trainingstyp löschen?')) return
+    await supabase.from('trainingstypen').delete().eq('id', id); load()
+  }
+
+  async function toggleAktiv(id, aktiv) {
+    await supabase.from('trainingstypen').update({ aktiv: !aktiv }).eq('id', id); load()
+  }
+
+  return (
+    <div>
+      <div className="card" style={{ marginBottom:16 }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
+          <div>
+            <div className="section-title" style={{ margin:0 }}>Trainingstypen</div>
+            <p style={{ fontSize:12, color:'var(--gray-400)', marginTop:4 }}>Kategorien für Trainingseinheiten (z.B. Kondition, Taktik, Technik)</p>
+          </div>
+          <button className="btn btn-primary btn-sm" onClick={()=>{ setForm({ name:'', beschreibung:'', farbe:'#2d6fa3', reihenfolge:liste.length }); setModal(true) }}>+ Neu</button>
+        </div>
+        {loading ? <div className="loading-center"><div className="spinner"/></div> : (
+          <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+            {liste.map(s => (
+              <div key={s.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 14px', border:'1.5px solid var(--gray-200)', borderRadius:'var(--radius)', opacity:s.aktiv?1:0.5 }}>
+                <div style={{ width:16, height:16, borderRadius:4, background:s.farbe, flexShrink:0 }}/>
+                <div style={{ flex:1 }}>
+                  <strong style={{ fontSize:14 }}>{s.name}</strong>
+                  {s.beschreibung && <div style={{ fontSize:12, color:'var(--gray-400)', marginTop:2 }}>{s.beschreibung}</div>}
+                </div>
+                <div style={{ display:'flex', gap:6 }}>
+                  <button className="btn btn-sm btn-outline" onClick={()=>{ setForm(s); setModal(true) }}>Bearb.</button>
+                  <button className="btn btn-sm btn-outline" onClick={()=>toggleAktiv(s.id,s.aktiv)}>{s.aktiv?'Deaktiv.':'Aktivieren'}</button>
+                  <button className="btn btn-sm btn-danger" onClick={()=>loeschen(s.id)}>X</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      {modal && (
+        <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setModal(false)}>
+          <div className="modal" style={{ maxWidth:420 }}>
+            <div className="modal-header"><span className="modal-title">{form.id?'Bearbeiten':'Neuer Trainingstyp'}</span><button className="close-btn" onClick={()=>setModal(false)}>×</button></div>
+            <div className="modal-body">
+              <div className="form-row">
+                <div className="form-group" style={{ flex:1 }}><label>Name *</label><input value={form.name||''} onChange={e=>setForm(p=>({...p,name:e.target.value}))} autoFocus /></div>
+                <div className="form-group" style={{ width:110, flexShrink:0 }}>
+                  <label>Farbe</label>
+                  <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                    <input type="color" value={form.farbe||'#2d6fa3'} onChange={e=>setForm(p=>({...p,farbe:e.target.value}))} style={{ width:44, height:38, padding:2, borderRadius:'var(--radius)', border:'1.5px solid var(--gray-200)', cursor:'pointer' }} />
+                  </div>
+                </div>
+              </div>
+              <div className="form-group"><label>Beschreibung</label><input value={form.beschreibung||''} onChange={e=>setForm(p=>({...p,beschreibung:e.target.value}))} /></div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={()=>setModal(false)}>Abbrechen</button>
+              <button className="btn btn-primary" onClick={speichern} disabled={saving}>{saving?'Speichern...':'Speichern'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+
 function VerletzungsstatusPanel() {
   const [liste, setListe] = useState([])
   const [loading, setLoading] = useState(true)
@@ -634,6 +723,7 @@ const GRUPPEN = [
     key: 'mannschaft', label: '🏐 Mannschaft', farbe: '#0f2240',
     tabs: [
       { key:'mannschaften-verw', label:'🏐 Mannschaften' },
+      { key:'trainingstypen',    label:'🏃 Trainingstypen' },
       { key:'spielerstatus',     label:'⚡ Spielerstatus' },
       { key:'verletzungsstatus',  label:'🏥 Verletzungsstatus' },
       { key:'behandler',         label:'👨‍⚕️ Behandler' },
@@ -782,6 +872,7 @@ export default function Einstellungen() {
         {/* System */}
         {tab==='mannschaften-verw' && <MannschaftenPanel/>}
         {tab==='spielerstatus'     && <SpielerstatusPanel/>}
+        {tab==='trainingstypen'     && <TrainingstypenPanel/>}
         {tab==='verletzungsstatus'  && <VerletzungsstatusPanel/>}
         {tab==='behandler'         && <BehandlerPanel/>}
 
