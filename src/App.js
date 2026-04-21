@@ -19,6 +19,7 @@ import Freiwillige from './pages/Freiwillige'
 import Inbox from './pages/Inbox'
 import EV from './pages/EV'
 import MediaHub from './pages/MediaHub'
+import MannschaftHub from './pages/MannschaftHub'
 
 function PrivateRoute({ children, bereich }) {
   const { user, loading, canAccess } = useAuth()
@@ -108,6 +109,11 @@ function Header() {
     await supabase.auth.signOut()
   }
 
+  const canAccessMannschaft = () => {
+    if (!profile) return false
+    return profile.rolle === 'admin' || (profile.bereiche || []).includes('mannschaft')
+  }
+
   const canAccessMedia = () => {
     if (!profile) return false
     return profile.rolle === 'admin' || profile.rolle === 'media' || (profile.bereiche || []).includes('media')
@@ -157,6 +163,9 @@ function Header() {
             <DropdownMenu label="📅 Events" onClose={()=>setNavOpen(false)} items={eventsItems} />
           )}
 
+          {canAccessMannschaft() && (
+            <NavLink to="/mannschaft" className={({isActive})=>'nav-link'+(isActive?' active':'')} onClick={()=>setNavOpen(false)}>🏐 Mannschaft</NavLink>
+          )}
           {canAccessMedia() && (
             <NavLink to="/media" className={({isActive})=>'nav-link'+(isActive?' active':'')} onClick={()=>setNavOpen(false)}>📸 Media</NavLink>
           )}
@@ -200,6 +209,7 @@ function App() {
             <Route path="/ev" element={<PrivateRoute><EV /></PrivateRoute>} />
             <Route path="/freiwillige" element={<PrivateRoute bereich="events"><Freiwillige /></PrivateRoute>} />
             <Route path="/media/*" element={<PrivateRoute bereich="media"><MediaHub /></PrivateRoute>} />
+            <Route path="/mannschaft/*" element={<PrivateRoute bereich="mannschaft"><MannschaftHub /></PrivateRoute>} />
           </Routes>
         </div>
       </BrowserRouter>
