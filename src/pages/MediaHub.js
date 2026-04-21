@@ -4,9 +4,11 @@ import MediaFotos from './MediaFotos'
 import MediaCI from './MediaCI'
 import MediaSpielberichte from './MediaSpielberichte'
 import MediaInsights from './MediaInsights'
+import MediaPostings from './MediaPostings'
 
 const TABS = [
   { path: 'aufgaben',  label: '✓ Aufgaben'        },
+  { path: 'postings',  label: '📱 Postings'        },
   { path: 'fotos',     label: '📷 Fotos'           },
   { path: 'ci',        label: '🎨 CI-Hub'          },
   { path: 'berichte',  label: '📝 Spielberichte'   },
@@ -33,6 +35,7 @@ export default function MediaHub() {
       <Routes>
         <Route index element={<Navigate to="aufgaben" replace />} />
         <Route path="aufgaben"  element={<MediaAufgaben />} />
+        <Route path="postings"  element={<MediaPostings />} />
         <Route path="fotos"     element={<MediaFotos />} />
         <Route path="ci"        element={<MediaCI />} />
         <Route path="berichte"  element={<MediaSpielberichte />} />
