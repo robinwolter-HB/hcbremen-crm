@@ -1,7 +1,22 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { Routes, Route, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
+
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { error: null } }
+  static getDerivedStateFromError(error) { return { error } }
+  render() {
+    if (this.state.error) return (
+      <div className="card" style={{ padding:20, color:'var(--red)' }}>
+        <strong>Fehler:</strong> {this.state.error.message}
+        <pre style={{ fontSize:11, marginTop:8, overflow:'auto' }}>{this.state.error.stack?.slice(0,300)}</pre>
+      </div>
+    )
+    return this.props.children
+  }
+}
+
 
 // ── KONSTANTEN ───────────────────────────────────────────────
 const EREIGNIS_GRUPPEN = [
@@ -345,8 +360,8 @@ function SpielDetail() {
       supabase.from('spiel_aufstellung').select('*, spieler:spieler_id(id,vorname,nachname,trikotnummer,position,foto_url)').eq('spiel_id', id),
     ])
     setSpiel(s); setEreignisse(e||[]); setAufstellung(a||[])
-    if (s?.mannschaft?.id) {
-      const { data: sp } = await supabase.from('spieler').select('*').eq('mannschaft_id', s.mannschaft.id).eq('aktiv', true).eq('typ', 'kader').order('trikotnummer')
+    if (s?.mannschaft_id) {
+      const { data: sp } = await supabase.from('spieler').select('*').eq('mannschaft_id', s.mannschaft_id).eq('aktiv', true).eq('typ', 'kader').order('trikotnummer')
       setAlleSpieler(sp||[])
     }
     setLoading(false)
@@ -572,7 +587,7 @@ function SpielDetail() {
                   <button key={sp.id} onClick={()=>spielerGewaehlt(sp)}
                     style={{ padding:'10px 8px', borderRadius:'var(--radius)', border:`2px solid ${aktiverSpieler?.id===sp.id?'var(--navy)':'var(--gray-200)'}`, background:aktiverSpieler?.id===sp.id?'var(--navy)':'var(--white)', color:aktiverSpieler?.id===sp.id?'white':'var(--text)', cursor:'pointer', textAlign:'center', fontWeight:600, fontSize:12 }}>
                     <div style={{ fontSize:18, fontWeight:900, color:aktiverSpieler?.id===sp.id?'white':'var(--gray-300)', fontFamily:'monospace' }}>#{sp.trikotnummer||'?'}</div>
-                    <div>{sp.vorname[0]}. {sp.nachname}</div>
+                    <div>{sp.vorname?.[0]}. {sp.nachname}</div>
                     <div style={{ fontSize:10, opacity:0.7 }}>{sp.position?.split(' ').pop()||''}</div>
                   </button>
                 ))}
@@ -705,7 +720,7 @@ function SpielDetail() {
                     {sp.foto_url ? <img src={sp.foto_url} alt="" style={{ width:36, height:36, borderRadius:'50%', objectFit:'cover' }} />
                       : <div style={{ width:36, height:36, borderRadius:'50%', background:istAktiv?'white':'var(--navy)', display:'flex', alignItems:'center', justifyContent:'center', color:istAktiv?'var(--navy)':'white', fontWeight:900, fontSize:14, fontFamily:'monospace' }}>#{sp.trikotnummer||'?'}</div>}
                     <div>
-                      <div style={{ fontWeight:700, fontSize:12, color:istAktiv?'white':'var(--navy)' }}>{sp.vorname[0]}. {sp.nachname}</div>
+                      <div style={{ fontWeight:700, fontSize:12, color:istAktiv?'white':'var(--navy)' }}>{sp.vorname?.[0]}. {sp.nachname}</div>
                       <div style={{ fontSize:10, color:istAktiv?'rgba(255,255,255,0.7)':'var(--gray-400)' }}>{sp.position||''}</div>
                     </div>
                   </div>
@@ -729,8 +744,8 @@ function SpielDetail() {
                     <span style={{ fontSize:16, flexShrink:0 }}>{meta.icon}</span>
                     <span style={{ fontSize:11, fontWeight:700, color:'var(--gray-400)', flexShrink:0, fontFamily:'monospace', minWidth:40 }}>{e.halbzeit}HZ {String(e.minute||0).padStart(2,'0')}'</span>
                     <span style={{ fontSize:13, fontWeight:istTor?700:400, color:meta.farbe }}>{meta.label}</span>
-                    {e.spieler && <span style={{ fontSize:12, color:'var(--gray-600)' }}>#{e.spieler.trikotnummer} {e.spieler.vorname[0]}. {e.spieler.nachname}</span>}
-                    {e.assist && <span style={{ fontSize:11, color:'var(--gray-400)' }}>↳ Assist: {e.assist.vorname[0]}. {e.assist.nachname}</span>}
+                    {e.spieler && <span style={{ fontSize:12, color:'var(--gray-600)' }}>#{e.spieler.trikotnummer} {e.spieler.vorname?.[0]}. {e.spieler.nachname}</span>}
+                    {e.assist && <span style={{ fontSize:11, color:'var(--gray-400)' }}>↳ Assist: {e.assist.vorname?.[0]}. {e.assist.nachname}</span>}
                     {e.torbereich && <span style={{ fontSize:10, background:'var(--gray-100)', padding:'1px 6px', borderRadius:4 }}>{e.torbereich.replace('_',' ')}</span>}
                     {!e.id.startsWith('local_') && <button onClick={()=>ereignisLoeschen(e.id)} style={{ marginLeft:'auto', background:'none', border:'none', color:'var(--gray-300)', cursor:'pointer', fontSize:14, flexShrink:0 }}>×</button>}
                   </div>
@@ -774,7 +789,7 @@ function SpielDetail() {
                   <tbody>
                     {spielerStats.map(sp=>(
                       <tr key={sp.id}>
-                        <td style={{ fontWeight:600 }}>#{sp.trikotnummer} {sp.vorname[0]}. {sp.nachname}<div style={{ fontSize:11, color:'var(--gray-400)' }}>{sp.position}</div></td>
+                        <td style={{ fontWeight:600 }}>#{sp.trikotnummer} {sp.vorname?.[0]}. {sp.nachname}<div style={{ fontSize:11, color:'var(--gray-400)' }}>{sp.position}</div></td>
                         <td style={{ fontWeight:700, color:'var(--green)' }}>{sp.tore||'–'}</td>
                         <td>{sp.assists||'–'}</td>
                         <td style={{ color:sp.fehl>2?'var(--orange)':'inherit' }}>{sp.fehl||'–'}</td>
@@ -814,9 +829,11 @@ function SpielDetail() {
 
 export default function SpielTracking() {
   return (
-    <Routes>
-      <Route index element={<SpielListe />} />
-      <Route path=":id" element={<SpielDetail />} />
-    </Routes>
+    <ErrorBoundary>
+      <Routes>
+        <Route index element={<SpielListe />} />
+        <Route path=":id" element={<ErrorBoundary><SpielDetail /></ErrorBoundary>} />
+      </Routes>
+    </ErrorBoundary>
   )
 }
