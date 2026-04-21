@@ -2,6 +2,7 @@ import { Routes, Route, NavLink, Navigate } from 'react-router-dom'
 import MannschaftKader from './MannschaftKader'
 import MannschaftScouting from './MannschaftScouting'
 import GegnerTagging from './GegnerTagging'
+import ScoutingBerichte from './ScoutingBerichte'
 import MannschaftVerletzungen from './MannschaftVerletzungen'
 import MannschaftStatistiken from './MannschaftStatistiken'
 import MannschaftUebersicht from './MannschaftUebersicht'
@@ -16,7 +17,8 @@ const TABS = [
   { path: 'statistiken',  label: '📈 Statistiken'    },
   { path: 'spieltracking', label: '🎯 Spiele'           },
   { path: 'auswertung',    label: '📊 Auswertung'      },
-  { path: 'scouting',     label: '🔍 Scouting'       },
+  { path: 'scouting',     label: '🎥 Gegner-Videos'  },
+  { path: 'berichte',    label: '📋 Scout-Berichte'  },
   { path: 'training',    label: '🏃 Training'       },
 ]
 
@@ -45,9 +47,11 @@ export default function MannschaftHub() {
         <Route path="statistiken"  element={<MannschaftStatistiken />} />
         <Route path="scouting"     element={<MannschaftScouting />} />
         <Route path="scouting/:id"  element={<GegnerTagging />} />
+        <Route path="scouting/bericht/*" element={<ScoutingBerichte />} />
         <Route path="training/*"   element={<MannschaftTraining />} />
         <Route path="spieltracking/*" element={<SpielTracking />} />
         <Route path="auswertung"      element={<MannschaftAuswertung />} />
+        <Route path="berichte/*"      element={<ScoutingBerichte />} />
       </Routes>
     </div>
   )
