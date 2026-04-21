@@ -103,24 +103,33 @@ function SpielListe() {
 
   async function load() {
     setLoading(true)
-    const [{ data: mn }, { data: sa }] = await Promise.all([
-      supabase.from('mannschaften').select('*').eq('aktiv',true).order('reihenfolge'),
-      supabase.from('saisons').select('*').order('name'),
-    ])
-    setMannschaften(mn||[])
-    setSaisons(sa||[])
-    const mnId = mn?.[0]?.id||''
-    setAktiveMn(mnId)
-    if (mnId) await ladeSpiele(mnId)
+    try {
+      const [{ data: mn }, { data: sa }] = await Promise.all([
+        supabase.from('mannschaften').select('*').eq('aktiv',true).order('reihenfolge'),
+        supabase.from('saisons').select('*').order('name'),
+      ])
+      setMannschaften(mn||[])
+      setSaisons(sa||[])
+      const mnId = mn?.[0]?.id||''
+      setAktiveMn(mnId)
+      if (mnId) await ladeSpiele(mnId)
+    } catch(err) {
+      console.error('SpielTracking load error:', err)
+    }
     setLoading(false)
   }
 
   async function ladeSpiele(mnId) {
-    const { data } = await supabase.from('spiele')
-      .select('*, mannschaft:mannschaft_id(name,farbe), saison:saison_id(name)')
-      .eq('mannschaft_id', mnId)
-      .order('datum', { ascending: false })
-    setSpiele(data||[])
+    try {
+      const { data, error } = await supabase.from('spiele')
+        .select('*, mannschaft:mannschaft_id(name,farbe), saison:saison_id(name)')
+        .eq('mannschaft_id', mnId)
+        .order('datum', { ascending: false })
+      if (error) { console.error('ladeSpiele error:', error); return }
+      setSpiele(data||[])
+    } catch(err) {
+      console.error('ladeSpiele exception:', err)
+    }
   }
 
   async function speichern() {
