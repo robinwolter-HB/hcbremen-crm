@@ -112,6 +112,7 @@ function SpielListe() {
   const [loading, setLoading]   = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving]     = useState(false)
+  const [dbFehler, setDbFehler] = useState(null)
   const [form, setForm] = useState({ mannschaft_id:'', gegner:'', datum:'', anstoss:'', heim_auswaerts:'heim', saison_id:'' })
 
   useEffect(() => { load() }, [])
@@ -135,16 +136,15 @@ function SpielListe() {
   }
 
   async function ladeSpiele(mnId) {
-    try {
-      const { data, error } = await supabase.from('spiele')
-        .select('*, mannschaft:mannschaft_id(name,farbe), saison:saison_id(name)')
-        .eq('mannschaft_id', mnId)
-        .order('datum', { ascending: false })
-      if (error) { console.error('ladeSpiele error:', error); return }
-      setSpiele(data||[])
-    } catch(err) {
-      console.error('ladeSpiele exception:', err)
+    const { data, error } = await supabase.from('spiele')
+      .select('*, mannschaft:mannschaft_id(name,farbe), saison:saison_id(name)')
+      .eq('mannschaft_id', mnId)
+      .order('datum', { ascending: false })
+    if (error) {
+      setDbFehler('Tabelle "spiele" nicht gefunden. Bitte spieltracking_migration.sql in Supabase ausführen. Fehler: ' + error.message)
+      return
     }
+    setSpiele(data||[])
   }
 
   async function speichern() {
@@ -161,6 +161,15 @@ function SpielListe() {
 
   return (
     <div>
+      {dbFehler && (
+        <div style={{ background:'#fce4d6', border:'1px solid var(--red)', borderRadius:'var(--radius)', padding:'14px 18px', marginBottom:16 }}>
+          <div style={{ fontWeight:700, color:'var(--red)', marginBottom:6 }}>⚠️ Datenbank-Fehler</div>
+          <div style={{ fontSize:13, color:'#8a3a1a' }}>{dbFehler}</div>
+          <div style={{ fontSize:12, color:'#8a3a1a', marginTop:8 }}>
+            Führe <strong>spieltracking_migration.sql</strong> im Supabase SQL Editor aus und lade die Seite neu.
+          </div>
+        </div>
+      )}
       <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:16, justifyContent:'space-between', alignItems:'center' }}>
         <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
           {mannschaften.map(m=>(
