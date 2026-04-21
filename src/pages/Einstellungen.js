@@ -849,6 +849,7 @@ function VerletzungsstatusPanel() {
 
 
 function GegnerTabPanel() {
+  const navigate = useNavigate()
   return (
     <div className="card">
       <div style={{ textAlign:'center', padding:'32px 20px' }}>
@@ -857,9 +858,7 @@ function GegnerTabPanel() {
         <p style={{ fontSize:14, color:'var(--gray-500)', maxWidth:400, margin:'0 auto 20px' }}>
           Gegner-Teams mit Logo, Vereinsfarben und vollständigem Kader verwalten. Grundlage für das Analyse- und Tagging-System.
         </p>
-        <a href="/einstellungen/gegner" style={{ display:'inline-block' }}>
-          <button className="btn btn-primary">→ Zur Gegner-Datenbank</button>
-        </a>
+        <button onClick={()=>navigate('/einstellungen/gegner')} className="btn btn-primary">→ Zur Gegner-Datenbank</button>
       </div>
     </div>
   )
