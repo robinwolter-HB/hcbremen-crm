@@ -1218,73 +1218,270 @@ function SpielDetail() {
 
       {/* TAB: AUSWERTUNG */}
       {tab==='auswertung' && (
-        <div>
-          <div className="card" style={{ marginBottom:16 }}>
-            <div className="section-title" style={{ marginBottom:14 }}>Team-Statistik</div>
-            <div style={{ display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12 }}>
-              {[
-                ['Tore gesamt',`${tore} Feld + ${ereignisse.filter(e=>e.typ==='tor_7m').length} 7m`],
-                ['Gegentore',`${gegnerTore}`],
-                ['Wurfquote',quote!==null?`${quote}%`:'–'],
-                ['Paraden',`${paraden}`],
-                ['Fehlwürfe',`${fehlwuerfe}`],
-                ['2-Minuten-Strafen',`${strafen}`],
-              ].map(([l,v])=>(
-                <div key={l} style={{ padding:'10px 12px',background:'var(--gray-100)',borderRadius:'var(--radius)' }}>
-                  <div style={{ fontSize:11,color:'var(--gray-400)',marginBottom:4 }}>{l}</div>
-                  <div style={{ fontSize:16,fontWeight:700,color:'var(--navy)' }}>{v}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {spielerStats.length>0 && (
-            <div className="card" style={{ marginBottom:16 }}>
-              <div className="section-title" style={{ marginBottom:14 }}>Spieler-Statistik</div>
-              <div className="table-wrap">
-                <table>
-                  <thead><tr><th>Spieler</th><th>Tore</th><th>Assists</th><th>Fehlw.</th><th>Paraden</th><th>2 Min.</th></tr></thead>
-                  <tbody>
-                    {spielerStats.map(sp=>(
-                      <tr key={sp.id}>
-                        <td style={{ fontWeight:600 }}>#{sp.trikotnummer} {sp.vorname?.[0]}. {sp.nachname}<div style={{ fontSize:11,color:'var(--gray-400)' }}>{sp.position}</div></td>
-                        <td style={{ fontWeight:700,color:'var(--green)' }}>{sp.tore||'–'}</td>
-                        <td>{sp.assists||'–'}</td>
-                        <td style={{ color:sp.fehl>2?'var(--orange)':'inherit' }}>{sp.fehl||'–'}</td>
-                        <td style={{ color:'#2d6fa3' }}>{sp.paraden||'–'}</td>
-                        <td style={{ color:sp.strafen>0?'var(--red)':'inherit' }}>{sp.strafen||'–'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {TOR_BEREICHE.some(b=>ereignisse.some(e=>e.torbereich===b.id)) && (
-            <div className="card">
-              <div className="section-title" style={{ marginBottom:14 }}>Tor-Verteilung nach Bereich</div>
-              <div style={{ display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:6,maxWidth:280 }}>
-                {['links_oben','mitte_oben','rechts_oben','links_unten','mitte_unten','rechts_unten'].map(b=>{
-                  const n=ereignisse.filter(e=>e.torbereich===b&&['tor','tor_7m'].includes(e.typ)).length
-                  const max=Math.max(1,...['links_oben','mitte_oben','rechts_oben','links_unten','mitte_unten','rechts_unten'].map(b2=>ereignisse.filter(e=>e.torbereich===b2&&['tor','tor_7m'].includes(e.typ)).length))
-                  return (
-                    <div key={b} style={{ padding:'10px',borderRadius:'var(--radius)',background:n>0?`rgba(58,138,90,${0.2+0.6*n/max})`:`var(--gray-100)`,textAlign:'center',fontWeight:700 }}>
-                      <div style={{ fontSize:20,color:'var(--green)' }}>{n}</div>
-                      <div style={{ fontSize:10,color:'var(--gray-400)' }}>{b.replace(/_/g,' ')}</div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-        </div>
+        <SpielAuswertung ereignisse={ereignisse} alleSpieler={alleSpieler} />
       )}
     </div>
   )
 }
 
-export default function SpielTracking() {
+// ── SPIEL AUSWERTUNG KOMPONENTE ───────────────────────────────
+function HandballFeldHeatmap({ ereignisse, typ, titel, farbe }) {
+  const FELD_W = 200, FELD_H = 120
+  // Nur Ereignisse mit Feldposition
+  const mitPos = ereignisse.filter(e => e.wurfposition_x != null && e.wurfposition_y != null)
+
+  return (
+    <div>
+      <div style={{ fontSize:12, fontWeight:700, color:'var(--navy)', marginBottom:8 }}>{titel}</div>
+      <div style={{ position:'relative' }}>
+        <svg viewBox={`0 0 ${FELD_W} ${FELD_H}`} style={{ width:'100%', border:'1.5px solid var(--gray-200)', borderRadius:'var(--radius)', background:'#c8e6c8' }}>
+          {/* Feld Linien */}
+          <rect x="0" y="0" width={FELD_W} height={FELD_H} fill="#c8e6c8"/>
+          <line x1={FELD_W/2} y1="0" x2={FELD_W/2} y2={FELD_H} stroke="#4a8a4a" strokeWidth="0.8"/>
+          <circle cx={FELD_W/2} cy={FELD_H/2} r="12" fill="none" stroke="#4a8a4a" strokeWidth="0.8"/>
+          {/* Linkes Tor (Angriff) */}
+          <rect x="0" y={FELD_H*0.3} width="8" height={FELD_H*0.4} fill="#b8ddb8" stroke="#4a8a4a" strokeWidth="0.5"/>
+          <rect x="0" y={FELD_H*0.38} width="3" height={FELD_H*0.24} fill="white" stroke="#333" strokeWidth="0.5"/>
+          <path d={`M 0,${FELD_H*0.3} Q ${FELD_W*0.14},${FELD_H*0.3} ${FELD_W*0.14},${FELD_H/2} Q ${FELD_W*0.14},${FELD_H*0.7} 0,${FELD_H*0.7}`} fill="none" stroke="#4a8a4a" strokeWidth="0.8"/>
+          <path d={`M 0,${FELD_H*0.2} Q ${FELD_W*0.24},${FELD_H*0.2} ${FELD_W*0.24},${FELD_H/2} Q ${FELD_W*0.24},${FELD_H*0.8} 0,${FELD_H*0.8}`} fill="none" stroke="#4a8a4a" strokeWidth="0.8" strokeDasharray="3,2"/>
+          <circle cx={FELD_W*0.09} cy={FELD_H/2} r="1.5" fill="#4a8a4a"/>
+          {/* Rechtes Tor (Abwehr) */}
+          <rect x={FELD_W-8} y={FELD_H*0.3} width="8" height={FELD_H*0.4} fill="#b8ddb8" stroke="#4a8a4a" strokeWidth="0.5"/>
+          <rect x={FELD_W-3} y={FELD_H*0.38} width="3" height={FELD_H*0.24} fill="white" stroke="#333" strokeWidth="0.5"/>
+          <path d={`M ${FELD_W},${FELD_H*0.3} Q ${FELD_W*0.86},${FELD_H*0.3} ${FELD_W*0.86},${FELD_H/2} Q ${FELD_W*0.86},${FELD_H*0.7} ${FELD_W},${FELD_H*0.7}`} fill="none" stroke="#4a8a4a" strokeWidth="0.8"/>
+          <path d={`M ${FELD_W},${FELD_H*0.2} Q ${FELD_W*0.76},${FELD_H*0.2} ${FELD_W*0.76},${FELD_H/2} Q ${FELD_W*0.76},${FELD_H*0.8} ${FELD_W},${FELD_H*0.8}`} fill="none" stroke="#4a8a4a" strokeWidth="0.8" strokeDasharray="3,2"/>
+
+          {/* Heatmap Punkte */}
+          {mitPos.map((e,i) => {
+            const x = (e.wurfposition_x/100)*FELD_W
+            const y = (e.wurfposition_y/100)*FELD_H
+            const istTor = ['tor','tor_7m'].includes(e.typ)
+            return (
+              <g key={i}>
+                <circle cx={x} cy={y} r="6" fill={farbe} opacity="0.15"/>
+                <circle cx={x} cy={y} r={istTor?3:2} fill={istTor?farbe:'var(--orange)'} opacity="0.85" stroke="white" strokeWidth="0.5"/>
+              </g>
+            )
+          })}
+
+          {/* Labels */}
+          <text x="6" y="8" fontSize="4" fill="#4a8a4a" fontWeight="bold">ANGRIFF →</text>
+        </svg>
+
+        {/* Legende */}
+        <div style={{ display:'flex', gap:12, marginTop:6, fontSize:11, color:'var(--gray-500)' }}>
+          <span style={{ display:'flex', alignItems:'center', gap:4 }}><span style={{ width:8, height:8, borderRadius:'50%', background:farbe, display:'inline-block' }}/>Tor</span>
+          <span style={{ display:'flex', alignItems:'center', gap:4 }}><span style={{ width:8, height:8, borderRadius:'50%', background:'var(--orange)', display:'inline-block' }}/>Fehlwurf</span>
+          <span style={{ color:'var(--gray-400)' }}>{mitPos.length} positionierte Würfe</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function TorBereichHeatmap({ ereignisse, titel, farbe }) {
+  const bereiche = ['links_oben','mitte_oben','rechts_oben','links_unten','mitte_unten','rechts_unten']
+  const werte = bereiche.map(b => ereignisse.filter(e=>e.torbereich===b).length)
+  const max = Math.max(1, ...werte)
+
+  return (
+    <div>
+      <div style={{ fontSize:12, fontWeight:700, color:'var(--navy)', marginBottom:8 }}>{titel}</div>
+      {/* Tor Visualisierung */}
+      <div style={{ position:'relative', width:'100%', paddingBottom:'50%', background:'#f0f0f0', border:`3px solid ${farbe}`, borderRadius:8, marginBottom:8, overflow:'hidden' }}>
+        {/* Torpfosten */}
+        <div style={{ position:'absolute', inset:'8%', background:'white', borderRadius:4, display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gridTemplateRows:'1fr 1fr', gap:2 }}>
+          {bereiche.map((b,i)=>{
+            const n = werte[i]
+            const pct = n/max
+            const label = b.replace('links','L').replace('mitte','M').replace('rechts','R').replace('_oben','O').replace('_unten','U')
+            return (
+              <div key={b} style={{ background:n>0?farbe+Math.round(30+pct*180).toString(16).padStart(2,'0'):'transparent', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', borderRadius:3, border:'1px solid '+farbe+'33', transition:'background 0.3s' }}>
+                <div style={{ fontSize:14, fontWeight:900, color:n>0?farbe:'var(--gray-300)' }}>{n}</div>
+                <div style={{ fontSize:8, color:'var(--gray-400)' }}>{label}</div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:4, fontSize:10, color:'var(--gray-400)', textAlign:'center' }}>
+        {['Links','Mitte','Rechts'].map(l=><div key={l}>{l}</div>)}
+      </div>
+    </div>
+  )
+}
+
+function SpielAuswertung({ ereignisse, alleSpieler }) {
+  const [ansicht, setAnsicht]         = useState('team')   // 'team' | 'spieler'
+  const [aktiverSpieler, setAktiverSpieler] = useState(null)
+  const [seite, setSeite]             = useState('eigen')  // 'eigen' | 'gegner'
+
+  // Eigene Ereignisse
+  const eigenTypen = ['tor','tor_7m','fehlwurf','fehlwurf_7m','parade','parade_7m','zeitstrafe_2min','gelbe_karte','rote_karte','technischer_fehler','ballverlust','einwechslung','auswechslung','timeout_eigen']
+  const gegnerTypen = ['tor_gegner','tor_gegner_7m','zeitstrafe_gegner','karte_gegner','timeout_gegner']
+
+  const eigeneEr = ereignisse.filter(e => eigenTypen.includes(e.typ))
+  const gegnerEr = ereignisse.filter(e => gegnerTypen.includes(e.typ))
+
+  const aktiveEr = seite==='eigen'
+    ? (aktiverSpieler ? eigeneEr.filter(e=>e.spieler_id===aktiverSpieler.id) : eigeneEr)
+    : gegnerEr
+
+  const wurftypes_eigen  = ['tor','tor_7m','fehlwurf','fehlwurf_7m']
+  const wurftypes_gegner = ['tor_gegner','tor_gegner_7m']
+
+  const tore      = eigeneEr.filter(e=>['tor','tor_7m'].includes(e.typ)).length
+  const gegentore = gegnerEr.filter(e=>['tor_gegner','tor_gegner_7m'].includes(e.typ)).length
+  const wuerfe    = eigeneEr.filter(e=>wurftypes_eigen.includes(e.typ)).length
+  const quote     = wuerfe>0 ? Math.round(tore/wuerfe*100) : null
+  const paraden   = eigeneEr.filter(e=>['parade','parade_7m'].includes(e.typ)).length
+  const strafen   = eigeneEr.filter(e=>e.typ==='zeitstrafe_2min').length
+  const fehlwuerfe= eigeneEr.filter(e=>['fehlwurf','fehlwurf_7m'].includes(e.typ)).length
+
+  const spielerStats = alleSpieler.map(sp=>({
+    ...sp,
+    tore:    eigeneEr.filter(e=>e.spieler_id===sp.id&&['tor','tor_7m'].includes(e.typ)).length,
+    assists: ereignisse.filter(e=>e.assist_spieler_id===sp.id).length,
+    fehl:    eigeneEr.filter(e=>e.spieler_id===sp.id&&['fehlwurf','fehlwurf_7m'].includes(e.typ)).length,
+    strafen: eigeneEr.filter(e=>e.spieler_id===sp.id&&e.typ==='zeitstrafe_2min').length,
+    paraden: eigeneEr.filter(e=>e.spieler_id===sp.id&&['parade','parade_7m'].includes(e.typ)).length,
+    würfe:   eigeneEr.filter(e=>e.spieler_id===sp.id&&wurftypes_eigen.includes(e.typ)).length,
+  })).filter(sp=>sp.tore+sp.assists+sp.fehl+sp.strafen+sp.paraden>0).sort((a,b)=>b.tore-a.tore)
+
+  const heatmapEr = seite==='eigen'
+    ? (aktiverSpieler
+        ? eigeneEr.filter(e=>e.spieler_id===aktiverSpieler.id&&[...wurftypes_eigen].includes(e.typ))
+        : eigeneEr.filter(e=>wurftypes_eigen.includes(e.typ)))
+    : gegnerEr.filter(e=>wurftypes_gegner.includes(e.typ))
+
+  const torbereichEr = seite==='eigen'
+    ? (aktiverSpieler
+        ? eigeneEr.filter(e=>e.spieler_id===aktiverSpieler.id&&['tor','tor_7m'].includes(e.typ))
+        : eigeneEr.filter(e=>['tor','tor_7m'].includes(e.typ)))
+    : gegnerEr.filter(e=>['tor_gegner','tor_gegner_7m'].includes(e.typ))
+
+  const heatFarbe = seite==='eigen' ? '#3a8a5a' : '#d94f4f'
+
+  return (
+    <div>
+      {/* Seite + Ansicht Switcher */}
+      <div style={{ display:'flex', gap:8, marginBottom:16, flexWrap:'wrap', alignItems:'center', justifyContent:'space-between' }}>
+        <div style={{ display:'flex', gap:6 }}>
+          <button onClick={()=>{ setSeite('eigen'); setAktiverSpieler(null) }} className={`btn btn-sm ${seite==='eigen'?'btn-primary':'btn-outline'}`}>🟢 HC Bremen</button>
+          <button onClick={()=>{ setSeite('gegner'); setAktiverSpieler(null) }} className={`btn btn-sm ${seite==='gegner'?'btn-primary':'btn-outline'}`}>🔵 Gegner</button>
+        </div>
+        <div style={{ display:'flex', gap:6 }}>
+          <button onClick={()=>{ setAnsicht('team'); setAktiverSpieler(null) }} className={`btn btn-sm ${ansicht==='team'?'btn-primary':'btn-outline'}`}>👥 Mannschaft</button>
+          {seite==='eigen' && <button onClick={()=>setAnsicht('spieler')} className={`btn btn-sm ${ansicht==='spieler'?'btn-primary':'btn-outline'}`}>👤 Spieler</button>}
+        </div>
+      </div>
+
+      {/* Spieler-Auswahl (nur bei eigen + spieler-Ansicht) */}
+      {ansicht==='spieler' && seite==='eigen' && (
+        <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:16 }}>
+          <button onClick={()=>setAktiverSpieler(null)} className={`btn btn-sm ${!aktiverSpieler?'btn-primary':'btn-outline'}`}>Alle</button>
+          {spielerStats.map(sp=>(
+            <button key={sp.id} onClick={()=>setAktiverSpieler(aktiverSpieler?.id===sp.id?null:sp)}
+              style={{ padding:'5px 12px', borderRadius:20, border:`2px solid ${aktiverSpieler?.id===sp.id?'var(--navy)':'var(--gray-200)'}`, background:aktiverSpieler?.id===sp.id?'var(--navy)':'var(--white)', color:aktiverSpieler?.id===sp.id?'white':'var(--gray-600)', cursor:'pointer', fontWeight:600, fontSize:12 }}>
+              #{sp.trikotnummer} {sp.vorname?.[0]}. {sp.nachname}
+              <span style={{ marginLeft:6, opacity:0.7 }}>({sp.tore}⚽)</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* KPI */}
+      <div className="stats-row" style={{ marginBottom:16 }}>
+        {seite==='eigen' ? [
+          ['⚽','Tore',aktiverSpieler?eigeneEr.filter(e=>e.spieler_id===aktiverSpieler.id&&['tor','tor_7m'].includes(e.typ)).length:tore,'var(--green)'],
+          ['❌','Fehlwürfe',aktiverSpieler?eigeneEr.filter(e=>e.spieler_id===aktiverSpieler.id&&['fehlwurf','fehlwurf_7m'].includes(e.typ)).length:fehlwuerfe,'var(--orange)'],
+          ['🎯','Wurfquote',aktiverSpieler?(()=>{const t=eigeneEr.filter(e=>e.spieler_id===aktiverSpieler.id&&['tor','tor_7m'].includes(e.typ)).length;const w=eigeneEr.filter(e=>e.spieler_id===aktiverSpieler.id&&wurftypes_eigen.includes(e.typ)).length;return w>0?`${Math.round(t/w*100)}%`:'–'})():quote!==null?`${quote}%`:'–','var(--navy)'],
+          ['🛡️','Paraden',aktiverSpieler?eigeneEr.filter(e=>e.spieler_id===aktiverSpieler.id&&['parade','parade_7m'].includes(e.typ)).length:paraden,'#2d6fa3'],
+          ['⏱️','Strafen',aktiverSpieler?eigeneEr.filter(e=>e.spieler_id===aktiverSpieler.id&&e.typ==='zeitstrafe_2min').length:strafen,'var(--red)'],
+        ] : [
+          ['🔵','Gegentore',gegentore,'var(--red)'],
+          ['❌','Fehlwürfe Gegner',gegnerEr.filter(e=>['fehlwurf','fehlwurf_7m'].includes(e.typ)).length,'var(--orange)'],
+          ['⏱️','Strafen Gegner',gegnerEr.filter(e=>e.typ==='zeitstrafe_gegner').length,'#8b5cf6'],
+        ].map(([i,l,w,c])=>(
+          <div key={l} className="stat-card"><div style={{ fontSize:18 }}>{i}</div><div className="stat-num" style={{ fontSize:20,color:c }}>{w}</div><div className="stat-label">{l}</div></div>
+        ))}
+      </div>
+
+      {/* Heatmaps */}
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:16 }}>
+        <div className="card">
+          <HandballFeldHeatmap
+            ereignisse={heatmapEr}
+            farbe={heatFarbe}
+            titel={`🏟️ Würfe auf Feld — ${seite==='eigen'?(aktiverSpieler?`#${aktiverSpieler.trikotnummer} ${aktiverSpieler.vorname} ${aktiverSpieler.nachname}`:'Gesamt'):'Gegner'}`}
+          />
+        </div>
+        <div className="card">
+          <TorBereichHeatmap
+            ereignisse={torbereichEr}
+            farbe={heatFarbe}
+            titel={`🥅 Tore nach Torecke — ${seite==='eigen'?(aktiverSpieler?`#${aktiverSpieler.trikotnummer} ${aktiverSpieler.vorname} ${aktiverSpieler.nachname}`:'Gesamt'):'Gegner'}`}
+          />
+          <div style={{ marginTop:12, fontSize:12, color:'var(--gray-400)' }}>
+            {torbereichEr.filter(e=>e.torbereich).length} von {torbereichEr.length} Toren mit Bereich getaggt
+          </div>
+        </div>
+      </div>
+
+      {/* Team-Statistik */}
+      {seite==='eigen' && (
+        <div className="card" style={{ marginBottom:16 }}>
+          <div className="section-title" style={{ marginBottom:14 }}>Spieler-Statistik</div>
+          {spielerStats.length===0 ? <p style={{ fontSize:13, color:'var(--gray-400)' }}>Noch keine Ereignisse mit Spielerzuordnung.</p> : (
+            <div className="table-wrap">
+              <table>
+                <thead><tr><th>Spieler</th><th>Tore</th><th>Quote</th><th>Assists</th><th>Fehlw.</th><th>Paraden</th><th>2 Min.</th></tr></thead>
+                <tbody>
+                  {spielerStats.map(sp=>{
+                    const q = sp.würfe>0?Math.round(sp.tore/sp.würfe*100):null
+                    const istAktiv = aktiverSpieler?.id===sp.id
+                    return (
+                      <tr key={sp.id} onClick={()=>setAktiverSpieler(istAktiv?null:sp)} style={{ cursor:'pointer', background:istAktiv?'var(--gray-100)':'inherit', fontWeight:istAktiv?700:400 }}>
+                        <td>#{sp.trikotnummer} {sp.vorname?.[0]}. {sp.nachname}<div style={{ fontSize:11,color:'var(--gray-400)' }}>{sp.position}</div></td>
+                        <td style={{ fontWeight:700,color:'var(--green)' }}>{sp.tore||'–'}</td>
+                        <td style={{ fontSize:12 }}>{q!==null?`${q}%`:'–'}</td>
+                        <td>{sp.assists||'–'}</td>
+                        <td style={{ color:sp.fehl>2?'var(--orange)':'inherit' }}>{sp.fehl||'–'}</td>
+                        <td style={{ color:'#2d6fa3' }}>{sp.paraden||'–'}</td>
+                        <td style={{ color:sp.strafen>0?'var(--red)':'inherit' }}>{sp.strafen||'–'}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Halbzeit-Vergleich */}
+      {eigeneEr.some(e=>e.halbzeit===2) && seite==='eigen' && (
+        <div className="card">
+          <div className="section-title" style={{ marginBottom:14 }}>Halbzeit-Vergleich</div>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
+            {[1,2].map(hz=>{
+              const hz_er = eigeneEr.filter(e=>e.halbzeit===hz)
+              const hz_tore = hz_er.filter(e=>['tor','tor_7m'].includes(e.typ)).length
+              const hz_wuerfe = hz_er.filter(e=>wurftypes_eigen.includes(e.typ)).length
+              return (
+                <div key={hz} style={{ padding:'12px 16px', background:'var(--gray-100)', borderRadius:'var(--radius)', textAlign:'center' }}>
+                  <div style={{ fontSize:11, fontWeight:700, color:'var(--gray-400)', textTransform:'uppercase', letterSpacing:1, marginBottom:8 }}>{hz}. Halbzeit</div>
+                  <div style={{ fontSize:28, fontWeight:900, color:'var(--navy)' }}>{hz_tore}</div>
+                  <div style={{ fontSize:12, color:'var(--gray-500)' }}>Tore · Quote: {hz_wuerfe>0?`${Math.round(hz_tore/hz_wuerfe*100)}%`:'–'}</div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
   return (
     <ErrorBoundary>
       <Routes>
