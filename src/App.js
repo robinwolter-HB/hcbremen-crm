@@ -205,6 +205,7 @@ function App() {
             <Route path="/benutzer" element={<PrivateRoute><Benutzer /></PrivateRoute>} />
             <Route path="/aufgaben" element={<PrivateRoute><MeineAufgaben /></PrivateRoute>} />
             <Route path="/kalender" element={<PrivateRoute><Kalender /></PrivateRoute>} />
+            <Route path="/einstellungen/gegner/*" element={<PrivateRoute bereich="mannschaft"><GegnerVerwaltung /></PrivateRoute>} />
             <Route path="/einstellungen" element={<PrivateRoute><Einstellungen /></PrivateRoute>} />
             <Route path="/inbox" element={<PrivateRoute><Inbox /></PrivateRoute>} />
             <Route path="/ev" element={<PrivateRoute><EV /></PrivateRoute>} />
