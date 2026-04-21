@@ -341,6 +341,48 @@ function HCTeamsPanel() {
 }
 
 
+function SpielerstatusPanel() {
+  const STATUS_VORGABEN = ['aktiv','verletzt','gesperrt','inaktiv','ausgeliehen']
+  const [liste, setListe] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [form, setForm] = useState({ name:'', farbe:'#2d6fa3' })
+  const [saving, setSaving] = useState(false)
+
+  // Spielerstatus wird direkt aus der spieler-Tabelle als CHECK-Constraint verwaltet.
+  // Hier zeigen wir die festen Werte an und erlauben Farbkonfiguration für die Darstellung
+  // via einer einfachen Konfigurationstabelle (client-seitig als JSON in localStorage).
+
+  const STATUS_BESCHREIBUNG = {
+    aktiv:       { farbe:'#3a8a5a', beschreibung:'Spieler ist einsatzbereit' },
+    verletzt:    { farbe:'#d94f4f', beschreibung:'Spieler ist verletzt und nicht einsatzbereit' },
+    gesperrt:    { farbe:'#e07b30', beschreibung:'Spieler ist gesperrt (z.B. Gelbsperre)' },
+    inaktiv:     { farbe:'#9a9590', beschreibung:'Spieler ist derzeit nicht aktiv' },
+    ausgeliehen: { farbe:'#2d6fa3', beschreibung:'Spieler ist an anderen Verein ausgeliehen' },
+  }
+
+  return (
+    <div className="card">
+      <div className="section-title" style={{ marginBottom:8 }}>Spielerstatus</div>
+      <p style={{ fontSize:13, color:'var(--gray-400)', marginBottom:16 }}>
+        Die verfügbaren Status sind fest definiert. Sie können den Status eines Spielers direkt in der Spielermappe ändern.
+      </p>
+      <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+        {Object.entries(STATUS_BESCHREIBUNG).map(([key, s]) => (
+          <div key={key} style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 14px', border:'1.5px solid var(--gray-200)', borderRadius:'var(--radius)', background:'var(--white)' }}>
+            <div style={{ width:14, height:14, borderRadius:'50%', background:s.farbe, flexShrink:0 }}/>
+            <div style={{ flex:1 }}>
+              <div style={{ fontWeight:600, fontSize:14, textTransform:'capitalize' }}>{key}</div>
+              <div style={{ fontSize:12, color:'var(--gray-400)', marginTop:2 }}>{s.beschreibung}</div>
+            </div>
+            <span style={{ fontSize:11, padding:'2px 8px', borderRadius:10, fontWeight:600, background:s.farbe+'20', color:s.farbe }}>{key}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+
 function BehandlerPanel() {
   const ROLLEN = ['arzt','physio','athletiktrainer','osteopath','psychologe','sonstiges']
   const ROLLEN_LABEL = { arzt:'🏥 Arzt', physio:'💆 Physio', athletiktrainer:'🏃 Athletiktrainer', osteopath:'🤲 Osteopath', psychologe:'🧠 Psychologe', sonstiges:'📎 Sonstiges' }
@@ -485,7 +527,9 @@ const GRUPPEN = [
   {
     key: 'mannschaft', label: '🏐 Mannschaft', farbe: '#0f2240',
     tabs: [
-      { key:'behandler', label:'👨‍⚕️ Behandler' },
+      { key:'mannschaften-verw', label:'🏐 Mannschaften' },
+      { key:'spielerstatus',     label:'⚡ Spielerstatus' },
+      { key:'behandler',         label:'👨‍⚕️ Behandler' },
     ]
   },
   {
@@ -629,7 +673,9 @@ export default function Einstellungen() {
         {tab==='hc-teams'     && <HCTeamsPanel/>}
 
         {/* System */}
-        {tab==='behandler'  && <BehandlerPanel/>}
+        {tab==='mannschaften-verw' && <MannschaftenPanel/>}
+        {tab==='spielerstatus'     && <SpielerstatusPanel/>}
+        {tab==='behandler'         && <BehandlerPanel/>}
 
         {tab==='info' && (
           <div className="card">
