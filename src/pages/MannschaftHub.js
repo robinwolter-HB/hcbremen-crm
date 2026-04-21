@@ -4,6 +4,7 @@ import MannschaftScouting from './MannschaftScouting'
 import MannschaftVerletzungen from './MannschaftVerletzungen'
 import MannschaftStatistiken from './MannschaftStatistiken'
 import MannschaftUebersicht from './MannschaftUebersicht'
+import MannschaftTraining from './MannschaftTraining'
 
 const TABS = [
   { path: 'uebersicht',   label: '📊 Übersicht'     },
@@ -11,6 +12,7 @@ const TABS = [
   { path: 'verletzungen', label: '🏥 Verletzungen'   },
   { path: 'statistiken',  label: '📈 Statistiken'    },
   { path: 'scouting',     label: '🔍 Scouting'       },
+  { path: 'training',    label: '🏃 Training'       },
 ]
 
 export default function MannschaftHub() {
@@ -37,6 +39,7 @@ export default function MannschaftHub() {
         <Route path="verletzungen" element={<MannschaftVerletzungen />} />
         <Route path="statistiken"  element={<MannschaftStatistiken />} />
         <Route path="scouting"     element={<MannschaftScouting />} />
+        <Route path="training/*"   element={<MannschaftTraining />} />
       </Routes>
     </div>
   )
