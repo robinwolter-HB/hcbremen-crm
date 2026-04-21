@@ -682,6 +682,8 @@ function SpielDetail() {
   const { id } = useParams()
   const navigate   = useNavigate()
   const { profile } = useAuth()
+  const isStaff   = profile?.rolle === 'admin' || (profile?.bereiche||[]).includes('mannschaft')
+  const isSpieler = profile?.rolle === 'spieler'
 
   const [spiel, setSpiel]           = useState(null)
   const [ereignisse, setEreignisse] = useState([])
