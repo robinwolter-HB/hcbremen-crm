@@ -152,7 +152,7 @@ function SpielListe() {
     setSaving(true)
     const { data } = await supabase.from('spiele').insert({ ...form, saison_id:form.saison_id||null, anstoss:form.anstoss||null, erstellt_von:profile.id }).select().single()
     setSaving(false); setShowForm(false)
-    if (data) navigate(`/mannschaft/statistik/${data.id}`)
+    if (data) navigate(`/mannschaft/spieltracking/${data.id}`)
   }
 
   const geplant   = spiele.filter(s=>s.status==='geplant')
@@ -230,19 +230,19 @@ function SpielListe() {
           {laufend.length>0 && (
             <div style={{ marginBottom:20 }}>
               <div style={{ fontSize:12, fontWeight:700, color:'var(--red)', textTransform:'uppercase', letterSpacing:1, marginBottom:8 }}>🔴 Live ({laufend.length})</div>
-              {laufend.map(s=><SpielKarte key={s.id} spiel={s} onClick={()=>navigate(`/mannschaft/statistik/${s.id}`)} />)}
+              {laufend.map(s=><SpielKarte key={s.id} spiel={s} onClick={()=>navigate(`/mannschaft/spieltracking/${s.id}`)} />)}
             </div>
           )}
           {geplant.length>0 && (
             <div style={{ marginBottom:20 }}>
               <div style={{ fontSize:12, fontWeight:700, color:'var(--gray-400)', textTransform:'uppercase', letterSpacing:1, marginBottom:8 }}>Geplant ({geplant.length})</div>
-              {geplant.map(s=><SpielKarte key={s.id} spiel={s} onClick={()=>navigate(`/mannschaft/statistik/${s.id}`)} />)}
+              {geplant.map(s=><SpielKarte key={s.id} spiel={s} onClick={()=>navigate(`/mannschaft/spieltracking/${s.id}`)} />)}
             </div>
           )}
           {beendet.length>0 && (
             <div>
               <div style={{ fontSize:12, fontWeight:700, color:'var(--gray-400)', textTransform:'uppercase', letterSpacing:1, marginBottom:8 }}>Beendet ({beendet.length})</div>
-              {beendet.slice(0,10).map(s=><SpielKarte key={s.id} spiel={s} onClick={()=>navigate(`/mannschaft/statistik/${s.id}`)} />)}
+              {beendet.slice(0,10).map(s=><SpielKarte key={s.id} spiel={s} onClick={()=>navigate(`/mannschaft/spieltracking/${s.id}`)} />)}
             </div>
           )}
           {spiele.length===0 && <div className="empty-state card"><p>Noch keine Spiele für diese Mannschaft.</p></div>}
