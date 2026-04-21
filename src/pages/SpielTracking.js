@@ -95,11 +95,133 @@ const TOR_BEREICHE = [
   { id:'rechts_unten', label:'RU', x:80, y:75 },
 ]
 
+function extractYoutubeId(url) {
+  if (!url) return null
+  const m = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/)
+  return m?.[1] || null
+}
+
 // ── OFFLINE QUEUE ─────────────────────────────────────────────
 const QUEUE_KEY = 'hcb_tracking_queue'
 function getQueue() { try { return JSON.parse(localStorage.getItem(QUEUE_KEY)||'[]') } catch { return [] } }
 function addToQueue(item) { const q = getQueue(); q.push(item); localStorage.setItem(QUEUE_KEY, JSON.stringify(q)) }
 function clearQueue() { localStorage.removeItem(QUEUE_KEY) }
+
+
+// ── VIDEO TAB ────────────────────────────────────────────────
+function VideoTab({ spiel, onUpdate }) {
+  const { profile } = useAuth()
+  const isStaff = profile?.rolle === 'admin' || (profile?.bereiche||[]).includes('mannschaft')
+  const isSpieler = profile?.rolle === 'spieler'
+  const [url, setUrl] = useState(spiel?.youtube_url || '')
+  const [saving, setSaving] = useState(false)
+  const [editUrl, setEditUrl] = useState(false)
+  const playerDivRef = useRef(null)
+  const playerRef = useRef(null)
+  const [playerReady, setPlayerReady] = useState(false)
+
+  const ytId = spiel?.youtube_id || extractYoutubeId(spiel?.youtube_url)
+
+  // YouTube Player init
+  useEffect(() => {
+    if (!ytId) return
+    if (!document.getElementById('yt-iframe-api')) {
+      const tag = document.createElement('script')
+      tag.id = 'yt-iframe-api'
+      tag.src = 'https://www.youtube.com/iframe_api'
+      document.head.appendChild(tag)
+    }
+    const poll = setInterval(() => {
+      if (window.YT?.Player && playerDivRef.current && !playerRef.current) {
+        clearInterval(poll)
+        try {
+          playerRef.current = new window.YT.Player(playerDivRef.current, {
+            width: '100%', height: '100%',
+            videoId: ytId,
+            playerVars: { rel:0, modestbranding:1, origin: window.location.origin },
+            events: { onReady: () => setPlayerReady(true) }
+          })
+        } catch(e) {}
+      }
+    }, 200)
+    return () => {
+      clearInterval(poll)
+      try { if (playerRef.current) playerRef.current.destroy() } catch(e) {}
+      playerRef.current = null
+    }
+  }, [ytId])
+
+  async function urlSpeichern() {
+    setSaving(true)
+    const id = extractYoutubeId(url)
+    await supabase.from('spiele').update({ youtube_url: url||null, youtube_id: id||null }).eq('id', spiel.id)
+    setSaving(false); setEditUrl(false); onUpdate()
+  }
+
+  return (
+    <div>
+      {/* URL Management (nur Staff) */}
+      {isStaff && (
+        <div className="card" style={{ marginBottom:12, padding:'12px 16px' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' }}>
+            <span style={{ fontSize:13, fontWeight:600, color:'var(--navy)' }}>📹 Spielvideo</span>
+            {!editUrl ? (
+              <>
+                {ytId
+                  ? <span style={{ fontSize:12, color:'var(--green)' }}>✓ Video verknüpft</span>
+                  : <span style={{ fontSize:12, color:'var(--gray-400)' }}>Noch kein Video hinterlegt</span>
+                }
+                <button onClick={()=>setEditUrl(true)} className="btn btn-sm btn-outline">{ytId?'URL ändern':'+ Video hinzufügen'}</button>
+              </>
+            ) : (
+              <div style={{ display:'flex', gap:8, flex:1, flexWrap:'wrap' }}>
+                <input
+                  value={url}
+                  onChange={e=>setUrl(e.target.value)}
+                  placeholder="https://www.youtube.com/watch?v=… oder Livestream-URL"
+                  style={{ flex:1, minWidth:240, padding:'6px 10px', border:'1.5px solid var(--gray-200)', borderRadius:'var(--radius)', fontSize:13 }}
+                  autoFocus
+                />
+                {url && extractYoutubeId(url) && <span style={{ fontSize:11, color:'var(--green)', alignSelf:'center' }}>✓</span>}
+                {url && !extractYoutubeId(url) && <span style={{ fontSize:11, color:'var(--red)', alignSelf:'center' }}>⚠️ Ungültige URL</span>}
+                <button onClick={urlSpeichern} className="btn btn-sm btn-primary" disabled={saving}>{saving?'…':'Speichern'}</button>
+                <button onClick={()=>{ setUrl(spiel?.youtube_url||''); setEditUrl(false) }} className="btn btn-sm btn-outline">Abbrechen</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Video Player */}
+      {ytId ? (
+        <div>
+          <div style={{ position:'relative', paddingBottom:'56.25%', background:'#000', borderRadius:'var(--radius)', overflow:'hidden' }}>
+            <div ref={playerDivRef} style={{ position:'absolute', top:0, left:0, width:'100%', height:'100%' }}/>
+            {!playerReady && (
+              <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:8, color:'white' }}>
+                <div style={{ fontSize:40 }}>▶</div>
+                <div style={{ fontSize:13, opacity:0.7 }}>Video lädt…</div>
+              </div>
+            )}
+          </div>
+          <div style={{ marginTop:10, fontSize:12, color:'var(--gray-400)', textAlign:'center' }}>
+            {spiel.gegner && `HC Bremen vs. ${spiel.gegner}`}
+            {spiel.datum && ` · ${new Date(spiel.datum+'T00:00:00').toLocaleDateString('de-DE',{day:'numeric',month:'long',year:'numeric'})}`}
+          </div>
+        </div>
+      ) : (
+        <div className="empty-state card">
+          <div style={{ fontSize:40, marginBottom:12 }}>📹</div>
+          <p style={{ fontWeight:600, marginBottom:4 }}>Noch kein Video hinterlegt</p>
+          {isStaff
+            ? <p style={{ fontSize:13, color:'var(--gray-400)' }}>Füge eine YouTube-URL hinzu um das Spielvideo für alle Spieler sichtbar zu machen.</p>
+            : <p style={{ fontSize:13, color:'var(--gray-400)' }}>Das Video wird nach dem Spiel hier verfügbar sein.</p>
+          }
+        </div>
+      )}
+    </div>
+  )
+}
 
 // ── SPIEL LISTE ───────────────────────────────────────────────
 function SpielListe() {
@@ -819,6 +941,11 @@ function SpielDetail() {
             </div>
           )}
         </div>
+      )}
+
+      {/* TAB: VIDEO */}
+      {tab==='video' && (
+        <VideoTab spiel={spiel} onUpdate={load} />
       )}
 
       {/* TAB: AUSWERTUNG */}
