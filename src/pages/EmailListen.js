@@ -68,7 +68,7 @@ export default function EmailListen() {
 
   async function sponsorenImportieren() {
     // Alle Ansprechpartner mit Email laden
-    const { data: ap } = await supabase.from('kontakt_ansprechpartner')
+    const { data: ap } = await supabase.from('ansprechpartner')
       .select('id,vorname,nachname,email,kontakt:kontakt_id(id,firma,status,paket)')
       .not('email', 'is', null)
       .neq('email', '')
