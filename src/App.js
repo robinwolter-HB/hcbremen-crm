@@ -12,6 +12,7 @@ import Events from './pages/Events'
 import Sponsoring from './pages/Sponsoring'
 import Benutzer from './pages/Benutzer'
 import MeineAufgaben from './pages/MeineAufgaben'
+import EmailListen from './pages/EmailListen'
 import Kalender from './pages/Kalender'
 import EmailModal from './components/EmailModal'
 import Einstellungen from './pages/Einstellungen'
@@ -136,6 +137,7 @@ function Header() {
   const aktivItems = [
     ...(canAccess('historie') ? [{ to:'/historie', label:'📋 Historie' }] : []),
     { to:'/aufgaben', label:'✓ Aufgaben' },
+    { to:'/email-listen', label:'📧 Email-Listen' },
     { to:'/kalender', label:'📅 Kalender' },
     { to:'/inbox', label:'📬 Inbox', badge: unreadCount },
   ]
@@ -204,6 +206,7 @@ function App() {
             <Route path="/sponsoring" element={<PrivateRoute bereich="sponsoring"><Sponsoring /></PrivateRoute>} />
             <Route path="/benutzer" element={<PrivateRoute><Benutzer /></PrivateRoute>} />
             <Route path="/aufgaben" element={<PrivateRoute><MeineAufgaben /></PrivateRoute>} />
+            <Route path="/email-listen" element={<PrivateRoute><EmailListen /></PrivateRoute>} />
             <Route path="/kalender" element={<PrivateRoute><Kalender /></PrivateRoute>} />
             <Route path="/einstellungen/gegner/*" element={<PrivateRoute bereich="mannschaft"><GegnerVerwaltung /></PrivateRoute>} />
             <Route path="/einstellungen" element={<PrivateRoute><Einstellungen /></PrivateRoute>} />
