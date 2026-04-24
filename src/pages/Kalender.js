@@ -18,6 +18,7 @@ const EVENT_TYPES = {
   media_aufgabe:    { farbe: '#0ea5e9', label: 'Media Aufgabe',     icon: '🎬'  },
   training:         { farbe: '#3a8a5a', label: 'Training',           icon: '🏃'  },
   spiel:            { farbe: '#0f2240', label: 'Spiel',              icon: '🏐'  },
+  geburtstag:       { farbe: '#e91e8c', label: 'Geburtstag',         icon: '🎂'  },
 }
 
 export default function Kalender() {
@@ -144,6 +145,35 @@ export default function Kalender() {
         ergebnis: s.status==='beendet' ? s.endstand_eigene+':'+s.endstand_gegner : null,
       }))
     }
+
+    // Geburtstage laden (Ansprechpartner)
+    const { data: geb } = await supabase.from('ansprechpartner')
+      .select('id,vorname,nachname,geburtsdatum,kontakt:kontakt_id(firma)')
+      .not('geburtsdatum', 'is', null)
+      .eq('aktiv', true)
+
+    const heute = new Date()
+    ;(geb||[]).forEach(ap => {
+      if (!ap.geburtsdatum) return
+      const [, mm, dd] = ap.geburtsdatum.split('-')
+      // Dieses Jahr
+      const diesJahr = new Date(heute.getFullYear(), parseInt(mm)-1, parseInt(dd))
+      // Nächstes Jahr falls schon vorbei
+      const naechstesJahr = new Date(heute.getFullYear()+1, parseInt(mm)-1, parseInt(dd))
+      const alter = heute.getFullYear() - parseInt(ap.geburtsdatum.split('-')[0])
+      ;[diesJahr, naechstesJahr].forEach(datum => {
+        alle.push({
+          id: `geb-${ap.id}-${datum.getFullYear()}`,
+          type: 'geburtstag',
+          datum,
+          titel: `🎂 ${ap.vorname} ${ap.nachname}`,
+          untertitel: (ap.kontakt?.firma||'') + ` · ${alter} Jahre`,
+          uhrzeit: null,
+          farbe: '#e91e8c',
+          link: null,
+        })
+      })
+    })
 
     setKalenderEvents(alle)
     setLoading(false)
