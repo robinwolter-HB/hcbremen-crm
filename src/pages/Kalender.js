@@ -148,26 +148,23 @@ export default function Kalender() {
 
     // Geburtstage laden (Ansprechpartner)
     const { data: geb } = await supabase.from('ansprechpartner')
-      .select('id,vorname,nachname,geburtsdatum,kontakt:kontakt_id(firma)')
+      .select('id,name,geburtsdatum,kontakt:kontakt_id(firma)')
       .not('geburtsdatum', 'is', null)
-      .eq('aktiv', true)
 
     const heute = new Date()
     ;(geb||[]).forEach(ap => {
       if (!ap.geburtsdatum) return
-      const [, mm, dd] = ap.geburtsdatum.split('-')
-      // Dieses Jahr
+      const [gebJahr, mm, dd] = ap.geburtsdatum.split('-')
       const diesJahr = new Date(heute.getFullYear(), parseInt(mm)-1, parseInt(dd))
-      // Nächstes Jahr falls schon vorbei
       const naechstesJahr = new Date(heute.getFullYear()+1, parseInt(mm)-1, parseInt(dd))
-      const alter = heute.getFullYear() - parseInt(ap.geburtsdatum.split('-')[0])
+      const alter = heute.getFullYear() - parseInt(gebJahr)
       ;[diesJahr, naechstesJahr].forEach(datum => {
         alle.push({
           id: `geb-${ap.id}-${datum.getFullYear()}`,
           type: 'geburtstag',
           datum,
-          titel: `🎂 ${ap.vorname} ${ap.nachname}`,
-          untertitel: (ap.kontakt?.firma||'') + ` · ${alter} Jahre`,
+          titel: `🎂 ${ap.name}`,
+          untertitel: (ap.kontakt?.firma||'') + (alter > 0 ? ` · ${alter} Jahre` : ''),
           uhrzeit: null,
           farbe: '#e91e8c',
           link: null,
