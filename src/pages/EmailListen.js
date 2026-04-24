@@ -69,7 +69,7 @@ export default function EmailListen() {
   async function sponsorenImportieren() {
     // Alle Ansprechpartner mit Email laden
     const { data: ap } = await supabase.from('ansprechpartner')
-      .select('id,vorname,nachname,email,kontakt:kontakt_id(id,firma,status,paket)')
+      .select('id,name,email,kontakt:kontakt_id(id,firma,status,paket)')
       .not('email', 'is', null)
       .neq('email', '')
     setImportKontakte(ap||[])
@@ -83,7 +83,7 @@ export default function EmailListen() {
     const inserts = importSelected.map(ap => ({
       liste_id: aktive.id,
       email: ap.email.toLowerCase(),
-      name: `${ap.vorname||''} ${ap.nachname||''}`.trim() || ap.email,
+      name: ap.name || ap.email,
       kontakt_id: ap.kontakt?.id || null,
       ansprechpartner_id: ap.id,
     }))
@@ -244,7 +244,7 @@ export default function EmailListen() {
                       style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px', borderRadius:'var(--radius)', border:`1.5px solid ${sel?'var(--navy)':'var(--gray-200)'}`, background:sel?'#eef2fa':'var(--white)', cursor:'pointer' }}>
                       <input type="checkbox" checked={sel} readOnly style={{ flexShrink:0 }}/>
                       <div style={{ flex:1 }}>
-                        <div style={{ fontWeight:600, fontSize:13 }}>{ap.vorname} {ap.nachname}</div>
+                        <div style={{ fontWeight:600, fontSize:13 }}>{ap.name}</div>
                         <div style={{ fontSize:11, color:'var(--gray-400)' }}>{ap.email} · {ap.kontakt?.firma}</div>
                       </div>
                     </div>
