@@ -392,13 +392,37 @@ function EventDetail({ ev, teilnahmen=[], todos=[], ablauf=[], dateien=[], koste
     loadDetails(ev.id)
   }
 
-  async function saveTodo() {
-    if (!todoForm.titel?.trim()) return
+ async function saveTodo() {
+    const titel = todoForm.titel?.trim()
+    if (!titel) {
+      alert('Bitte einen Titel eingeben.')
+      return
+    }
     setSaving(true)
-    const p = { event_id:ev.id, titel:todoForm.titel, beschreibung:todoForm.beschreibung||null, zugewiesen_an:todoForm.zugewiesen_an||null, faellig_am:todoForm.faellig_am||null, status:todoForm.status||'Offen', prioritaet:todoForm.prioritaet||'Normal' }
-    if (todoForm.id) await supabase.from('event_todos').update(p).eq('id', todoForm.id)
-    else await supabase.from('event_todos').insert(p)
-    setTodoModal(false); setSaving(false); loadDetails(ev.id)
+    const p = {
+      event_id: ev.id,
+      titel: titel,
+      beschreibung: todoForm.beschreibung||null,
+      zugewiesen_an: todoForm.zugewiesen_an||null,
+      faellig_am: todoForm.faellig_am||null,
+      status: todoForm.status||'Offen',
+      prioritaet: todoForm.prioritaet||'Normal'
+    }
+    try {
+      if (todoForm.id) {
+        const { error } = await supabase.from('event_todos').update(p).eq('id', todoForm.id)
+        if (error) throw error
+      } else {
+        const { error } = await supabase.from('event_todos').insert(p)
+        if (error) throw error
+      }
+      setTodoModal(false)
+      loadDetails(ev.id)
+    } catch (err) {
+      alert('Fehler beim Speichern: ' + err.message)
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function toggleTodo(t) {
